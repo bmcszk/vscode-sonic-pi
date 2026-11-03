@@ -157,6 +157,10 @@ export function activate(context: vscode.ExtensionContext) {
 		main.stopAllJobs()
 	})
 
+	disposable = vscode.commands.registerCommand('vscode-sonic-pi.restartserver', () => {
+		void main.restartServer()
+	})
+
 	disposable = vscode.commands.registerCommand('vscode-sonic-pi.togglerecording', () => {
 		isRecording = !isRecording
 		if (isRecording) {

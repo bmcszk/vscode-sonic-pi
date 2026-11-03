@@ -66,6 +66,11 @@ export class Main {
 	cuesOutput: vscode.OutputChannel
 
 	serverStarted: boolean
+	daemonProcess: any
+
+	// Timestamp of the last 'connection lost' notification, to debounce
+	// the burst of reconnect lines the daemon prints per audio outage.
+	lastAudioLossNotifiedAt = 0
 
 	platform: string
 	guiUuid: any
@@ -424,6 +429,7 @@ export class Main {
 
 		return new Promise<void>((resolve, reject) => {
 			let ruby_server = child_process.spawn(this.rubyPath, args)
+		this.daemonProcess = ruby_server
 			ruby_server.stdout.on('data', (data: any) => {
 				// console.log(`stdout: ${data}`)
 				this.logOutput.appendLine(`Daemon Out: ${data}`)
@@ -449,9 +455,40 @@ export class Main {
 
 			ruby_server.stderr.on('data', (data: any) => {
 				// console.log(`stdserr: ${data}`)
-				this.logOutput.appendLine(`Daemon Err: ${data}`)
+				this.onDaemonStderr(data.toString())
 			})
 		})
+	}
+
+	onDaemonStderr(line: string): void {
+		this.logOutput.appendLine(`Daemon Err: ${line}`)
+		this.detectAudioServerLoss(line)
+	}
+
+	// SuperSonic dies with the environment (suspend/resume, output-device switch); the daemon
+	// reconnects but audio may stay dead. Offer a full server restart, once per outage window.
+	detectAudioServerLoss(line: string): void {
+		if (!/connection lost/.test(line) || !/reconnect/.test(line)) return
+		const now = Date.now()
+		if (now - this.lastAudioLossNotifiedAt < 30000) return
+		this.lastAudioLossNotifiedAt = now
+		this.logOutput.appendLine('Sonic Pi: audio server connection lost - offering Restart Server')
+		void vscode.window
+			.showErrorMessage('Sonic Pi: Audio server connection lost', 'Restart Server')
+			.then((action) => {
+				if (action === 'Restart Server') void this.restartServer()
+			})
+	}
+
+	// Kill the current daemon and boot a fresh one, bringing back a dead audio server.
+	async restartServer(): Promise<void> {
+		this.logOutput.appendLine('Restarting Sonic Pi server...')
+		if (this.daemonProcess) {
+			this.daemonProcess.kill()
+			this.daemonProcess = null
+		}
+		this.serverStarted = false
+		await this.startServer()
 	}
 
 	updateMixerSettings() {
