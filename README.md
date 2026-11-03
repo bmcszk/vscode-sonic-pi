@@ -22,3 +22,9 @@ Liked this Project?
 I really welcome **Pull Requests** !
 You can also **support** me by sending me a :coffee:
 [Coffee](https://paypal.me/lukasbachschwell/5).
+
+## Fork notes
+
+Forked from [s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi) to target Sonic Pi 5 and Linux support.
+Evidence for the Sonic Pi 5 daemon protocol and install layout lives in `docs/research/`; the issue ledger lives in `.beans/`.
+Planned fixes are tracked as beans in `.beans/`, not as feature documentation here.
