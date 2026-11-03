@@ -1,0 +1,193 @@
+{
+  "live_loop": {
+    "prefix": "ll",
+    "body": [
+      "live_loop :${1:nombre} do",
+      "  use_bpm ${2:120}",
+      "  $0",
+      "  sleep ${3:1}",
+      "end"
+    ],
+    "description": "Live loop — se recarga en caliente"
+  },
+
+  "live_loop_synth": {
+    "prefix": "lls",
+    "body": [
+      "live_loop :${1:melodia} do",
+      "  use_synth :${2:beep}",
+      "  play :${3:C4}, attack: ${4:0.1}, release: ${5:0.5}",
+      "  sleep ${6:0.5}",
+      "end"
+    ],
+    "description": "Live loop con sintetizador"
+  },
+
+  "live_loop_sample": {
+    "prefix": "llb",
+    "body": [
+      "live_loop :${1:beats} do",
+      "  sample :${2:bd_haus}",
+      "  sleep ${3:0.5}",
+      "  sample :${4:sn_dub}",
+      "  sleep ${5:0.5}",
+      "end"
+    ],
+    "description": "Live loop de batería con samples"
+  },
+
+  "with_fx": {
+    "prefix": "fx",
+    "body": [
+      "with_fx :${1:reverb}, ${2:room: 0.8} do",
+      "  $0",
+      "end"
+    ],
+    "description": "Bloque de efecto de audio"
+  },
+
+  "with_synth": {
+    "prefix": "ws",
+    "body": [
+      "with_synth :${1:beep} do",
+      "  play :${2:C4}, release: ${3:1}",
+      "end"
+    ],
+    "description": "Bloque de sintetizador"
+  },
+
+  "in_thread": {
+    "prefix": "th",
+    "body": [
+      "in_thread do",
+      "  $0",
+      "end"
+    ],
+    "description": "Hilo paralelo"
+  },
+
+  "play_chord": {
+    "prefix": "pc",
+    "body": [
+      "play_chord [:${1:C4}, :${2:E4}, :${3:G4}], attack: ${4:0.1}, release: ${5:1}"
+    ],
+    "description": "Reproducir un acorde"
+  },
+
+  "play_pattern_timed": {
+    "prefix": "ppt",
+    "body": [
+      "play_pattern_timed [${1::C4, :E4, :G4}], [${2:0.5, 0.5, 1}]"
+    ],
+    "description": "Patrón de notas con tiempos"
+  },
+
+  "sample": {
+    "prefix": "sa",
+    "body": [
+      "sample :${1:bd_haus}, amp: ${2:1}, rate: ${3:1}"
+    ],
+    "description": "Reproducir un sample"
+  },
+
+  "use_bpm": {
+    "prefix": "bpm",
+    "body": ["use_bpm ${1:120}"],
+    "description": "Establecer tempo"
+  },
+
+  "use_synth": {
+    "prefix": "us",
+    "body": ["use_synth :${1:beep}"],
+    "description": "Cambiar sintetizador activo"
+  },
+
+  "with_fx_reverb": {
+    "prefix": "fxr",
+    "body": [
+      "with_fx :reverb, room: ${1:0.8}, mix: ${2:0.5} do",
+      "  $0",
+      "end"
+    ],
+    "description": "FX: Reverb"
+  },
+
+  "with_fx_echo": {
+    "prefix": "fxe",
+    "body": [
+      "with_fx :echo, phase: ${1:0.5}, decay: ${2:4}, mix: ${3:0.5} do",
+      "  $0",
+      "end"
+    ],
+    "description": "FX: Echo"
+  },
+
+  "with_fx_distortion": {
+    "prefix": "fxd",
+    "body": [
+      "with_fx :distortion, distort: ${1:0.5} do",
+      "  $0",
+      "end"
+    ],
+    "description": "FX: Distorsión"
+  },
+
+  "with_fx_lpf": {
+    "prefix": "fxl",
+    "body": [
+      "with_fx :lpf, cutoff: ${1:80} do",
+      "  $0",
+      "end"
+    ],
+    "description": "FX: Low Pass Filter"
+  },
+
+  "use_random_seed": {
+    "prefix": "seed",
+    "body": ["use_random_seed ${1:42}"],
+    "description": "Fijar semilla aleatoria (reproducibilidad)"
+  },
+
+  "choose": {
+    "prefix": "ch",
+    "body": [
+      "${1:[:C4, :E4, :G4]}.choose"
+    ],
+    "description": "Elegir elemento aleatorio de una lista"
+  },
+
+  "ring": {
+    "prefix": "rng",
+    "body": [
+      "(ring ${1::C4, :E4, :G4})"
+    ],
+    "description": "Secuencia cíclica (ring)"
+  },
+
+  "tick": {
+    "prefix": "tick",
+    "body": [
+      "${1:(ring :C4, :E4, :G4)}.tick"
+    ],
+    "description": "Avanzar índice del ring con tick"
+  },
+
+  "cue_sync": {
+    "prefix": "cue",
+    "body": [
+      "cue :${1:evento}",
+      "sync :${1:evento}"
+    ],
+    "description": "Par cue/sync para sincronizar loops"
+  },
+
+  "comment_section": {
+    "prefix": "##",
+    "body": [
+      "# ─────────────────────────────────────",
+      "# ${1:Sección}",
+      "# ─────────────────────────────────────"
+    ],
+    "description": "Separador de sección comentado"
+  }
+}

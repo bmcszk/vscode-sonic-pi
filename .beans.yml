@@ -1,0 +1,6 @@
+beans:
+    path: .beans
+    prefix: sonic-pi-
+    id_length: 4
+    default_status: draft
+    default_type: task

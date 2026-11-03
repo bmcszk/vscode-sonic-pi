@@ -1,0 +1,1430 @@
+{
+  "synths": [
+    {
+      "key": "dull_bell",
+      "doc": "A simple dull discordant bell sound.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve"
+      ]
+    },
+    {
+      "key": "pretty_bell",
+      "doc": "A pretty bell sound. Works well with short attacks and long decays.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve"
+      ]
+    },
+    {
+      "key": "beep",
+      "doc": "A simple pure sine wave. The sine wave is the simplest, purest sound there is and is the fundamental building block of a",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve"
+      ]
+    },
+    {
+      "key": "sine",
+      "doc": "A simple pure sine wave. The sine wave is the simplest, purest sound there is and is the fundamental building block of a",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve"
+      ]
+    },
+    {
+      "key": "saw",
+      "doc": "A saw wave with a low pass filter. Great for using with FX such as the built in low pass filter (available via the cutof",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve"
+      ]
+    },
+    {
+      "key": "pulse",
+      "doc": "A simple pulse wave with a low pass filter. This defaults to a square wave, but the timbre can be changed dramatically b",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "pulse_width"
+      ]
+    },
+    {
+      "key": "subpulse",
+      "doc": "A pulse wave with a sub sine wave passed through a low pass filter. The pulse wave is thick and heavy with lower notes a",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "pulse_width",
+        "sub_amp",
+        "sub_detune"
+      ]
+    },
+    {
+      "key": "square",
+      "doc": "A simple square wave with a low pass filter. The square wave is thick and heavy with lower notes and is a great ingredie",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff"
+      ]
+    },
+    {
+      "key": "tri",
+      "doc": "A simple triangle wave with a low pass filter.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "pulse_width"
+      ]
+    },
+    {
+      "key": "dsaw",
+      "doc": "A pair of detuned saw waves passed through a low pass filter. Two saw waves with slightly different frequencies generate",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "detune"
+      ]
+    },
+    {
+      "key": "dpulse",
+      "doc": "A pair of detuned pulse waves passed through a low pass filter. Two pulse waves with slightly different frequencies gene",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "detune",
+        "pulse_width",
+        "dpulse_width"
+      ]
+    },
+    {
+      "key": "dtri",
+      "doc": "A pair of detuned triangle waves passed through a low pass filter. Two pulse waves with slightly different frequencies g",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "detune"
+      ]
+    },
+    {
+      "key": "fm",
+      "doc": "A sine wave with a fundamental frequency which is modulated at audio rate by another sine wave with a specific modulatio",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "divisor",
+        "depth"
+      ]
+    },
+    {
+      "key": "mod_fm",
+      "doc": "The FM synth modulating between two notes - the duration of the modulation can be modified using the mod_phase arg, the ",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "divisor",
+        "depth",
+        "mod_phase",
+        "mod_range",
+        "mod_pulse_width",
+        "mod_phase_offset",
+        "mod_invert_wave",
+        "mod_wave"
+      ]
+    },
+    {
+      "key": "mod_saw",
+      "doc": "A saw wave passed through a low pass filter which modulates between two separate notes via a variety of control waves.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "mod_phase",
+        "mod_range",
+        "mod_pulse_width",
+        "mod_phase_offset",
+        "mod_invert_wave",
+        "mod_wave"
+      ]
+    },
+    {
+      "key": "mod_dsaw",
+      "doc": "A pair of detuned saw waves (see the dsaw synth) which are modulated between two fixed notes at a given rate.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "mod_phase",
+        "mod_range",
+        "mod_pulse_width",
+        "mod_phase_offset",
+        "mod_invert_wave",
+        "mod_wave",
+        "detune"
+      ]
+    },
+    {
+      "key": "mod_sine",
+      "doc": "A sine wave passed through a low pass filter which modulates between two separate notes via a variety of control waves.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "mod_phase",
+        "mod_range",
+        "mod_pulse_width",
+        "mod_phase_offset",
+        "mod_invert_wave",
+        "mod_wave"
+      ]
+    },
+    {
+      "key": "mod_beep",
+      "doc": "A sine wave passed through a low pass filter which modulates between two separate notes via a variety of control waves.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "mod_phase",
+        "mod_range",
+        "mod_pulse_width",
+        "mod_phase_offset",
+        "mod_invert_wave",
+        "mod_wave"
+      ]
+    },
+    {
+      "key": "mod_tri",
+      "doc": "A triangle wave passed through a low pass filter which modulates between two separate notes via a variety of control wav",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "mod_phase",
+        "mod_range",
+        "mod_pulse_width",
+        "mod_phase_offset",
+        "mod_invert_wave",
+        "mod_wave"
+      ]
+    },
+    {
+      "key": "mod_pulse",
+      "doc": "A pulse wave with a low pass filter modulating between two notes via a variety of control waves (see mod_wave: arg). The",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "mod_phase",
+        "mod_range",
+        "mod_pulse_width",
+        "mod_phase_offset",
+        "mod_invert_wave",
+        "mod_wave",
+        "pulse_width"
+      ]
+    },
+    {
+      "key": "tb303",
+      "doc": "Emulation of the classic Roland TB-303 Bass Line synthesiser. Overdrive the res (i.e. use very large values) for that cl",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "cutoff_min",
+        "cutoff_attack",
+        "cutoff_decay",
+        "cutoff_sustain",
+        "cutoff_release",
+        "cutoff_attack_level",
+        "cutoff_decay_level",
+        "cutoff_sustain_level",
+        "res",
+        "wave",
+        "pulse_width"
+      ]
+    },
+    {
+      "key": "supersaw",
+      "doc": "Thick swirly saw waves sparkling and moving about to create a rich trancy sound.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "hoover",
+      "doc": "Classic early 90's rave synth - 'a sort of slurry chorussy synth line like the classic Dominator by Human Resource'. Bas",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "prophet",
+      "doc": "Dark and swirly, this synth uses Pulse Width Modulation (PWM) to create a timbre which continually moves around. This ef",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "zawa",
+      "doc": "Saw wave with oscillating timbre. Produces moving saw waves with a unique character controllable with the control oscill",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "cutoff",
+        "res",
+        "phase",
+        "phase_offset",
+        "wave",
+        "invert_wave",
+        "range",
+        "disable_wave",
+        "pulse_width"
+      ]
+    },
+    {
+      "key": "dark_ambience",
+      "doc": "A slow rolling bass with a sparkle of light trying to escape the darkness. Great for an ambient sound.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res",
+        "detune1",
+        "detune2",
+        "noise",
+        "ring",
+        "room",
+        "reverb_time"
+      ]
+    },
+    {
+      "key": "growl",
+      "doc": "A deep rumbling growl with a bright sine shining through at higher notes.",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "hollow",
+      "doc": "A hollow breathy sound constructed from random noise",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res",
+        "noise",
+        "norm"
+      ]
+    },
+    {
+      "key": "mono_player",
+      "doc": "### Opts:\n  * amp:\n    - doc: The amplitude of the sound. Typically a value between 0 and 1. Higher amplitudes may be us",
+      "params": [
+        "amp",
+        "pre_amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff_attack",
+        "cutoff_decay",
+        "cutoff_sustain",
+        "cutoff_release",
+        "cutoff_attack_level",
+        "cutoff_decay_level",
+        "cutoff_sustain_level",
+        "cutoff_env_curve",
+        "cutoff_min",
+        "rate",
+        "start",
+        "finish",
+        "res",
+        "cutoff",
+        "norm",
+        "pitch",
+        "window_size",
+        "pitch_dis",
+        "time_dis",
+        "compress",
+        "threshold",
+        "clamp_time",
+        "slope_above",
+        "slope_below",
+        "relax_time"
+      ]
+    },
+    {
+      "key": "stereo_player",
+      "doc": "### Opts:\n  * amp:\n    - doc: The amplitude of the sound. Typically a value between 0 and 1. Higher amplitudes may be us",
+      "params": [
+        "amp",
+        "pre_amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff_attack",
+        "cutoff_decay",
+        "cutoff_sustain",
+        "cutoff_release",
+        "cutoff_attack_level",
+        "cutoff_decay_level",
+        "cutoff_sustain_level",
+        "cutoff_env_curve",
+        "cutoff_min",
+        "rate",
+        "start",
+        "finish",
+        "res",
+        "cutoff",
+        "norm",
+        "pitch",
+        "window_size",
+        "pitch_dis",
+        "time_dis",
+        "compress",
+        "threshold",
+        "clamp_time",
+        "slope_above",
+        "slope_below",
+        "relax_time"
+      ]
+    },
+    {
+      "key": "blade",
+      "doc": "Straight from the 70s, evoking the mists of Blade Runner, this simple electro-style string synth is based on filtered sa",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "vibrato_rate",
+        "vibrato_depth",
+        "vibrato_delay",
+        "vibrato_onset"
+      ]
+    },
+    {
+      "key": "piano",
+      "doc": "A basic piano synthesiser. Note that due to the plucked nature of this synth the envelope opts such as `attack:`, `susta",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "vel",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "hard",
+        "stereo_width"
+      ]
+    },
+    {
+      "key": "pluck",
+      "doc": "A basic plucked string synthesiser that uses Karplus-Strong synthesis. Note that due to the plucked nature of this synth",
+      "params": [
+        "note",
+        "amp",
+        "pan",
+        "attack",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay",
+        "decay_level",
+        "sustain_level",
+        "noise_amp",
+        "max_delay_time",
+        "pluck_decay",
+        "coef"
+      ]
+    },
+    {
+      "key": "sound_in",
+      "doc": "Please write documentation!",
+      "params": [
+        "amp",
+        "pan",
+        "input"
+      ]
+    },
+    {
+      "key": "noise",
+      "doc": "Noise that contains equal amounts of energy at every frequency - comparable to radio static. Useful for generating percu",
+      "params": [
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "pnoise",
+      "doc": "Noise whose spectrum falls off in power by 3 dB per octave. Useful for generating percussive sounds such as snares and h",
+      "params": [
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "bnoise",
+      "doc": "Noise whose spectrum falls off in power by 6 dB per octave. Useful for generating percussive sounds such as snares and h",
+      "params": [
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "gnoise",
+      "doc": "Generates noise which results from flipping random bits in a word. The spectrum is emphasised towards lower frequencies.",
+      "params": [
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "cnoise",
+      "doc": "Generates noise whose values are either -1 or 1. This produces the maximum energy for the least peak to peak amplitude. ",
+      "params": [
+        "amp",
+        "pan",
+        "attack",
+        "decay",
+        "sustain",
+        "release",
+        "attack_level",
+        "decay_level",
+        "sustain_level",
+        "env_curve",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "basic_mono_player",
+      "doc": "### Opts:\n  * amp:\n    - doc: The amplitude of the sound. Typically a value between 0 and 1. Higher amplitudes may be us",
+      "params": [
+        "amp",
+        "pan",
+        "rate",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "basic_stereo_player",
+      "doc": "### Opts:\n  * amp:\n    - doc: The amplitude of the sound. Typically a value between 0 and 1. Higher amplitudes may be us",
+      "params": [
+        "amp",
+        "pan",
+        "rate",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "basic_mixer",
+      "doc": "Please write documentation!",
+      "params": [
+        "amp"
+      ]
+    },
+    {
+      "key": "main_mixer",
+      "doc": "Please write documentation!",
+      "params": [
+        "amp",
+        "pre_amp",
+        "hpf",
+        "lpf",
+        "hpf_bypass",
+        "lpf_bypass",
+        "force_mono",
+        "invert_stereo",
+        "limiter_bypass",
+        "leak_dc_bypass"
+      ]
+    }
+  ],
+  "fx": [
+    {
+      "key": "bitcrusher",
+      "doc": "Creates lo-fi output by decimating and deconstructing the incoming audio by lowering both the sample rate and bit depth.",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "sample_rate",
+        "bits",
+        "cutoff"
+      ]
+    },
+    {
+      "key": "krush",
+      "doc": "Krush that sound!",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "gain",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "reverb",
+      "doc": "Make the incoming signal sound more spacious or distant as if it were played in a large room or cave. Signal may also be",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "room",
+        "damp"
+      ]
+    },
+    {
+      "key": "gverb",
+      "doc": "Make the incoming signal sound more spacious or distant as if it were played in a large room or cave. Similar to reverb ",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "spread",
+        "damp",
+        "pre_damp",
+        "dry",
+        "room",
+        "release",
+        "ref_level",
+        "tail_level"
+      ]
+    },
+    {
+      "key": "level",
+      "doc": "Amplitude modifier. All FX have their own amp built in, so it may be the case that you don't specifically need an isolat",
+      "params": [
+        "amp"
+      ]
+    },
+    {
+      "key": "echo",
+      "doc": "Standard echo with variable phase duration (time between echoes) and decay (length of echo fade out). If you wish to hav",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "phase",
+        "decay",
+        "max_phase"
+      ]
+    },
+    {
+      "key": "slicer",
+      "doc": "Modulates the amplitude of the input signal with a specific control wave and phase duration. With the default pulse wave",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "phase",
+        "amp_min",
+        "amp_max",
+        "pulse_width",
+        "phase_offset",
+        "wave",
+        "invert_wave",
+        "probability",
+        "prob_pos",
+        "seed",
+        "smooth",
+        "smooth_up",
+        "smooth_down"
+      ]
+    },
+    {
+      "key": "panslicer",
+      "doc": "Slice the pan automatically from left to right. Behaves similarly to slicer and wobble FX but modifies stereo panning of",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "phase",
+        "pan_min",
+        "pan_max",
+        "pulse_width",
+        "phase_offset",
+        "wave",
+        "invert_wave",
+        "probability",
+        "prob_pos",
+        "seed",
+        "smooth",
+        "smooth_up",
+        "smooth_down"
+      ]
+    },
+    {
+      "key": "wobble",
+      "doc": "Versatile wobble FX. Will repeatedly modulate a range of filters (rlpf, rhpf) between two cutoff values using a range of",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "phase",
+        "cutoff_min",
+        "cutoff_max",
+        "res",
+        "phase_offset",
+        "wave",
+        "invert_wave",
+        "pulse_width",
+        "filter",
+        "probability",
+        "prob_pos",
+        "seed",
+        "smooth",
+        "smooth_up",
+        "smooth_down"
+      ]
+    },
+    {
+      "key": "ixi_techno",
+      "doc": "Moving resonant low pass filter between min and max cutoffs. Great for sweeping effects across long synths or samples.",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "phase",
+        "phase_offset",
+        "cutoff_min",
+        "cutoff_max",
+        "res"
+      ]
+    },
+    {
+      "key": "compressor",
+      "doc": "Compresses the dynamic range of the incoming signal. Equivalent to automatically turning the amp down when the signal ge",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "threshold",
+        "clamp_time",
+        "slope_above",
+        "slope_below",
+        "relax_time"
+      ]
+    },
+    {
+      "key": "whammy",
+      "doc": "A cheap sounding transposition effect, with a slightly robotic edge. Good for adding alien sounds and harmonies to every",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "transpose",
+        "max_delay_time",
+        "deltime",
+        "grainsize"
+      ]
+    },
+    {
+      "key": "rlpf",
+      "doc": "Dampens the parts of the signal that are higher than the cutoff point (typically the crunchy fizzy harmonic overtones) a",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "nrlpf",
+      "doc": "Dampens the parts of the signal that are higher than the cutoff point (typically the crunchy fizzy harmonic overtones) a",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "rhpf",
+      "doc": "Dampens the parts of the signal that are lower than the cutoff point (typically the bass of the sound) and keeps the hig",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "nrhpf",
+      "doc": "Dampens the parts of the signal that are lower than the cutoff point (typically the bass of the sound) and keeps the hig",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "cutoff",
+        "res"
+      ]
+    },
+    {
+      "key": "hpf",
+      "doc": "Dampens the parts of the signal that are lower than the cutoff point (typically the bass of the sound) and keeps the hig",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "cutoff"
+      ]
+    },
+    {
+      "key": "nhpf",
+      "doc": "A high pass filter chained to a normaliser. Ensures that the signal is both filtered by a standard high pass filter and ",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "cutoff"
+      ]
+    },
+    {
+      "key": "lpf",
+      "doc": "Dampens the parts of the signal that are higher than the cutoff point (typically the crunchy fizzy harmonic overtones) a",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "cutoff"
+      ]
+    },
+    {
+      "key": "nlpf",
+      "doc": "A low pass filter chained to a normaliser. Ensures that the signal is both filtered by a standard low pass filter and th",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "cutoff"
+      ]
+    },
+    {
+      "key": "normaliser",
+      "doc": "Raise or lower amplitude of sound to a specified level. Evens out the amplitude of incoming sound across the frequency s",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "level"
+      ]
+    },
+    {
+      "key": "distortion",
+      "doc": "Distorts the signal reducing clarity in favour of raw crunchy noise.",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "distort"
+      ]
+    },
+    {
+      "key": "pan",
+      "doc": "Specify where in the stereo field the sound should be heard. A value of -1 for pan will put the sound in the left speake",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "pan"
+      ]
+    },
+    {
+      "key": "bpf",
+      "doc": "Combines low pass and high pass filters to only allow a 'band' of frequencies through. If the band is very narrow (a low",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "centre",
+        "res"
+      ]
+    },
+    {
+      "key": "nbpf",
+      "doc": "Like the Band Pass Filter but normalised. The normaliser is useful here as some volume is lost when filtering the origin",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "centre",
+        "res"
+      ]
+    },
+    {
+      "key": "rbpf",
+      "doc": "Like the Band Pass Filter but with a resonance (slight volume boost) around the target frequency. This can produce an in",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "centre",
+        "res"
+      ]
+    },
+    {
+      "key": "nrbpf",
+      "doc": "Like the Band Pass Filter but normalised, with a resonance (slight volume boost) around the target frequency. This can p",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "centre",
+        "res"
+      ]
+    },
+    {
+      "key": "band_eq",
+      "doc": "Attenuate or Boost a frequency band",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "freq",
+        "res",
+        "db"
+      ]
+    },
+    {
+      "key": "tanh",
+      "doc": "Please write documentation!",
+      "params": [
+        "amp",
+        "pre_amp",
+        "mix",
+        "krunch"
+      ]
+    },
+    {
+      "key": "pitch_shift",
+      "doc": "Changes the pitch of a signal without affecting tempo. Does this mainly through the pitch parameter which takes a midi n",
+      "params": [
+        "amp",
+        "pre_amp",
+        "mix",
+        "window_size",
+        "pitch",
+        "pitch_dis",
+        "time_dis"
+      ]
+    },
+    {
+      "key": "ring_mod",
+      "doc": "Attack of the Daleks! Ring mod is a classic effect often used on soundtracks to evoke robots or aliens as it sounds holl",
+      "params": [
+        "freq",
+        "amp",
+        "mix",
+        "pre_amp",
+        "mod_amp"
+      ]
+    },
+    {
+      "key": "octaver",
+      "doc": "This effect adds three pitches based on the input sound. The first is the original sound transposed up an octave (super_",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "super_amp",
+        "sub_amp",
+        "subsub_amp"
+      ]
+    },
+    {
+      "key": "vowel",
+      "doc": "This effect filters the input to match a human voice singing a certain vowel sound. Human singing voice sounds are easil",
+      "params": [
+        "amp",
+        "pre_amp",
+        "vowel_sound",
+        "voice"
+      ]
+    },
+    {
+      "key": "flanger",
+      "doc": "Mix the incoming signal with a copy of itself which has a rate modulating faster and slower than the original. Creates a",
+      "params": [
+        "amp",
+        "mix",
+        "pre_amp",
+        "phase",
+        "phase_offset",
+        "wave",
+        "invert_wave",
+        "stereo_invert_wave",
+        "delay",
+        "max_delay",
+        "depth",
+        "decay",
+        "feedback",
+        "invert_flange"
+      ]
+    }
+  ],
+  "samples": {
+    "Drum Sounds": [
+      "drum_heavy_kick",
+      "drum_tom_mid_soft",
+      "drum_tom_mid_hard",
+      "drum_tom_lo_soft",
+      "drum_tom_lo_hard",
+      "drum_tom_hi_soft",
+      "drum_tom_hi_hard",
+      "drum_splash_soft",
+      "drum_splash_hard",
+      "drum_snare_soft",
+      "drum_snare_hard",
+      "drum_cymbal_soft",
+      "drum_cymbal_hard",
+      "drum_cymbal_open",
+      "drum_cymbal_closed",
+      "drum_cymbal_pedal",
+      "drum_bass_soft",
+      "drum_bass_hard"
+    ],
+    "Electric Sounds": [
+      "elec_triangle",
+      "elec_snare",
+      "elec_lo_snare",
+      "elec_hi_snare",
+      "elec_mid_snare",
+      "elec_cymbal",
+      "elec_soft_kick",
+      "elec_filt_snare",
+      "elec_fuzz_tom",
+      "elec_chime",
+      "elec_bong",
+      "elec_twang",
+      "elec_wood",
+      "elec_pop",
+      "elec_beep",
+      "elec_blip",
+      "elec_blip2",
+      "elec_ping",
+      "elec_bell",
+      "elec_flip",
+      "elec_tick",
+      "elec_hollow_kick",
+      "elec_twip",
+      "elec_plip",
+      "elec_blup"
+    ],
+    "Sounds featuring guitars": [
+      "guit_harmonics",
+      "guit_e_fifths",
+      "guit_e_slide",
+      "guit_em9"
+    ],
+    "Miscellaneous Sounds": [
+      "misc_burp"
+    ],
+    "Percussive Sounds": [
+      "perc_bell",
+      "perc_snap",
+      "perc_snap2"
+    ],
+    "Ambient Sounds": [
+      "ambi_soft_buzz",
+      "ambi_swoosh",
+      "ambi_drone",
+      "ambi_glass_hum",
+      "ambi_glass_rub",
+      "ambi_haunted_hum",
+      "ambi_piano",
+      "ambi_lunar_land",
+      "ambi_dark_woosh",
+      "ambi_choir"
+    ],
+    "Bass Sounds": [
+      "bass_hit_c",
+      "bass_hard_c",
+      "bass_thick_c",
+      "bass_drop_c",
+      "bass_woodsy_c",
+      "bass_voxy_c",
+      "bass_voxy_hit_c",
+      "bass_dnb_f"
+    ],
+    "Snare Drums": [
+      "sn_dub",
+      "sn_dolf",
+      "sn_zome"
+    ],
+    "Bass Drums": [
+      "bd_ada",
+      "bd_pure",
+      "bd_808",
+      "bd_zum",
+      "bd_gas",
+      "bd_sone",
+      "bd_haus",
+      "bd_zome",
+      "bd_boom",
+      "bd_klub",
+      "bd_fat",
+      "bd_tek"
+    ],
+    "Sounds for Looping": [
+      "loop_industrial",
+      "loop_compus",
+      "loop_amen",
+      "loop_amen_full",
+      "loop_garzul",
+      "loop_mika",
+      "loop_breakbeat"
+    ],
+    "Arovane Beats": [
+      "arovane_beat_a",
+      "arovane_beat_b",
+      "arovane_beat_c",
+      "arovane_beat_d",
+      "arovane_beat_e"
+    ]
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "name": "sonic-pi-helper",
+  "displayName": "Sonic Pi Helper",
+  "description": "IntelliSense and live execution for Sonic Pi. Autocomplete synths, FX and samples with inline docs. Run code directly from VS Code.",
+  "version": "0.3.2",
+  "publisher": "zonagrisdigital",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zonagrisdigital/sonic-pi-helper"
+  },
+  "bugs": {
+    "url": "https://github.com/zonagrisdigital/sonic-pi-helper/issues"
+  },
+  "keywords": [
+    "sonic-pi",
+    "live coding",
+    "music",
+    "ruby",
+    "osc",
+    "SuperCollider",
+    "snippets",
+    "autocomplete",
+    "intellisense"
+  ],
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Other"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "sonic-pi",
+        "aliases": ["Sonic Pi", "sonic-pi"],
+        "extensions": [".rb"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "snippets": [
+      { "language": "sonic-pi", "path": "./snippets/sonic-pi.json" },
+      { "language": "ruby",     "path": "./snippets/sonic-pi.json" }
+    ],
+    "commands": [
+      {
+        "command": "sonicPi.run",
+        "title": "Sonic Pi: Run",
+        "icon": "$(play)"
+      },
+      {
+        "command": "sonicPi.stop",
+        "title": "Sonic Pi: Stop all",
+        "icon": "$(debug-stop)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sonicPi.run",
+        "key": "alt+r",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "sonicPi.stop",
+        "key": "alt+s",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch":   "tsc -watch -p ./",
+    "package": "npm run compile && npx @vscode/vsce package",
+    "publish": "npm run compile && npx @vscode/vsce publish"
+  },
+  "devDependencies": {
+    "@types/node":   "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce":  "^3.9.1",
+    "typescript":    "^5.3.0"
+  }
+}
