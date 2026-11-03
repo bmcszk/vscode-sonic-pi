@@ -1,11 +1,11 @@
 ---
 # sonic-pi-9qtk
 title: '- Linux daemon path wrong: root+/server/ruby/bin vs actual app/server/ruby/bin'
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-03T14:40:48Z
-updated_at: 2026-11-03T15:27:46Z
+updated_at: 2026-11-03T15:40:15Z
 parent: sonic-pi-sawd
 blocked_by:
     - sonic-pi-lz8o
@@ -37,3 +37,14 @@ Try `{root}/app/server/ruby/bin/daemon.rb` first (exists on pacman layout; macOS
 All edits confined to `src/source-runner/main.ts` path-selection + config default. Anything else → new draft bean.
 
 Refs: sonic-pi-sawd
+
+## Proof of Work
+
+Implemented (worker) + parent-verified 2026-11-03:
+- git diff src/ = 10-line change: else-branch default '/home/user/sonic-pi' → '/usr/lib/sonic-pi'; daemonLauncherPath now selected by new daemonLauncherPathFor() helper (fs.existsSync app-layout first, legacy fallback). win32 override + mac branch untouched (diff context only).
+- npm run build exit 0 (parent re-run after clean rm -rf out).
+- Parent re-proof (node -e, real fs, this machine): daemonLauncherPathFor('/usr/lib/sonic-pi') → /usr/lib/sonic-pi/app/server/ruby/bin/daemon.rb, exists on disk = true; built out/source-runner/main.js contains helper + '/usr/lib/sonic-pi' default; old placeholder absent.
+- macOS behavior preserved by construction: mac root has no app-nesting → helper falls back to upstream path {root}/server/ruby/bin/daemon.rb.
+- Bean-file diff in worktree = CLI status metadata from parent claim (todo→in-progress), not a worker edit.
+
+Residual: none for path selection; live-daemon spawn proof lands with 1lg0.

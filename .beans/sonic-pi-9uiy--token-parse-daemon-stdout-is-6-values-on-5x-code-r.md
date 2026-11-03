@@ -1,11 +1,11 @@
 ---
 # sonic-pi-9uiy
 title: '- Token parse: daemon stdout is 6 values on 5.x, code reads ports[7]'
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-03T14:40:48Z
-updated_at: 2026-11-03T15:27:46Z
+updated_at: 2026-11-03T15:56:40Z
 parent: sonic-pi-sawd
 blocked_by:
     - sonic-pi-lz8o
@@ -40,3 +40,15 @@ Token = last element of the split line: `parseInt(parts[parts.length-1])` — ro
 Only the stdout-parse block + the token-consumption sites change. Anything else → new draft bean.
 
 Refs: sonic-pi-sawd
+
+## Proof of Work
+
+Implemented (worker, attempt 2 after transient provider failure; attempt 1 died pre-edit, verified no partial state) + parent-verified 2026-11-03:
+- Red→green observed: behavior-preserving seam extraction first (ports[7] kept), tests written, red run '5 of 6 tests failed' (NaN vs expected on 6-value, negative, CRLF, garbage, empty), then fix, green 'all token parse tests passed'.
+- New seam src/source-runner/daemonstdout.ts: parseDaemonStdout() — trim+split(/\s+/), token = parseInt(last), null unless Number.isInteger. Handles v4 8-value and v5 6-value, negative tokens, CRLF.
+- main.ts parse block consumes the seam; null → logOutput(raw line) + reject before any OscSender construction (keep-alive cannot start with NaN). startServer() gained try/catch (adjacent defect: abort was previously an unhandled silent rejection).
+- Parent re-run: npm test exit 0 — 6 token-parse tests + 3 daemon-start-guard tests (real Main vs vscode stub + FakeOscSender: 6-value token reaches OSC, negative token reaches OSC, garbage line aborts with zero OSC sends).
+- Protocol verified against installed daemon: /usr/lib/sonic-pi/app/server/ruby/bin/daemon.rb:266 prints 6 values token-last; rand(-2147483647..2147483647) at L145; live daemon.log negative-token evidence (-2000447764) captured pre-triage.
+- Diff scope within stop rule: daemonstdout.ts (new), main.ts parse+startServer, package.json test script, test/unit/* — no other src changes.
+
+Residual: spider.log live acceptance is E2E — lands with 1lg0.

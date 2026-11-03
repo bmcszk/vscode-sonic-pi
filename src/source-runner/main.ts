@@ -26,18 +26,17 @@ const fs = require('fs')
 const os = require('os')
 const child_process = require('child_process')
 import { OscSender } from './oscsender'
+import { parseDaemonStdout } from './daemonstdout'
 const OSC = require('osc-js')
 const utf8 = require('utf8')
 const { v4: uuidv4 } = require('uuid')
 import { Config } from './config'
 import { Range, TextEditor, window } from 'vscode'
-const readline = require('readline')
 
 export class Main {
 	rootPath: string
 	rubyPath: string
 	daemonLauncherPath: string
-	daemonLogPath: string
 	samplePath: string
 	spUserPath: string
 	spUserTmpPath: string
@@ -88,7 +87,7 @@ export class Main {
 			this.rootPath = '/Applications/Sonic Pi.app/Contents/Resources'
 			this.rubyPath = '/usr/bin/ruby' // was this.rootPath + '/app/server/native/ruby/bin/ruby'
 		} else {
-			this.rootPath = '/home/user/sonic-pi'
+			this.rootPath = '/usr/lib/sonic-pi'
 			this.rubyPath = 'ruby'
 		}
 		this.config = new Config()
@@ -107,15 +106,13 @@ export class Main {
 		console.log('Using Sonic Pi root directory: ' + this.rootPath)
 		console.log('Using ruby: ' + this.rubyPath)
 
-		this.daemonLauncherPath = this.rootPath + '/server/ruby/bin/daemon.rb'
+		this.daemonLauncherPath = this.daemonLauncherPathFor(this.rootPath)
 
 		if (this.platform === 'win32') {
 			this.daemonLauncherPath = this.rootPath + '/app/server/ruby/bin/daemon.rb'
 		}
 
 		this.spUserPath = this.sonicPiHomePath() + '/.sonic-pi'
-		this.daemonLogPath = this.spUserPath + '/log/daemon.log'
-
 		this.samplePath = this.rootPath + '/etc/samples'
 		this.spUserTmpPath = this.spUserPath + '/.writableTesterPath'
 		this.logPath = this.spUserPath + '/log'
@@ -206,6 +203,12 @@ export class Main {
 		})
 	}
 
+	// Some installs nest the ruby server under app/ (pacman, Windows); others keep it at the root.
+	daemonLauncherPathFor(rootPath: string): string {
+		const appLayoutPath = rootPath + '/app/server/ruby/bin/daemon.rb'
+		return fs.existsSync(appLayoutPath) ? appLayoutPath : rootPath + '/server/ruby/bin/daemon.rb'
+	}
+
 	checkSonicPiPath() {
 		if (!fs.existsSync(this.daemonLauncherPath)) {
 			void vscode.window
@@ -234,9 +237,14 @@ export class Main {
 		// Initialise the Sonic Pi server
 		this.logOutput.appendLine('Will start server')
 
-		await this.startRubyServer() // Start server using daemon script... could actually take ports form here too....
+		try {
+			await this.startRubyServer()
+		} catch (error: any) {
+			this.logOutput.appendLine(`Server start aborted: ${error.message}`)
+			void vscode.window.showErrorMessage(error.message)
+			return
+		}
 		this.logOutput.append('Done starting server!')
-		//await this.initAndCheckPorts()
 		this.startKeepAlive()
 		this.setupOscReceiver()
 	}
@@ -401,69 +409,6 @@ export class Main {
 		}
 	}
 
-	// This is where we see what ports to use, calling a ruby script
-	async initAndCheckPorts() {
-		// Clear out old tasks from previous sessions if they still exist
-		// in addtition to clearing out the logs
-		// this.log('[GUI] - Cleaning old sessions...')
-		// child_process.spawnSync(this.rubyPath, [this.initScriptPath])
-
-		// Discover the port numbers
-		let port_map = new Map<string, number>()
-		this.log('[GUI] - Discovering port numbers...')
-
-		// Read log file
-		const inputStream = fs.createReadStream(this.daemonLogPath)
-		let lineReader = readline.createInterface({
-			input: inputStream,
-			terminal: false,
-		})
-		const tokenPre = 'log: UTF-8, UTF-8, Token: '
-		for await (let line of lineReader) {
-			if (line.includes(tokenPre)) {
-				let t = line.substring(line.indexOf(tokenPre) + tokenPre.length)
-				this.guiUuid = parseInt(t) // Add token
-			} else if (line.includes('spider-listen-to-gui')) {
-				if (line.includes('{')) {
-					line = line.substring(line.indexOf('{') + 1)
-				}
-				if (line.includes('}')) {
-					line = line.replace('}', '')
-				}
-				let port_strings = line.split(', ')
-				port_strings.forEach((port_string: string) => {
-					let tokens = port_string.split('=>')
-					let key = tokens[0].replace('"', '').replace('"', '')
-					port_map.set(key, parseInt(tokens[1]))
-				})
-			}
-		}
-
-		// Other Unused Ports
-		// tau 37468
-		// spider 37469
-		// phx 37470
-		// spider-listen-to-tau 37472
-
-		this.daemonPort = port_map.get('daemon')!
-
-		this.guiSendToServerPort = port_map.get('gui-send-to-spider')!
-		this.guiListenToServerPort = port_map.get('gui-listen-to-spider')!
-		this.serverListenToGuiPort = port_map.get('spider-listen-to-gui')!
-		this.serverOscCuesPort = port_map.get('osc-cues')!
-		this.serverSendToGuiPort = port_map.get('spider-send-to-gui')!
-		this.scsynthPort = port_map.get('scsynth')!
-		this.scsynthSendPort = port_map.get('scsynth-send')!
-
-		// this.erlangRouterPort = port_map.get('erlang-router')!
-		// this.oscMidiOutPort = port_map.get('osc-midi-out')!
-		// this.oscMidiInPort = port_map.get('osc-midi-in')!
-		// this.websocketPort = port_map.get('websocket')!
-
-		this.portsInitalizedResolver(new OscSender(this.serverListenToGuiPort))
-		return true
-	}
-
 	startKeepAlive() {
 		const daemonSender = new OscSender(this.daemonPort)
 		console.log('Sending Keepalive to', this.daemonPort)
@@ -482,15 +427,17 @@ export class Main {
 			ruby_server.stdout.on('data', (data: any) => {
 				// console.log(`stdout: ${data}`)
 				this.logOutput.appendLine(`Daemon Out: ${data}`)
-				// Start the keepalive loop
-				let ports = data.toString().split(' ')
+				const ports = parseDaemonStdout(data.toString())
+				if (!ports) {
+					this.logOutput.appendLine('Daemon did not report a numeric token, aborting server start')
+					reject(new Error('Unrecognized daemon stdout line: ' + data))
+					return
+				}
 
-				// Order: daemon-keep-alive gui-listen-to-server gui-send-to-server scsynth osc-cues tau-api tau-phx token
-
-				this.daemonPort = parseInt(ports[0])
-				this.guiListenToServerPort = parseInt(ports[1])
-				this.serverSendToGuiPort = parseInt(ports[2])
-				this.guiUuid = parseInt(ports[7])
+				this.daemonPort = ports.daemonPort
+				this.guiListenToServerPort = ports.guiListenToServerPort
+				this.serverSendToGuiPort = ports.serverSendToGuiPort
+				this.guiUuid = ports.token
 				this.portsInitalizedResolver(new OscSender(this.serverSendToGuiPort))
 
 				resolve() // Assume stuff is ok instantly....

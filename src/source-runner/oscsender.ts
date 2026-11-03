@@ -21,7 +21,7 @@
 // SOFTWARE.
 
 // Very simple OSC send wrapper. At the moment the send port is harcoded, but we already know the
-// port where this is, since we are calling initAndCheckPorts(). Use that!
+// port where this is. Use that!
 // The OSC receiving handling is in main.ts.
 const OSC = require('osc-js')
 

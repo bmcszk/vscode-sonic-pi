@@ -25,6 +25,14 @@ You can also **support** me by sending me a :coffee:
 
 ## Fork notes
 
-Forked from [s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi) to target Sonic Pi 5 and Linux support.
-Evidence for the Sonic Pi 5 daemon protocol and install layout lives in `docs/research/`; the issue ledger lives in `.beans/`.
-Planned fixes are tracked as beans in `.beans/`, not as feature documentation here.
+Forked from [s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi) to target Sonic Pi 5 on Linux.
+Tested against Sonic Pi 5.0.0-1 (pacman), daemon at `/usr/lib/sonic-pi/app/server/ruby/bin/daemon.rb`: a live-daemon run and stop were accepted by `spider.log`.
+Divergences from upstream since 0.1.0:
+
+- default Sonic Pi root is `/usr/lib/sonic-pi` on Linux, and both the root and its `app/` daemon layout are detected.
+- the daemon stdout line is parsed for 6 values (Sonic Pi 5 drops the tau ports), negative tokens are kept, and a garbage line aborts the server start instead of sending OSC with a bogus token.
+- the dead log-parser code is deleted.
+- version 0.1.1.
+
+Tests: `test/unit` (token parse, start guard) and `test/e2e/protocol.js` (live daemon protocol gate; needs `ruby` and Sonic Pi 5 on this Linux layout).
+Evidence for the Sonic Pi 5 daemon protocol and install layout lives in `docs/research/`, and the issue ledger in `.beans/`; both are committed with the fork.

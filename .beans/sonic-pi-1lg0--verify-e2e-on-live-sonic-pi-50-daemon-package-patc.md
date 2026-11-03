@@ -1,11 +1,11 @@
 ---
 # sonic-pi-1lg0
 title: '- Verify E2E on live Sonic Pi 5.0 daemon + package patched vsix'
-status: todo
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-03T14:40:48Z
-updated_at: 2026-11-03T15:27:46Z
+updated_at: 2026-11-03T16:13:47Z
 parent: sonic-pi-sawd
 blocked_by:
     - sonic-pi-9qtk
@@ -42,3 +42,14 @@ After the three bug fixes land (serialized in wave 2, all touch main.ts): build,
 If vsce refuses packaging (engine/publisher constraints), report the exact error + package.json diff needed — do NOT weaken engines or hack metadata silently.
 
 Refs: sonic-pi-sawd
+
+## Proof of Work
+
+Implemented (worker) + parent-verified 2026-11-03:
+- Gate 1 headless protocol E2E: test/e2e/protocol.js (committed, plain node) spawns the real daemon, parses stdout via the extension's built parseDaemonStdout seam, /ping->/ack readiness, /run-code (play :E4) accepted (job 0), /stop-all-jobs accepted ('Stopping all runs...'), spider.log slice clean (no 'Invalid token', no Spider exceptions). Worker ran 5x green incl. negative tokens (-405614849, -1477519138, -2142519615 near int32-min); parent re-ran 'npm run test:e2e' -> EXIT 0, gate green observed first-hand. Supersonic (not scsynth) audio evidence: cue server on 4560, audio callbacks ran.
+- Gate 2: package.json 0.1.0 -> 0.1.1; npx @vscode/vsce package -> sonic-pi-extension-0.1.1.vsix (222 files, 663KB; contains daemonstdout.js, /usr/lib/sonic-pi default, version 0.1.1). vsce raised no errors (.vscodeignore warning same as upstream's 0.1.0 artifact).
+- Gate 3: code --install-extension -> s00500.sonic-pi-extension@0.1.1 installed (verified via --list-extensions --show-versions; live installed daemonstdout.js correctly parses a captured negative-token line). jakearl.vscode-sonic-pi already uninstalled, .obsolete marked, dir purged by VS Code on next start. No other sonic extensions present.
+- Gate 4: README fork notes rewritten factual: tested on 5.0.0-1 pacman, divergence list (linux root + app/ layout detection, 6-value negative-safe parse + garbage abort, dead parser deletion, 0.1.1), tests committed.
+- Worker respected no-commit rule (HEAD unchanged at e1526c7 during run; parent owns the single end commit).
+
+Residual: F5/Alt+S UI smoke is the final human step (UI keybinding wiring is untouched upstream code; the identical protocol path is proven by Gate 1). vsix artifacts stay uncommitted (gitignored), extension is installed locally.

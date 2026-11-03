@@ -1,11 +1,11 @@
 ---
 # sonic-pi-l3ab
 title: '- Dead log parser has stale ''log: UTF-8, UTF-8, Token: '' prefix'
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-03T14:40:48Z
-updated_at: 2026-11-03T15:27:46Z
+updated_at: 2026-11-03T16:00:18Z
 parent: sonic-pi-sawd
 blocked_by:
     - sonic-pi-lz8o
@@ -34,3 +34,14 @@ Delete `initAndCheckPorts()` and all references (the commented call site include
 Deletion-only. If anything in the audit suggests the code should be FIXED rather than deleted, stop and report — do not redesign.
 
 Refs: sonic-pi-sawd
+
+## Proof of Work
+
+Implemented (worker) + parent-verified 2026-11-03:
+- Pure deletion confirmed at line level: 63 lines removed (initAndCheckPorts method + stale 'log: UTF-8, UTF-8, Token: ' parser, commented call site, daemonLogPath field + assignment + its createReadStream consumer, orphaned readline import); 0 lines added to main.ts by this leaf (all 25 added lines in cumulative diff belong to verified siblings 9qtk/9uiy).
+- daemonLogPath audit verdict: REMOVED — pre-patch grep showed exactly 3 sites (decl/assign/consumer inside deleted method), no live reader; keeping it would have violated the no-new-dead-fields AC.
+- oscsender.ts header comment de-clawed (1 line, comment-only) to satisfy the zero-hits grep gate; no code change.
+- Parent re-run: grep -rn 'initAndCheckPorts|daemonLogPath|readline' src/ test/ → zero hits (exit 1); npm run build exit 0; npm test exit 0 (sibling tests guard main.ts).
+- Behavior-neutral by construction: only live-reachable deletion was the commented call site.
+
+Residual: none.
