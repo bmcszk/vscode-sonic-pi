@@ -10,7 +10,7 @@
 	},
 	"scripts": {
 		"build":"tsc",
-		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js",
+		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js",
 		"test:e2e":"npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",
@@ -109,6 +109,11 @@
 			{
 				"command": "vscode-sonic-pi.startserver",
 				"title": "Start Server",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.restartserver",
+				"title": "Restart Server",
 				"category": "Sonic Pi"
 			},
 			{
