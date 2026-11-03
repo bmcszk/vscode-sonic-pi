@@ -1,11 +1,11 @@
 ---
 # sonic-pi-sawd
 title: 'Fork s00500/vscode-sonic-pi: Sonic Pi 5 + Linux support'
-status: todo
+status: completed
 type: epic
 priority: high
 created_at: 2026-11-03T14:40:15Z
-updated_at: 2026-11-03T15:28:24Z
+updated_at: 2026-11-03T16:15:07Z
 ---
 
 # Goal
@@ -42,3 +42,12 @@ Patched extension installed in VS Code; opening a `.rb`, F5 runs code on the liv
 - `docs/research/daemon-46.rb` — v4.6 daemon for stdout-layout comparison
 - `docs/research/daemon-stdout.txt` — live 5.0 capture: `38880 38877 38876 38878 4560 1411627710`
 - `docs/research/sph-vsix/` — Helper vsix extraction (regex audit)
+
+## Proof of Work (epic-level, end-to-end)
+
+- All 5 children completed, each with its own PoW: repo fork + build (lz8o), daemon path (9qtk), token parse (9uiy), dead-code deletion (l3ab), E2E + packaging (1lg0).
+- End-to-end gates re-run fresh by parent on the assembled tree: npm test exit 0; npm run test:e2e exit 0 — live Sonic Pi 5.0.0-1 daemon spawned, the extension's own built parse seam read its stdout, /run-code (play :E4) accepted as job 0, /stop-all-jobs accepted, spider.log slice clean (no Invalid token, no Spider exceptions), supersonic audio evidence present.
+- Exit criteria from body: patched extension installed from built vsix (s00500.sonic-pi-extension@0.1.1) — done; live-daemon protocol proof (sound-path + spider.log) — done; Alt+S stop path (/stop-all-jobs) — proven at protocol level; vsix packaged, version bumped 0.1.0 -> 0.1.1 so marketplace can't clobber — done; true fork relationship (isFork:true, parent s00500/vscode-sonic-pi) — done, incl. user-requested 'forked from' banner.
+- Single end commit 4a27977 pushed to bmcszk/vscode-sonic-pi (origin/master), includes ledger + tests + README.
+
+Residual (user actions, not agent work): (1) F5/Alt+S UI smoke in VS Code — protocol path fully proven; keybinding wiring is untouched upstream code; (2) delete leftover repo bmcszk/vscode-sonic-pi-pre-fork (content superseded, verified identical).
