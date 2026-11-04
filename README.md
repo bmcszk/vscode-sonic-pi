@@ -38,10 +38,16 @@ The Marketplace listing for this fork is not published yet. Install the packaged
 3. Press `F5` (or `Alt+R`) to run the whole file, `Alt+S` to stop it. The played region flashes
    briefly, and the **Cues** and **Log** output channels show what the server reports.
 4. Or use the editor controls: a **▶ Run / ■ Stop** row above the first line, a **▶ Run cell**
-   above each blank-line-separated block that plays something (comment-only or settings-only
-   blocks, like `use_bpm 120`, get none), and a **▶** button at the top right of the editor tab.
-   Everything clickable runs the same commands as the keys. Turn them off with
+   above each blank-line-separated block that plays something, a **⟳ Load def** above a block
+   that starts with `define`/`defonce` (reloads that function into the running session), and a
+   **▶** button at the top right of the editor tab. Blocks that only assign variables
+   (`chord_low_1 = ...`) or only set options (`use_bpm 120`) get no lens because running them
+   makes no sound. Everything clickable runs the same commands as the keys. Turn them off with
    [`showEditorControls`](#settings).
+
+   Run cell executes only that block in its own run. Plain local variables from other blocks are
+   not visible there; share state with `define`d functions or Time State (`set`/`get`), or use Run
+   for the whole file.
 
 ### Keyboard shortcuts
 

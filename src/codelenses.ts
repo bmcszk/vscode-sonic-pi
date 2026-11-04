@@ -52,8 +52,8 @@ function blockLenses(text: string): vscode.CodeLens[] {
 		return []
 	}
 	return blocks
-		.filter((block) => hasPlayableLine(block.text))
-		.map((block) => codeLens(block.line, '$(play) Run cell', RUN_TEXT_COMMAND, [block.text]))
+		.filter((block) => hasPlayableLine(block.text) && !isAssignmentOnly(block.text))
+		.map((block) => codeLens(block.line, lensTitle(block.text), RUN_TEXT_COMMAND, [block.text]))
 }
 
 function hasPlayableLine(blockText: string): boolean {
@@ -64,6 +64,32 @@ function hasPlayableLine(blockText: string): boolean {
 			return line !== '' && !line.startsWith('#') && !SETTING_LINE.test(line)
 		})
 }
+
+function isAssignmentOnly(blockText: string): boolean {
+	const codeLines = codeLinesOf(blockText)
+	return codeLines.length > 0 && codeLines.every((line) => ASSIGNMENT_LINE.test(line))
+}
+
+function lensTitle(blockText: string): string {
+	const firstCodeLine = codeLinesOf(blockText)[0]
+	return firstCodeLine !== undefined && DEFINITION_LINE.test(firstCodeLine)
+		? '$(sync) Load def'
+		: '$(play) Run cell'
+}
+
+function codeLinesOf(blockText: string): string[] {
+	return blockText
+		.split(/\r?\n/)
+		.filter((raw) => {
+			const line = raw.trim()
+			return line !== '' && !line.startsWith('#')
+		})
+}
+
+// Assignment-only cells are silent: plain locals die with the run and are invisible to later runs.
+const ASSIGNMENT_LINE = /^\s*[a-z_]\w*\s*=[^=]/
+// define/defonce blocks only register a function; they stay useful as a live-coding "Load def" cell.
+const DEFINITION_LINE = /^\s*(define|defonce)\b/
 
 const SETTING_LINE = /^(use_[a-z_]+|set_[a-z_]+!|set!)[ (]/
 
