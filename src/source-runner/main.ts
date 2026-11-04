@@ -78,10 +78,6 @@ export class Main {
 	guiUuid: any
 	config: any
 
-	// Daemon line numbers are file-absolute - the code of a fragment run is comment-padded up to its
-	// editor line before it is sent - so the error and flash paths apply no offset of their own.
-	runOffset: number
-
 	errorHighlightDecorationType = vscode.window.createTextEditorDecorationType({
 		border: '2px solid red',
 	})
@@ -145,8 +141,6 @@ export class Main {
 
 		this.scsynthPort = -1
 		this.scsynthSendPort = -1
-
-		this.runOffset = 0
 
 		// attempt to create log directory
 		if (!fs.existsSync(this.logPath)) {
@@ -340,7 +334,7 @@ export class Main {
 		let job_id = message.args[0]
 		let desc = message.args[1]
 		let error_line = message.args[2]
-		let line = message.args[3] + this.runOffset
+		let line = message.args[3]
 
 		void vscode.window
 			.showErrorMessage(
@@ -365,7 +359,7 @@ export class Main {
 		let job_id = message.args[0]
 		let desc = message.args[1]
 		let backtrace = message.args[2]
-		let line = message.args[3] + this.runOffset
+		let line = message.args[3]
 
 		this.logOutput.appendLine(
 			'Error on job ' + job_id + ': ' + desc + '\nLine ' + line + ': ' + backtrace,
@@ -533,7 +527,6 @@ export class Main {
 		if (offset > 0) {
 			code = '#\n'.repeat(offset) + code
 		}
-		this.runOffset = 0
 		if (this.config.logClearOnRun()) {
 			this.logOutput.clear()
 		}
