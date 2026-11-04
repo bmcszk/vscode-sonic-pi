@@ -5,7 +5,7 @@ status: todo
 type: task
 priority: normal
 created_at: 2026-11-03T17:23:24Z
-updated_at: 2026-11-04T12:42:22Z
+updated_at: 2026-11-04T23:29:56Z
 blocked_by:
     - sonic-pi-qlkd
 ---
@@ -56,3 +56,8 @@ Dev-chain dependency sweep: mocha-era advisories + future TS/ESLint modernizatio
 - /home/blaze/.agents/skills/coding-rules/SKILL.md — gate: package.json surgical edits only (no reformat).
 
 Stop rule: package.json + package-lock.json only. Anything else -> STOP.
+
+## Skills for coder (project skills)
+
+- .agents/skills/typescript/SKILL.md - only relevant if implementation touches TS sources (expected: package.json/lockfile only)
+- .agents/skills/ruby/SKILL.md - not applicable here; noted for future Sonic Pi runtime work
