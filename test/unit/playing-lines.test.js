@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Playing-line highlight: /flash (jobid, workspace, line) renders as a transient whole-line
+// Playing-line highlight: /flash (workspace, line) renders as a transient whole-line
 // background. Pure add/refresh/expire/clear logic against a fake editor with a fake clock.
 const assert = require('assert')
 const Module = require('module')

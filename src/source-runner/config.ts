@@ -34,7 +34,7 @@ export class Config {
 		return this.getConfiguration(this.section).flashTextColor
 	}
 	public showPlayingLineHighlight(): boolean {
-		return this.getConfiguration(this.section).showPlayingLineHighlight !== false
+		return this.getConfiguration(this.section).showPlayingLineHighlight === true
 	}
 	public launchSonicPiServerAutomatically(): string {
 		return this.getConfiguration(this.section).launchSonicPiServerAutomatically

@@ -49,7 +49,7 @@ export class Main {
 
 	onRunStarted = new vscode.EventEmitter<number>()
 	onRunEnded = new vscode.EventEmitter<number>()
-	onFlash = new vscode.EventEmitter<{ jobid: number; workspace: string; line: number }>()
+	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
 	onServerRestart: (() => void) | undefined = undefined
 
 	guiSendToServerPort: number
@@ -327,7 +327,7 @@ export class Main {
 		})
 
 		osc.on('/flash', (message: { args: any }) => {
-			this.onFlash.fire({ jobid: message.args[0], workspace: message.args[1], line: message.args[2] })
+			this.onFlash.fire({ workspace: message.args[1], line: message.args[2] })
 		})
 
 		//osc.on('*', (message: {address: string}) => {

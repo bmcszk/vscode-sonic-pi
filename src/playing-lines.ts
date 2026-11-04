@@ -28,7 +28,7 @@ interface ActiveLine {
 	expiresAt: number
 }
 
-// Turns Sonic Pi's /flash (jobid, workspace, line) into the GUI's transient line background:
+// Turns Sonic Pi's /flash (workspace, line) into the GUI's transient line background:
 // a flashed line stays lit for 250 ms, and repeated triggers refresh it instead of stacking.
 export class PlayingLineHighlighter {
 	private readonly config: PlayingLineSettings
