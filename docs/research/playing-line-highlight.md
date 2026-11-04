@@ -71,3 +71,13 @@ Facts established live:
 - Local: `/usr/lib/sonic-pi/app/server/ruby/bin/spider-server.rb:999`; `app/server/ruby/lib/sonicpi/lang/sound.rb:3914,3931`; osc-js 2.4.1 `EventHandler.call`; `src/source-runner/main.ts` (`flashCode`, osc subscriptions).
 - Live: parent probe against real daemon, 2026-11-04 (message dump in §1.2).
 - Online: github.com/sonic-pi-net/sonic-pi wiki "Sonic Pi Internals — GUI Ruby API" (informal OSC API; `/flash` consumed by Qt GUI handler in `app/gui/qt/mainwindow.cpp`); github.com/mactkg/vscode-sonic-pi (prior art).
+
+---
+
+## Phase C addendum (2026-11-04): fragment offsets + upstream call-site depth cap
+
+Live captures against cloud_beat.pi (whole file + fragments, probes in session dir):
+
+1. **Fragment run line mapping (extension bug -> sonic-pi-kpif):** fragment runs report /flash lines relative to the sent fragment (spider-server.rb:302 /run-code has no line param; __spider_eval hardcodes firstline=1). Fix shipped separately: fragment text is padded with inert comment lines so flash lines equal document lines. Note: the extension's utf8.encode pre-step is REQUIRED — osc-js writes strings byte-per-char (latin1-style); sending raw UTF-8 ("Großen") crashes the preparser. Probe artifact only; product path correct.
+2. **Call-site flashes vanish past ~50 Ruby frames (upstream):** runtime.rb:533 __caller_workspace_line walks caller_locations(2, 50).find { path == ws }. bassdrum (define + 3 nested with_fx + slide control) exceeds it -> its call lines never flash; only do/end block-flash (source_location-based, frame-walk-free) + the define body light up. Same capture: hihat (1 fx) DOES flash its call line every trigger. Shipped behavior = GUI parity; real fix is upstream, filed as https://github.com/sonic-pi-net/sonic-pi/issues/3606.
+3. Which lines flash per trigger (unchanged): call line (`__delayed_flash_from_caller`) + do/end of every traversed block (`__delayed_flash_block_from_caller`) — visible in capture: fragment perLine 3-13 (define body) + 17/26 (loop do/end).
