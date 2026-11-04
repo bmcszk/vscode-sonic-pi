@@ -4,7 +4,7 @@
 	"publisher": "s00500",
 	"description": "Language support and code running for Sonic Pi scripts",
 	"preview": true,
-	"version": "0.1.3",
+	"version": "0.1.4",
 	"repository": {
 		"url": "https://github.com/bmcszk/vscode-sonic-pi"
 	},
