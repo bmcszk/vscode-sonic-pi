@@ -1,11 +1,11 @@
 ---
 # sonic-pi-dgis
 title: Highlight currently-playing lines in the editor (like the Sonic Pi GUI's colored line background)
-status: todo
+status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-04T13:00:49Z
-updated_at: 2026-11-04T18:14:56Z
+updated_at: 2026-11-04T20:43:47Z
 ---
 
 # Playing-line highlight in VS Code (like the Sonic Pi app's colored line backgrounds)
@@ -31,9 +31,12 @@ docs/research/playing-line-highlight.md in-repo (durable, never /tmp): protocol 
 Separate contract, will be written into this bean after Phase A sign-off.
 
 ## AC
-- [ ] Phase A report committed with primary-source citations AND local source refs (file:line)
-- [ ] Live message shape captured from real playback logs
-- [ ] Feasibility verdict + implementation sketch
+
+- [x] Phase A report committed with primary-source citations AND local source refs (docs/research/playing-line-highlight.md)
+- [x] Live message shape captured from real playback logs (/flash captures, probes 1-7)
+- [x] Feasibility verdict + implementation sketch (public-API-only verdict; decoration sketch)
+- [x] Phase B implemented (playing-lines.ts, user-trialed; fragment-offset bug spun out as sonic-pi-kpif, fixed variant A)
+- [ ] User sign-off on the shipped behavior (pending re-test of cloud_beat.pi on variant A build)
 
 ## Skills for researcher
 - /home/blaze/.agents/skills/research/SKILL.md (report-first: write the file as you go)

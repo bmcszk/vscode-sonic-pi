@@ -5,7 +5,7 @@ status: completed
 type: bug
 priority: normal
 created_at: 2026-11-03T18:05:09Z
-updated_at: 2026-11-04T13:37:01Z
+updated_at: 2026-11-04T20:43:01Z
 ---
 
 # Harness defect (found 2026-11-03 via pi-subagents)
@@ -18,7 +18,7 @@ So children (researcher, worker omni/_brainer and _worker:medium) fell back to a
 
 ## AC (for the user / next session after config change)
 - [x] A dispatch of a worker agent runs WITH the omni extension (verify via the harness notice: no 'without the ambient extensions' warning on a test dispatch)
-- [ ] Simplest mitigation adopted meanwhile in dispatch contracts: workers instructed to write their final report to the artifact file FIRST, then compose the chat message (stream death then only loses the goodbye) — note: this rule went into effect live this session but dates from later, retro-wired here.
+- [x] Report-first mitigation adopted in dispatch contracts (workers write the artifact file before the final chat message)
 
 Refs: sonic-pi-awd-fed? (none — standalone)
 

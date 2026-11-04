@@ -5,7 +5,7 @@ status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-04T12:55:01Z
-updated_at: 2026-11-04T13:58:41Z
+updated_at: 2026-11-04T20:43:54Z
 ---
 
 # Run cell lens: which blocks are actually playable? (user-reported refinement of sonic-pi-qlkd)
@@ -35,9 +35,11 @@ Deliverable: docs/research/run-cell-semantics.md in-repo (durable, no /tmp) with
 Red->green in test/unit/codelenses.test.js; rule in src/codelenses.ts; README getting-started step 4 updated if the user-facing rule changes; npm test + e2e + package; release patch per release flow.
 
 ## AC
-- [ ] Phase A report committed with citations and a concrete rule proposal
-- [ ] Phase B red->green, all suites green, live e2e green
-- [ ] User-facing README text matches the shipped rule
+
+- [x] Phase A report committed with citations and a concrete rule proposal (docs/research/run-cell-semantics.md)
+- [x] Phase B implemented (user decision option b: Load def relabel; assignment-only lenses dropped; red->green, suites + e2e green)
+- [x] User-facing README text matches the shipped rule
+- [ ] User sign-off pending (part of the cloud_beat re-test on the variant A build)
 
 Stop rule: Phase A writes ONLY docs/research/run-cell-semantics.md. Phase B touches ONLY src/codelenses.ts, test/unit/codelenses.test.js, README.md, package.json version. Anything else -> STOP.
 
@@ -60,3 +62,7 @@ NEXT: user decision (a) hide define lenses or (b) relabel -> then Phase B red->g
 3. README getting-started step 4 sentence: assignment-only blocks get none; define blocks show 'Load def' (loads/reloads the function into the running session).
 
 AC: [ ] red observed then green; [ ] npm test 7 suites green; [ ] e2e green; [ ] README matches shipped rule. STOP: only codelenses.ts, codelenses.test.js, README.md (+shared package.json/README edits coordinated by single worker).
+
+## Skills for coder
+
+- /home/blaze/.agents/skills/coding-rules/SKILL.md — TypeScript source edits; package.json only via surgical text edits (a JSON round-trip reformats the file: established repo incident)
