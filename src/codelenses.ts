@@ -54,8 +54,8 @@ function blockLenses(text: string): vscode.CodeLens[] {
 	return blocks
 		.filter((block) => hasPlayableLine(block.text) && !isAssignmentOnly(block.text))
 		.map((block) =>
-			// The block's start line travels with the text: the daemon numbers this fragment's
-			// flashes from its own first line, so the highlighter needs the offset back.
+			// The block's start line lets runCode pad the fragment so the daemon's flash and
+			// error lines land on file positions.
 			codeLens(block.line, lensTitle(block.text), RUN_TEXT_COMMAND, [block.text, block.line]),
 		)
 }

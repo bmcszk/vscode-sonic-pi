@@ -5,7 +5,7 @@ status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-04T12:55:01Z
-updated_at: 2026-11-04T12:55:32Z
+updated_at: 2026-11-04T13:58:41Z
 ---
 
 # Run cell lens: which blocks are actually playable? (user-reported refinement of sonic-pi-qlkd)
@@ -44,3 +44,19 @@ Stop rule: Phase A writes ONLY docs/research/run-cell-semantics.md. Phase B touc
 ## Notes
 
 Phase A researcher dispatched (run adf523c1) on branch rtvk-research; report-first discipline (docs/research/run-cell-semantics.md committed+pushed before any chat reply). Phase B dispatch after user accepts findings.
+
+## Phase A COMPLETE (2026-11-04)
+
+Researcher run adf523c1 completed the server-source analysis then hit the 30-min async watchdog; report salvaged 1:1 from artifact; parent added official tutorial citations (§5.5 'Functions are remembered across runs', Time State section). Report: docs/research/run-cell-semantics.md (committed).
+
+Core findings: define persists across runs (persistent Module) but is silent alone; plain locals die with their eval and are INVISIBLE to later runs (assignment-only cells are misleading); with_fx+live_loop re-run is safe (fx instance per run, named thread replaced). Rule proposal: drop assignment-only-block lenses; define/defonce-first blocks = hide OR relabel 'Load def' (user decision, options a/b in the report).
+
+NEXT: user decision (a) hide define lenses or (b) relabel -> then Phase B red->green.
+
+## Phase B contract (user decision: option b — 2026-11-04)
+
+1. src/codelenses.ts: (a) assignment-only blocks get NO lens — block disqualified when every non-empty non-comment line matches /^\s*[a-z_]\w*\s*=[^=]/ (single =, not ==); a block containing any triggering line keeps its lens. (b) blocks whose first code line matches /^\s*(define|defonce)\b/ keep a lens RELABELED '$(sync) Load def' (same runWithText command+args).
+2. test/unit/codelenses.test.js: red->green new cases — user's chord assignment file (no lenses), define block relabel, assignment-with-playable-line keeps lens, mixed define/assignment/live_loop file.
+3. README getting-started step 4 sentence: assignment-only blocks get none; define blocks show 'Load def' (loads/reloads the function into the running session).
+
+AC: [ ] red observed then green; [ ] npm test 7 suites green; [ ] e2e green; [ ] README matches shipped rule. STOP: only codelenses.ts, codelenses.test.js, README.md (+shared package.json/README edits coordinated by single worker).

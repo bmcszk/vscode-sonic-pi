@@ -3,8 +3,9 @@
 title: Highlight currently-playing lines in the editor (like the Sonic Pi GUI's colored line background)
 status: todo
 type: task
+priority: normal
 created_at: 2026-11-04T13:00:49Z
-updated_at: 2026-11-04T13:00:49Z
+updated_at: 2026-11-04T18:14:56Z
 ---
 
 # Playing-line highlight in VS Code (like the Sonic Pi app's colored line backgrounds)
@@ -38,3 +39,24 @@ Separate contract, will be written into this bean after Phase A sign-off.
 - /home/blaze/.agents/skills/research/SKILL.md (report-first: write the file as you go)
 
 Stop rule Phase A: ONLY docs/research/playing-line-highlight.md (+ its commit). Anything else -> STOP.
+
+## Phase A COMPLETE (2026-11-04)
+
+Researcher run 17a69b08 delivered the local ground truth despite missing shell/web tools (report salvaged from artifact); parent closed the two gaps: live /flash capture on a real daemon ([[0,'eval',4] x4 — 1-based line, workspace='eval', one flash per trigger]) and the online pass (upstream wiki + mainwindow.cpp handler + mactkg prior art + vendored d.ts decoration verification).
+
+Verdict: FEASIBLE, public API only. /flash (jobid, workspace, line) already arrives on our bound port and is silently dropped; render via createTextEditorDecorationType({backgroundColor,isWholeLine}) + setDecorations (in-repo precedent: main.flashCode). Report: docs/research/playing-line-highlight.md (committed).
+
+NEXT: user review -> then Phase B contract.
+
+## Phase B contract (user green light: yes — 2026-11-04)
+
+Implement playing-line highlight per docs/research/playing-line-highlight.md §3:
+1. Subscribe existing osc-js listener to /flash (workspace==='eval' filter; line is 1-based).
+2. src/playing-lines.ts: PlayingLineHighlighter — one isWholeLine decoration type colored from existing sonic-pi.flashBackgroundColor (+flashTextColor); add Range(line-1,0,line-1,1000) per flash to active set, setDecorations, per-range TTL 250ms sweep (refresh not stack); clear().
+3. Lifecycle: clear() on stop command and in server-loss recovery (restartServer path); no clear on /run/ended (TTL handles it).
+4. Gate: new setting vscode-sonic-pi.showPlayingLineHighlight (boolean, default true); package.json surgical (settings + test script += new suite); README settings row.
+5. test/unit/playing-lines.test.js: pure add/expire/clear logic vs fake editor, red->green; wired into npm test.
+
+AC: [ ] red->green; [ ] npm test all suites green incl. new; [ ] e2e live gate green; [ ] local vsix installed for user trial before release 0.2.0. STOP: playing-lines.ts (new), source-runner wiring, playing-lines.test.js, package.json (surgical), README — nothing else.
+
+## Phase C opened: fragment-offset bug spun to its own bean (see bug); upstream caller-depth limitation documented in research doc update. This bean stays open until both Phase B features get user sign-off.
