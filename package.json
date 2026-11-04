@@ -4,13 +4,13 @@
 	"publisher": "s00500",
 	"description": "Language support and code running for Sonic Pi scripts",
 	"preview": true,
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"repository": {
 		"url": "https://github.com/bmcszk/vscode-sonic-pi"
 	},
 	"scripts": {
 		"build":"tsc",
-		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/codelenses.test.js",
+		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/codelenses.test.js && node test/unit/activation.test.js",
 		"test:e2e":"npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",

@@ -1,11 +1,11 @@
 ---
 # sonic-pi-r530
 title: Bump dependencies to latest stable; tests green; audit delta recorded
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-03T16:29:48Z
-updated_at: 2026-11-03T17:13:14Z
+updated_at: 2026-11-03T17:23:24Z
 parent: sonic-pi-bpba
 ---
 
@@ -48,3 +48,12 @@ Refs: sonic-pi-bpba
 ## Added scope (single-writer rule)
 
 Also fix package.json repository.url → https://github.com/bmcszk/vscode-sonic-pi (moved here from dc8h so package.json has exactly one writer this wave).
+
+## Proof of Work
+
+Implemented (worker; tsconfig grant via supervisor decision option B) + parent-verified on assembled master 2026-11-03:
+- Bump table realized exactly per recon: osc-js 2.4.1 (clears high advisory), utf8 3.0.0 (is latest), uuid 11.1.1 (12+ ESM-only, exp verified: require-shape unchanged, typeof v4 = function), typescript 6.0.3 (7 ESM-only; eslint4 peer cap), @types/node 22.20.5, @types/vscode 1.144.0, engines.vscode ^1.144.0, eslint held 7.32.0 (flat-config migration explicitly out of scope), repository.url -> bmcszk. Audit: 19 (1L/4M/14H) -> 16 (1L/3M/12H); remaining 12 highs are mocha-8 dev-chain transitives, no runtime exposure.
+- tsconfig companion (granted, option B): module/moduleResolution node16, types:[node], rootDir src — NO ignoreDeprecations; JS emit byte-identical to old config (diff -r -x '*.map' empty).
+- Parent clean-room proof on merged master (2d8fb2c): rm -rf node_modules out && npm ci exit 0; npm test exit 0; npm run test:e2e exit 0 'gate green: run 0 and stop-all-jobs accepted on the live daemon'; npx @vscode/vsce package exit 0 (vsix deleted; no version bump); git status clean.
+
+Residual: dev-chain advisories (mocha 8 chain) -> follow-up draft; moduleResolution/TS7/eslint-flat migration -> future epic, not this fork's urgent path.

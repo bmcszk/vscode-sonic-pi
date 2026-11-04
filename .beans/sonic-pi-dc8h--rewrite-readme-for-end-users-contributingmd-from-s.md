@@ -1,11 +1,11 @@
 ---
 # sonic-pi-dc8h
 title: Rewrite README for end users + CONTRIBUTING.md from scratch (no coffee)
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-03T16:29:48Z
-updated_at: 2026-11-03T17:13:14Z
+updated_at: 2026-11-03T17:20:32Z
 parent: sonic-pi-bpba
 ---
 
@@ -44,3 +44,14 @@ README.md becomes END-USER documentation; CONTRIBUTING.md created from scratch. 
 Touch only README.md, CONTRIBUTING.md (new), package.json repository.url line. Vendored READMEs, LICENSE, bean files, src/ → out of scope; anything odd → report, don't fix.
 
 Refs: sonic-pi-bpba
+
+## Proof of Work
+
+Implemented (worker) + parent-verified 2026-11-03:
+- README end-user rewrite verified: 11/11 manifest settings keys cross-checked by parent's own script (zero missing); keybindings match contributes.keybindings exactly (F5/Alt+R run, Alt+S stop, Alt+T run selected, Shift+Alt+R recording, notebook variants); all 11 commands documented; fork provenance + upstream lineage honest; troubleshooting covers ~/.sonic-pi/log/ (daemon.log, spider.log, supersonic.log — no scsynth.log on 5.x) and sonicPiRootDirectory leave-unset guidance incl. the 'root path is not properly configured' recovery path (matches the stale /usr/bin-settings incident found on this machine).
+- CONTRIBUTING.md from scratch verified: dev setup (npm ci/build/test/test:e2e + e2e's hard requirement of local Sonic Pi 5), repo layout incl. vendored-file policy and .beans ledger, change workflow, PR expectations.
+- Coffee/donate gate: grep -rin 'paypal|coffee|donate' README.md CONTRIBUTING.md -> zero hits (parent re-run).
+- One parent review fix: vsix artifact name corrected vscode-sonic-pi-<version>.vsix -> sonic-pi-extension-<version>.vsix (actual vsce output name; package name sonic-pi-extension), folded into the worker's commit by amend.
+- Branch docs-end-user (commits eb9c5b2..49a994a) merged to master as 835f447 (--no-ff). Deliverable live on master.
+
+Residual: none.

@@ -1,5 +1,5 @@
-import * as synthsJSON from './synths.json'
-import * as fxJSON from './fx.json'
+import synthsJSON from './synths.json'
+import fxJSON from './fx.json'
 
 export const commands: { token: string; description?: string }[] = [
 	{ token: 'play', description: 'Play a note using the most recently set synthesizer.' },
