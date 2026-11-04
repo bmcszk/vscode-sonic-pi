@@ -10,7 +10,7 @@
 	},
 	"scripts": {
 		"build":"tsc",
-		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js",
+		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/codelenses.test.js",
 		"test:e2e":"npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",
@@ -35,6 +35,13 @@
 	"main": "./out/extension.js",
 	"contributes": {
 		"menus": {
+			"editor/title": [
+				{
+					"command": "vscode-sonic-pi.run",
+					"group": "navigation",
+					"when": "editorLangId=='sonic-pi' && notebookType!='sonic-pi-book'"
+				}
+			],
 			"file/newFile": [
 				{
 					"command": "vscode-sonic-pi.newNotebook",
@@ -140,7 +147,8 @@
 			{
 				"command": "vscode-sonic-pi.run",
 				"title": "Run",
-				"category": "Sonic Pi"
+				"category": "Sonic Pi",
+				"icon": "$(play)"
 			},
 			{
 				"command": "vscode-sonic-pi.runCell",
@@ -280,6 +288,11 @@
 					"type": "string",
 					"default": "rgba(255,255,255,1.0)",
 					"description": "Text flash color when running code"
+				},
+				"vscode-sonic-pi.showEditorControls": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show Run/Stop controls above the editor (CodeLens) and in the editor title bar"
 				}
 			}
 		},
