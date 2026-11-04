@@ -33,6 +33,7 @@ import * as vscode from 'vscode'
 import { Main } from './main'
 import { Config } from './config'
 import { SonicPiCodeLensProvider } from '../codelenses'
+import { PlayingLineHighlighter } from '../playing-lines'
 
 let main: Main
 
@@ -66,6 +67,16 @@ export function activate(context: vscode.ExtensionContext) {
 	main.checkSonicPiPath()
 
 	let config = new Config()
+	let playingLines = new PlayingLineHighlighter({
+		config,
+		editor: () => vscode.window.activeTextEditor,
+	})
+	main.onServerRestart = () => playingLines.clear()
+	context.subscriptions.push(
+		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),
+		{ dispose: () => playingLines.dispose() },
+	)
+
 	if (config.launchSonicPiServerAutomatically() === 'start') {
 		main.startServer()
 	}
@@ -162,6 +173,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	disposable = vscode.commands.registerCommand('vscode-sonic-pi.stop', () => {
 		main.stopAllJobs()
+		playingLines.clear()
 	})
 
 	disposable = vscode.commands.registerCommand('vscode-sonic-pi.restartserver', () => {

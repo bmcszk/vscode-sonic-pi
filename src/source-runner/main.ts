@@ -49,6 +49,8 @@ export class Main {
 
 	onRunStarted = new vscode.EventEmitter<number>()
 	onRunEnded = new vscode.EventEmitter<number>()
+	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
+	onServerRestart: (() => void) | undefined = undefined
 
 	guiSendToServerPort: number
 	daemonPort: number
@@ -322,6 +324,10 @@ export class Main {
 			this.processError(message)
 		})
 
+		osc.on('/flash', (message: { args: any }) => {
+			this.onFlash.fire({ workspace: message.args[1], line: message.args[2] })
+		})
+
 		//osc.on('*', (message: {address: string}) => {
 		//    this.logOutput.appendLine("Got message of type: " + message.address);
 		//});
@@ -483,6 +489,9 @@ export class Main {
 	// Kill the current daemon and boot a fresh one, bringing back a dead audio server.
 	async restartServer(): Promise<void> {
 		this.logOutput.appendLine('Restarting Sonic Pi server...')
+		if (this.onServerRestart) {
+			this.onServerRestart()
+		}
 		if (this.daemonProcess) {
 			this.daemonProcess.kill()
 			this.daemonProcess = null

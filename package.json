@@ -10,7 +10,7 @@
 	},
 	"scripts": {
 		"build":"tsc",
-		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/codelenses.test.js && node test/unit/activation.test.js",
+		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/codelenses.test.js && node test/unit/playing-lines.test.js && node test/unit/activation.test.js",
 		"test:e2e":"npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",
@@ -288,6 +288,11 @@
 					"type": "string",
 					"default": "rgba(255,255,255,1.0)",
 					"description": "Text flash color when running code"
+				},
+				"vscode-sonic-pi.showPlayingLineHighlight": {
+					"type": "boolean",
+					"default": true,
+					"description": "Highlight the line that is currently playing, like the Sonic Pi app"
 				},
 				"vscode-sonic-pi.showEditorControls": {
 					"type": "boolean",
