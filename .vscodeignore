@@ -1,0 +1,6 @@
+# Agent-harness and tracker files - not part of the extension runtime.
+# (.claude/skills/* are symlinks and crash vsce's secret scan with EISDIR.)
+.agents/**
+.claude/**
+.beans/**
+skills-lock.json
