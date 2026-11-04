@@ -73,9 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
 	})
 	main.onServerRestart = () => playingLines.clear()
 	context.subscriptions.push(
-		main.onRunStarted.event((jobid) => playingLines.runStarted(jobid, main.takePendingOffset())),
-		main.onRunEnded.event((jobid) => playingLines.runEnded(jobid)),
-		main.onFlash.event(({ jobid, workspace, line }) => playingLines.flash(jobid, workspace, line)),
+		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),
 		{ dispose: () => playingLines.dispose() },
 	)
 
@@ -114,8 +112,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.runWithText', (code: string, blockLine?: number) => {
-			// A Run cell sends only its block, so pass the block's editor line to keep its flashes
-			// landing on the lines they belong to.
+			// A Run cell sends only its block, so pass the block's editor line: runCode pads the text
+			// up to that line and the daemon then reports file-absolute flash lines.
 			main.runCode(code, blockLine ?? 0)
 		}),
 	)

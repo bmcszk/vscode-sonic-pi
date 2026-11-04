@@ -38,7 +38,6 @@ export class PlayingLineHighlighter {
 	private readonly cancel: (timer: ReturnType<typeof setTimeout>) => void
 	private readonly decorationType: vscode.TextEditorDecorationType
 	private readonly activeLines = new Map<number, ActiveLine>()
-	private readonly offsetsByJob = new Map<number, number>()
 	private paintedEditors = new Set<PlayingLineEditor>()
 	private sweepTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -55,22 +54,9 @@ export class PlayingLineHighlighter {
 		})
 	}
 
-	// The daemon numbers a run's flashes from the first line it was given, so a Run cell's flashes
-	// are fragment-relative: keep the editor offset the run was cut from. Whole files record 0.
-	runStarted(jobid: number, offset: number): void {
-		this.offsetsByJob.set(jobid, offset)
-	}
-
-	// Without a jobid the daemon stopped every run, so no recorded offset is live any more.
-	runEnded(jobid?: number): void {
-		if (typeof jobid === 'number') {
-			this.offsetsByJob.delete(jobid)
-		} else {
-			this.offsetsByJob.clear()
-		}
-	}
-
-	flash(jobid: number, workspace: string, line: number): void {
+	// The daemon reports file-absolute lines because every run is sent with its file position
+	// already in place (a fragment is comment-padded up to its start line), so no run state is kept.
+	flash(workspace: string, line: number): void {
 		if (workspace !== OUR_RUN_WORKSPACE || !this.config.showPlayingLineHighlight()) {
 			return
 		}
@@ -81,7 +67,7 @@ export class PlayingLineHighlighter {
 		if (!editor) {
 			return
 		}
-		const editorLine = line - 1 + (this.offsetsByJob.get(jobid) ?? 0)
+		const editorLine = line - 1
 		const expiresAt = this.now() + FLASH_TTL_MS
 		const active = this.activeLines.get(editorLine)
 		if (active) {
@@ -99,7 +85,6 @@ export class PlayingLineHighlighter {
 
 	clear(): void {
 		this.activeLines.clear()
-		this.offsetsByJob.clear()
 		if (this.sweepTimer !== undefined) {
 			this.cancel(this.sweepTimer)
 			this.sweepTimer = undefined
