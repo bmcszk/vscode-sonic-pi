@@ -51,8 +51,21 @@ function blockLenses(text: string): vscode.CodeLens[] {
 	if (blocks.length < 2) {
 		return []
 	}
-	return blocks.map((block) => codeLens(block.line, '$(play) Run cell', RUN_TEXT_COMMAND, [block.text]))
+	return blocks
+		.filter((block) => hasPlayableLine(block.text))
+		.map((block) => codeLens(block.line, '$(play) Run cell', RUN_TEXT_COMMAND, [block.text]))
 }
+
+function hasPlayableLine(blockText: string): boolean {
+	return blockText
+		.split(/\r?\n/)
+		.some((raw) => {
+			const line = raw.trim()
+			return line !== '' && !line.startsWith('#') && !SETTING_LINE.test(line)
+		})
+}
+
+const SETTING_LINE = /^(use_[a-z_]+|set_[a-z_]+!|set!)[ (]/
 
 function codeLens(line: number, title: string, command: string, args?: string[]): vscode.CodeLens {
 	return new vscode.CodeLens(new vscode.Range(line, 0, line, 0), { title, command, arguments: args })

@@ -37,6 +37,11 @@ The Marketplace listing for this fork is not published yet. Install the packaged
    **Sonic Pi: Start Server**.
 3. Press `F5` (or `Alt+R`) to run the whole file, `Alt+S` to stop it. The played region flashes
    briefly, and the **Cues** and **Log** output channels show what the server reports.
+4. Or use the editor controls: a **▶ Run / ■ Stop** row above the first line, a **▶ Run cell**
+   above each blank-line-separated block that plays something (comment-only or settings-only
+   blocks, like `use_bpm 120`, get none), and a **▶** button at the top right of the editor tab.
+   Everything clickable runs the same commands as the keys. Turn them off with
+   [`showEditorControls`](#settings).
 
 ### Keyboard shortcuts
 

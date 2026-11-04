@@ -115,6 +115,38 @@ const tests = {
 		])
 	},
 
+	'a comment-only or settings-only block gets no Run cell lens'() {
+		const text = ['# Note: requires a powerful machine to run smoothly.', '', 'use_bpm 120', '', 'play 60'].join('\n')
+
+		const lenses = lensesFor('sonic-pi', text)
+
+		assert.deepStrictEqual(lenses.map(summary), [
+			{ title: '$(play) Run', command: 'vscode-sonic-pi.run', arguments: [text], line: 0 },
+			{ title: '$(stop) Stop', command: 'vscode-sonic-pi.stop', arguments: undefined, line: 0 },
+			{ title: '$(play) Run cell', command: 'vscode-sonic-pi.runWithText', arguments: ['play 60'], line: 4 },
+		])
+	},
+
+	'comments inside an otherwise playable block do not disqualify its lens'() {
+		const text = [
+			'live_loop :a do',
+			'  # soft',
+			'  play 60',
+			'end',
+			'',
+			'play 62',
+		].join('\n')
+
+		const lenses = lensesFor('sonic-pi', text)
+
+		assert.deepStrictEqual(
+			lenses
+				.filter((lens) => lens.command.command === 'vscode-sonic-pi.runWithText')
+				.map((lens) => lens.command.arguments[0]),
+			['live_loop :a do\n  # soft\n  play 60\nend', 'play 62'],
+		)
+	},
+
 	'a single-block document gets no Run cell lens'() {
 		const lenses = lensesFor('sonic-pi', SINGLE_BLOCK_TEXT)
 

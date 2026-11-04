@@ -5,7 +5,7 @@ status: completed
 type: task
 priority: normal
 created_at: 2026-11-03T16:29:48Z
-updated_at: 2026-11-03T17:23:24Z
+updated_at: 2026-11-04T12:24:19Z
 parent: sonic-pi-bpba
 ---
 
@@ -57,3 +57,7 @@ Implemented (worker; tsconfig grant via supervisor decision option B) + parent-v
 - Parent clean-room proof on merged master (2d8fb2c): rm -rf node_modules out && npm ci exit 0; npm test exit 0; npm run test:e2e exit 0 'gate green: run 0 and stop-all-jobs accepted on the live daemon'; npx @vscode/vsce package exit 0 (vsix deleted; no version bump); git status clean.
 
 Residual: dev-chain advisories (mocha 8 chain) -> follow-up draft; moduleResolution/TS7/eslint-flat migration -> future epic, not this fork's urgent path.
+
+## Retro note (2026-11-04): tsconfig companion had a latent failure mode
+
+The node16 module emit changed JSON namespace-import semantics -> 0.1.2 shipped with dead activation (found by user, fixed+gated under sonic-pi-aedq with the new activation smoke test in npm test). The r530 gates passed because no gate loaded the built extension end-to-end; that gap is now closed structurally (activation.test.js).
