@@ -102,17 +102,33 @@ const tests = {
 			{
 				title: '$(play) Run cell',
 				command: 'vscode-sonic-pi.runWithText',
-				arguments: ['live_loop :a do\n  play 60\nend'],
+				arguments: ['live_loop :a do\n  play 60\nend', 0],
 				line: 0,
 			},
 			{
 				title: '$(play) Run cell',
 				command: 'vscode-sonic-pi.runWithText',
-				arguments: ['live_loop :b do\n  play 62\nend'],
+				arguments: ['live_loop :b do\n  play 62\nend', 4],
 				line: 4,
 			},
-			{ title: '$(play) Run cell', command: 'vscode-sonic-pi.runWithText', arguments: ['play 64'], line: 8 },
+			{ title: '$(play) Run cell', command: 'vscode-sonic-pi.runWithText', arguments: ['play 64', 8], line: 8 },
 		])
+	},
+
+	'a Run cell lens carries the block start line so fragment flashes can be mapped back'() {
+		const text = ['# intro', '', 'live_loop :a do', '  play 60', 'end', '', 'play 64'].join('\n')
+
+		const blocked = lensesFor('sonic-pi', text).filter(
+			(lens) => lens.command.command === 'vscode-sonic-pi.runWithText',
+		)
+
+		assert.deepStrictEqual(
+			blocked.map((lens) => [lens.range.start.line, lens.command.arguments[1]]),
+			[
+				[2, 2],
+				[6, 6],
+			],
+		)
 	},
 
 	'a comment-only or settings-only block gets no Run cell lens'() {
@@ -123,7 +139,7 @@ const tests = {
 		assert.deepStrictEqual(lenses.map(summary), [
 			{ title: '$(play) Run', command: 'vscode-sonic-pi.run', arguments: [text], line: 0 },
 			{ title: '$(stop) Stop', command: 'vscode-sonic-pi.stop', arguments: undefined, line: 0 },
-			{ title: '$(play) Run cell', command: 'vscode-sonic-pi.runWithText', arguments: ['play 60'], line: 4 },
+			{ title: '$(play) Run cell', command: 'vscode-sonic-pi.runWithText', arguments: ['play 60', 4], line: 4 },
 		])
 	},
 
@@ -164,13 +180,13 @@ const tests = {
 			{
 				title: '$(sync) Load def',
 				command: 'vscode-sonic-pi.runWithText',
-				arguments: ['define :chord_player do\n  play chord(:c4, :maj9)\nend'],
+				arguments: ['define :chord_player do\n  play chord(:c4, :maj9)\nend', 0],
 				line: 0,
 			},
 			{
 				title: '$(play) Run cell',
 				command: 'vscode-sonic-pi.runWithText',
-				arguments: ['live_loop :a do\n  chord_player\n  sleep 1\nend'],
+				arguments: ['live_loop :a do\n  chord_player\n  sleep 1\nend', 4],
 				line: 4,
 			},
 		])

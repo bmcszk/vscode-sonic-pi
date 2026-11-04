@@ -49,7 +49,7 @@ export class Main {
 
 	onRunStarted = new vscode.EventEmitter<number>()
 	onRunEnded = new vscode.EventEmitter<number>()
-	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
+	onFlash = new vscode.EventEmitter<{ jobid: number; workspace: string; line: number }>()
 	onServerRestart: (() => void) | undefined = undefined
 
 	guiSendToServerPort: number
@@ -79,6 +79,8 @@ export class Main {
 	config: any
 
 	runOffset: number
+	// Editor line the last run's code starts on, held until the daemon reports that run as started.
+	pendingRunOffset = 0
 
 	errorHighlightDecorationType = vscode.window.createTextEditorDecorationType({
 		border: '2px solid red',
@@ -325,7 +327,7 @@ export class Main {
 		})
 
 		osc.on('/flash', (message: { args: any }) => {
-			this.onFlash.fire({ workspace: message.args[1], line: message.args[2] })
+			this.onFlash.fire({ jobid: message.args[0], workspace: message.args[1], line: message.args[2] })
 		})
 
 		//osc.on('*', (message: {address: string}) => {
@@ -489,6 +491,7 @@ export class Main {
 	// Kill the current daemon and boot a fresh one, bringing back a dead audio server.
 	async restartServer(): Promise<void> {
 		this.logOutput.appendLine('Restarting Sonic Pi server...')
+		this.pendingRunOffset = 0
 		if (this.onServerRestart) {
 			this.onServerRestart()
 		}
@@ -522,10 +525,20 @@ export class Main {
 		})
 	}
 
+	// The daemon numbers a fragment run's flashes from its own first line, so the editor offset of
+	// the code that just went out has to reach the highlighter once the run is known. Consumed on
+	// read so a whole-file run that follows is not shifted by a stale offset.
+	takePendingOffset(): number {
+		const offset = this.pendingRunOffset
+		this.pendingRunOffset = 0
+		return offset
+	}
+
 	runCode(code: string, offset: number = 0) {
 		// The offset represents the line number of the selection, so we can apply it when we just send a
 		// selection to Sonic Pi. If we send the full buffer, then this is 0.
 		this.runOffset = offset
+		this.pendingRunOffset = offset
 		if (this.config.logClearOnRun()) {
 			this.logOutput.clear()
 		}
@@ -561,6 +574,7 @@ export class Main {
 	}
 
 	stopAllJobs() {
+		this.pendingRunOffset = 0
 		let message = new OSC.Message('/stop-all-jobs', this.guiUuid)
 		this.sendOsc(message)
 	}

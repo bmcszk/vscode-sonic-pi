@@ -96,7 +96,7 @@ const tests = {
 	'a flash for the eval workspace paints one whole-line range and uses the flash colors'() {
 		const { instance, editor } = highlighter()
 
-		instance.flash('eval', 4)
+		instance.flash(1, 'eval', 4)
 
 		const call = editor.calls[0]
 		assert.strictEqual(call.decorationType.options.isWholeLine, true)
@@ -108,9 +108,9 @@ const tests = {
 	'only workspace eval and 1-based lines are highlighted'() {
 		const { instance, editor } = highlighter()
 
-		instance.flash('buffer-0', 4)
-		instance.flash('eval', 0)
-		instance.flash('eval', 1.5)
+		instance.flash(1, 'buffer-0', 4)
+		instance.flash(1, 'eval', 0)
+		instance.flash(1, 'eval', 1.5)
 
 		assert.deepStrictEqual(editor.calls, [])
 	},
@@ -118,7 +118,7 @@ const tests = {
 	'the setting can turn the highlight off'() {
 		const { instance, editor } = highlighter({ config: { showPlayingLineHighlight: () => false } })
 
-		instance.flash('eval', 4)
+		instance.flash(1, 'eval', 4)
 
 		assert.deepStrictEqual(editor.calls, [])
 	},
@@ -126,9 +126,9 @@ const tests = {
 	'repeated flashes of the same line refresh the TTL instead of stacking ranges'() {
 		const { instance, timers, editor } = highlighter()
 
-		instance.flash('eval', 4)
+		instance.flash(1, 'eval', 4)
 		timers.advance(100)
-		instance.flash('eval', 4)
+		instance.flash(1, 'eval', 4)
 
 		assert.strictEqual(editor.lastRanges().length, 1)
 
@@ -142,9 +142,9 @@ const tests = {
 	'each line has its own TTL and ranges accumulate while active'() {
 		const { instance, timers, editor } = highlighter()
 
-		instance.flash('eval', 4)
+		instance.flash(1, 'eval', 4)
 		timers.advance(200)
-		instance.flash('eval', 5)
+		instance.flash(1, 'eval', 5)
 
 		assert.deepStrictEqual(editor.lastRanges(), [new FakeRange(3, 0, 3, 1000), new FakeRange(4, 0, 4, 1000)])
 
@@ -158,13 +158,86 @@ const tests = {
 	'clear removes every active range immediately and cancels the pending sweep'() {
 		const { instance, timers, editor } = highlighter()
 
-		instance.flash('eval', 4)
-		instance.flash('eval', 5)
+		instance.flash(1, 'eval', 4)
+		instance.flash(1, 'eval', 5)
 		instance.clear()
 
 		assert.deepStrictEqual(editor.lastRanges(), [])
 		timers.advance(250)
 		assert.strictEqual(editor.calls.length, 3, 'no sweep repaint after clear')
+	},
+
+	'a fragment run offsets its flashes by the block start line'() {
+		const { instance, editor } = highlighter()
+
+		instance.runStarted(7, 57)
+		instance.flash(7, 'eval', 3)
+
+		assert.deepStrictEqual(editor.lastRanges(), [new FakeRange(59, 0, 59, 1000)])
+
+		instance.flash(7, 'eval', 58)
+
+		assert.deepStrictEqual(editor.lastRanges(), [
+			new FakeRange(59, 0, 59, 1000),
+			new FakeRange(114, 0, 114, 1000),
+		])
+	},
+
+	'a whole-file run keeps its flashes on the file lines'() {
+		const { instance, editor } = highlighter()
+
+		instance.runStarted(8, 0)
+		instance.flash(8, 'eval', 3)
+
+		assert.deepStrictEqual(editor.lastRanges(), [new FakeRange(2, 0, 2, 1000)])
+	},
+
+	'concurrent jobs keep their own offsets'() {
+		const { instance, editor } = highlighter()
+
+		instance.runStarted(9, 57)
+		instance.runStarted(10, 0)
+		instance.flash(9, 'eval', 3)
+		instance.flash(10, 'eval', 3)
+
+		assert.deepStrictEqual(editor.lastRanges(), [
+			new FakeRange(59, 0, 59, 1000),
+			new FakeRange(2, 0, 2, 1000),
+		])
+	},
+
+	'a finished run forgets its offset'() {
+		const { instance, timers, editor } = highlighter()
+
+		instance.runStarted(11, 57)
+		instance.flash(11, 'eval', 3)
+		timers.advance(300)
+		instance.runEnded(11)
+		instance.flash(11, 'eval', 3)
+
+		assert.deepStrictEqual(editor.lastRanges(), [new FakeRange(2, 0, 2, 1000)])
+	},
+
+	'a stop-all without a jobid forgets every offset'() {
+		const { instance, editor } = highlighter()
+
+		instance.runStarted(12, 57)
+		instance.runStarted(13, 10)
+		instance.runEnded()
+		instance.flash(12, 'eval', 3)
+		instance.flash(13, 'eval', 3)
+
+		assert.deepStrictEqual(editor.lastRanges(), [new FakeRange(2, 0, 2, 1000)])
+	},
+
+	'clear forgets offsets as well as ranges'() {
+		const { instance, editor } = highlighter()
+
+		instance.runStarted(14, 57)
+		instance.clear()
+		instance.flash(14, 'eval', 3)
+
+		assert.deepStrictEqual(editor.lastRanges(), [new FakeRange(2, 0, 2, 1000)])
 	},
 
 	'flashes without an editor are ignored'() {
@@ -177,7 +250,7 @@ const tests = {
 			cancel: timers.cancel,
 		})
 
-		instance.flash('eval', 4)
+		instance.flash(1, 'eval', 4)
 		instance.clear()
 	},
 }

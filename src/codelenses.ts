@@ -53,7 +53,11 @@ function blockLenses(text: string): vscode.CodeLens[] {
 	}
 	return blocks
 		.filter((block) => hasPlayableLine(block.text) && !isAssignmentOnly(block.text))
-		.map((block) => codeLens(block.line, lensTitle(block.text), RUN_TEXT_COMMAND, [block.text]))
+		.map((block) =>
+			// The block's start line travels with the text: the daemon numbers this fragment's
+			// flashes from its own first line, so the highlighter needs the offset back.
+			codeLens(block.line, lensTitle(block.text), RUN_TEXT_COMMAND, [block.text, block.line]),
+		)
 }
 
 function hasPlayableLine(blockText: string): boolean {
@@ -93,7 +97,12 @@ const DEFINITION_LINE = /^\s*(define|defonce)\b/
 
 const SETTING_LINE = /^(use_[a-z_]+|set_[a-z_]+!|set!)[ (]/
 
-function codeLens(line: number, title: string, command: string, args?: string[]): vscode.CodeLens {
+function codeLens(
+	line: number,
+	title: string,
+	command: string,
+	args?: (string | number)[],
+): vscode.CodeLens {
 	return new vscode.CodeLens(new vscode.Range(line, 0, line, 0), { title, command, arguments: args })
 }
 

@@ -73,7 +73,9 @@ export function activate(context: vscode.ExtensionContext) {
 	})
 	main.onServerRestart = () => playingLines.clear()
 	context.subscriptions.push(
-		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),
+		main.onRunStarted.event((jobid) => playingLines.runStarted(jobid, main.takePendingOffset())),
+		main.onRunEnded.event((jobid) => playingLines.runEnded(jobid)),
+		main.onFlash.event(({ jobid, workspace, line }) => playingLines.flash(jobid, workspace, line)),
 		{ dispose: () => playingLines.dispose() },
 	)
 
@@ -111,8 +113,10 @@ export function activate(context: vscode.ExtensionContext) {
 	})
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('vscode-sonic-pi.runWithText', (code: string) => {
-			main.runCode(code)
+		vscode.commands.registerCommand('vscode-sonic-pi.runWithText', (code: string, blockLine?: number) => {
+			// A Run cell sends only its block, so pass the block's editor line to keep its flashes
+			// landing on the lines they belong to.
+			main.runCode(code, blockLine ?? 0)
 		}),
 	)
 
