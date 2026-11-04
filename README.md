@@ -85,6 +85,7 @@ All settings live under **Settings → Extensions → Sonic Pi**, or in `setting
 | `vscode-sonic-pi.logClearOnRun` | `true` | Clear the log when a run starts. |
 | `vscode-sonic-pi.flashBackgroundColor` | `"rgba(255,20,147,1.0)"` | Background flash color while code runs. |
 | `vscode-sonic-pi.flashTextColor` | `"rgba(255,255,255,1.0)"` | Text flash color while code runs. |
+| `vscode-sonic-pi.showEditorControls` | `true` | Show Run/Stop controls above the editor (CodeLens) and in the editor title bar. |
 
 ## Troubleshooting
 

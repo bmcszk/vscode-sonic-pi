@@ -32,6 +32,7 @@ import * as vscode from 'vscode'
 
 import { Main } from './main'
 import { Config } from './config'
+import { SonicPiCodeLensProvider } from '../codelenses'
 
 let main: Main
 
@@ -97,6 +98,12 @@ export function activate(context: vscode.ExtensionContext) {
 		main.flashCode(textEditor, true)
 		main.runCode(code)
 	})
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.runWithText', (code: string) => {
+			main.runCode(code)
+		}),
+	)
 
 	disposable = vscode.commands.registerTextEditorCommand('vscode-sonic-pi.runselected', (textEditor) => {
 		let doc = textEditor.document
@@ -176,6 +183,10 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 		}
 	})
+
+	context.subscriptions.push(
+		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, new SonicPiCodeLensProvider()),
+	)
 
 	context.subscriptions.push(disposable)
 }
