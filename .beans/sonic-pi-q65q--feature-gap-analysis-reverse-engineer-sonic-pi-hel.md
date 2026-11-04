@@ -5,7 +5,7 @@ status: in-progress
 type: epic
 priority: normal
 created_at: 2026-11-04T20:29:46Z
-updated_at: 2026-11-04T20:43:47Z
+updated_at: 2026-11-04T23:33:50Z
 ---
 
 # Feature gap analysis (user directive 2026-11-04)
@@ -38,3 +38,7 @@ Compliant: intent/mechanism separation (codelenses.ts pure block classification;
 ## Summary of Changes
 
 Phase A analysis delivered: docs/research/feature-gaps.md (helper reverse-engineered from its vsix; Sonic Pi OSC surface inventoried from daemon source; 7 ranked proposals). User picked all 7 -> child requirement beans created (lgv0/ui6r/kmbo/dmux/knzv/h8vo/lkus). Epic closes when those complete; per-session rule this becomes the active epic once dgis/rtvk/kpif wrap.
+
+## Skills-rules audit of all our commits (2026-11-04, user-ordered)
+
+Scope: every commit on the fork (fork-fixes, maturity, audio-recovery, editor-controls, highlight, codelens, variant B/A, research docs, skills). Verdict per coding-rules: architecture compliant (intent/mechanism split, call-order layout, black-box tests, fake-clock/editor only at boundaries, error-early). Found+fixed 1 residue: dead runOffset field (always 0 since variant A) with both error-path additions + a comment contradicting the code (e2693a4). Earlier audits this session: variant-B jobid residue (ece073f), lying config default. Skill-rules honored in process: no gate bypassed, all tests kept, red->green evidence per feature, minimal diffs.
