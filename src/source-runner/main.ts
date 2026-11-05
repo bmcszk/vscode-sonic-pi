@@ -79,6 +79,7 @@ export class Main {
 
 	portsInitalized: Promise<OscSender>
 	portsInitalizedResolver!: (sender: OscSender) => void
+	keepAliveTimer: ReturnType<typeof setInterval> | undefined
 
 	logOutput: vscode.OutputChannel
 	cuesOutput: vscode.OutputChannel
@@ -516,9 +517,10 @@ export class Main {
 	}
 
 	startKeepAlive() {
+		this.stopKeepAlive()
 		const daemonSender = new OscSender(this.daemonPort)
 		console.log('Sending Keepalive to', this.daemonPort)
-		setInterval(() => {
+		this.keepAliveTimer = setInterval(() => {
 			let message = new OSC.Message('/daemon/keep-alive', parseInt(this.guiUuid))
 			daemonSender.send(message)
 		}, 1000)
@@ -651,9 +653,23 @@ export class Main {
 		this.logOutput.appendLine(
 			'Taking over the Sonic Pi server: asked the daemon in another window to exit (token-matched /daemon/exit).',
 		)
-		// The old bindings die with the daemon; boot a fresh generation owned by this window.
+		// The old bindings die with the daemon. startServer() sees serverStarted=true from
+		// the attach that preceded this, so reset the ownership state first: flag down,
+		// send queue re-armed (a resolved sender would keep shipping to dead ports), then
+		// boot a fresh generation owned by this window.
+		this.serverStarted = false
+		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
+		this.daemonPort = -1
+		this.stopKeepAlive()
 		await this.startServer()
 		return true
+	}
+
+	private stopKeepAlive() {
+		if (this.keepAliveTimer) {
+			clearInterval(this.keepAliveTimer)
+			this.keepAliveTimer = undefined
+		}
 	}
 
 	// Managed mode already knows its daemon port; otherwise the booter log carries it
