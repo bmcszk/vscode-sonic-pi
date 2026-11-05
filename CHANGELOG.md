@@ -4,6 +4,11 @@ All notable changes to the "sonic-pi-5-extension" extension will be documented i
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.2.1] - 2026-11-05
+
+### Fixed
+- Marketplace publish workflow: vsce 4.x flag name (--no-dependencies) and the --oidc Trusted Publishing switch.
+
 ## [0.2.0] - 2026-11-05
 
 ### Added
