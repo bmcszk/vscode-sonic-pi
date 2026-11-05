@@ -76,7 +76,7 @@ Settings use the `vscode-sonic-pi.` prefix. The full table with defaults lives i
 ## Troubleshooting
 
 If there is no sound or the server never comes up, check that Sonic Pi itself plays sound. Then
-read the **Log** and **Cues** output channels in VS Code, plus the files in `~/.sonic-pi/log/`:
+read the **Sonic Pi Log** and **Sonic Pi Cues** output channels in VS Code (Output panel dropdown), plus the files in `~/.sonic-pi/log/`:
 `daemon.log` for startup, `spider.log` for run errors, `supersonic.log` for the audio engine.
 
 If VS Code says the Sonic Pi root path is not properly configured, set

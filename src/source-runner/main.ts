@@ -163,8 +163,8 @@ export class Main {
 			fs.mkdirSync(this.logPath, { recursive: true })
 		}
 
-		this.cuesOutput = vscode.window.createOutputChannel('Cues')
-		this.logOutput = vscode.window.createOutputChannel('Log')
+		this.cuesOutput = vscode.window.createOutputChannel('Sonic Pi Cues')
+		this.logOutput = vscode.window.createOutputChannel('Sonic Pi Log')
 		this.cuesOutput.show()
 		this.logOutput.show()
 
