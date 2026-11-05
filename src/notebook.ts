@@ -8,6 +8,7 @@ import {
 	runScript,
 	serverIsRunning,
 	isReceiving,
+	notebookRunsWholeSong,
 	takeOverConnection,
 	startServer,
 	stopAllScripts,
@@ -241,7 +242,7 @@ export class NotebookController {
 			endExecution(executed, 'not connected from this window')
 			return
 		}
-		await this.triggerPlay(notebook)
+		await this.triggerPlay(notebook, [cell])
 		endExecution(executed, 'playcellFromURI')
 	}
 
@@ -271,7 +272,7 @@ export class NotebookController {
 			cellWorkingCopies.forEach((e) => endExecution(e, 'not connected from this window'))
 			return
 		}
-		await this.triggerPlay(notebook)
+		await this.triggerPlay(notebook, cells)
 		cellWorkingCopies.forEach((e) => endExecution(e, 'handler'))
 	}
 
@@ -347,7 +348,7 @@ export class NotebookController {
 		return cellWorkingCopy
 	}
 
-	private async triggerPlay(notebook: vscode.NotebookDocument): Promise<void> {
+	private async triggerPlay(notebook: vscode.NotebookDocument, playedCells?: vscode.NotebookCell[]): Promise<void> {
 		const workingCopy: NotebookWorkingCopy = this.workingCopies.get(getKey(notebook)) ?? {
 			executionHistory: new Map<string, CellWorkingCopy>(),
 			notebook,
@@ -355,7 +356,17 @@ export class NotebookController {
 
 		const cells = notebook.getCells()
 
-		const scriptToPlay: ExecutedCell[] = cells
+		let playable = cells
+		if (playedCells && !notebookRunsWholeSong()) {
+			// Per-cell semantics: the played cell runs alone. Its define'd functions live on
+			// in the daemon across runs, so earlier setup cells don't need replaying. The
+			// whole-song join stays available as a setting for notebook-as-one-instrument.
+			const playedKeys = new Set(playedCells.map((cell) => getKey(cell)))
+			playable = cells.filter((cell) => playedKeys.has(getKey(cell)))
+		}
+
+		if (process.env.NB_DEBUG) console.error('DEBUG playable', playable.length, 'cells:', cells.map((c) => getKey(c)), 'played:', playedCells && [...new Set(playedCells.map((c) => getKey(c)))], 'whole:', notebookRunsWholeSong())
+		const scriptToPlay: ExecutedCell[] = playable
 			.map((cell) => ({
 				cellKey: getKey(cell),
 				content: workingCopy.executionHistory.get(getKey(cell))?.content,

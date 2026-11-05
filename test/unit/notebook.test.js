@@ -211,6 +211,60 @@ function openController() {
 }
 
 const tests = {
+	async 'playing a cell runs ONLY that cell (whole-song join off by default): earlier cells stay silent'() {
+		const { main, handler } = openController()
+		const cells = [
+			makeCell('guit', 'live_loop :guit do\n  sample :guit_em9\n  sleep 8\nend'),
+			makeCell('flibble', 'live_loop :flibble do\n  sample :bd_haus\n  sleep 0.5\nend'),
+		]
+		const notebook = makeNotebook(cells)
+		main.serverStarted = true
+
+		handler([cells[0]], notebook).catch(() => {})
+		await flush()
+		main.onRunStarted.fire(0)
+		main.onRunEnded.fire(0)
+		await flush()
+
+		const second = handler([cells[1]], notebook).catch(() => {})
+		await flush()
+
+		assert.deepStrictEqual(main.runs.length, 2, 'two plays, two sends')
+		assert.ok(
+			!main.runs.at(-1).includes('guit_em9'),
+			'the flibble play must not re-send the guit cell content: only that cell plays',
+		)
+		main.onRunStarted.fire(1)
+		main.onRunEnded.fire(1)
+		await second
+	},
+
+	async 'whole-song mode (setting on) still joins executed cells'() {
+		const { main, handler } = openController()
+		const cells = [
+			makeCell('guit', 'live_loop :guit do\n  sample :guit_em9\n  sleep 8\nend'),
+			makeCell('flibble', 'live_loop :flibble do\n  sample :bd_haus\n  sleep 0.5\nend'),
+		]
+		const notebook = makeNotebook(cells)
+		settings.notebookRunsWholeSong = true
+		main.serverStarted = true
+
+		const first = handler([cells[0]], notebook).catch(() => {})
+		await flush()
+		main.onRunStarted.fire(0)
+		main.onRunEnded.fire(0)
+		await flush()
+
+		const second = handler([cells[1]], notebook).catch(() => {})
+		await flush()
+
+		assert.ok(main.runs.at(-1).includes('guit_em9'), 'whole-song mode joins the earlier cell')
+		settings.notebookRunsWholeSong = undefined
+		main.onRunStarted.fire(1)
+		main.onRunEnded.fire(1)
+		await second
+	},
+
 	async 'play while another window owns the reply port: this window takes over and plays'() {
 		const { main, handler, notebook } = openController()
 		const cells = [makeCell('c1', 'play 61')]
@@ -407,15 +461,15 @@ const tests = {
 		await firstRun
 		assert.deepStrictEqual(cellFlashes.resolve(1), { cellKey: 'first-cell', localLine: 1 })
 
-		// The execution history still holds the first cell, so the second play joins both.
+			// Per-cell join: the second play records only the second cell's own lines.
 		const secondRun = handler([secondCell], notebook)
 		await flush()
 		main.onRunStarted.fire(1)
 		main.onRunEnded.fire(1)
 		await secondRun
 
-		assert.deepStrictEqual(cellFlashes.resolve(3), { cellKey: 'second-cell', localLine: 1 })
-		assert.strictEqual(cellFlashes.resolve(4), undefined)
+		assert.deepStrictEqual(cellFlashes.resolve(1), { cellKey: 'second-cell', localLine: 1 })
+		assert.strictEqual(cellFlashes.resolve(2), undefined, 'the map covers only the played cell')
 	},
 
 	async 'playing a notebook cell boots the server when launch mode is ruby and no server is running'() {

@@ -320,6 +320,12 @@
 					"default": true,
 					"description": "A play stops the previous jobs first (per-cell replace, matching the Sonic Pi app's Run). Turn off to layer runs on top of each other."
 				},
+
+				"vscode-sonic-pi.notebookRunsWholeSong": {
+					"type": "boolean",
+					"default": false,
+					"description": "Replay every executed cell of the notebook on each play (the notebook as one instrument). Default off: the played cell runs alone."
+				},
 				"vscode-sonic-pi.logAutoscroll": {
 					"type": "boolean",
 					"default": true,

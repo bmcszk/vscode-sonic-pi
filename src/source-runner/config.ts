@@ -33,6 +33,9 @@ export class Config {
 	public flashTextColor(): string {
 		return this.getConfiguration(this.section).flashTextColor
 	}
+	public notebookRunsWholeSong(): boolean {
+		return this.getConfiguration(this.section).notebookRunsWholeSong === true
+	}
 	public runReplacesSession(): boolean {
 		return this.getConfiguration(this.section).runReplacesSession !== false
 	}

@@ -24,6 +24,7 @@ All settings use the `vscode-sonic-pi.` prefix and can be set in your user or wo
 
 | Setting | Default | What it does |
 | ------- | ------- | ------------ |
+| `vscode-sonic-pi.notebookRunsWholeSong` | `false` | Replay every executed cell on each notebook play (the notebook as one instrument). Default: the played cell runs alone. |
 | `vscode-sonic-pi.runReplacesSession` | `true` | A play stops the previous jobs first (per-cell replace, matching the Sonic Pi app's Run). Turn off to layer runs on top of each other. |
 | `vscode-sonic-pi.showEditorControls` | `true` | The ▶ Run / ■ Stop row above the file, ▶ Run cell / ⟳ Load def above blocks, and the ▶ title-bar button. |
 | `vscode-sonic-pi.showPlayingLineHighlight` | `true` | Highlights the lines that are currently making sound while code plays. |
