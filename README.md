@@ -58,6 +58,8 @@ notebook commands (create notebook, run cell, stop).
 Settings use the `vscode-sonic-pi.` prefix. The full table with defaults lives in
 [docs/SETTINGS.md](docs/SETTINGS.md). The ones you are most likely to touch:
 
+- `sonic-pi.connectionMode`: `auto` (default) attaches to a Sonic Pi app you run yourself when one is
+  found, otherwise boots our own server. `managed` always boots; `attach` only ever attaches.
 - `sonic-pi.sonicPiRootDirectory`: set this only if your Sonic Pi install is not in the platform
   default location (`/usr/lib/sonic-pi` on Linux, `/Applications/Sonic Pi.app/Contents/Resources`
   on macOS, `C:\Program Files\Sonic Pi` on Windows).

@@ -21,7 +21,14 @@ class FakeOscSender {
 }
 
 const vscodeStub = {
-	EventEmitter,
+	EventEmitter: class extends EventEmitter {
+		fire(value) {
+			this.emit('event', value)
+		}
+		event() {
+			return { dispose() {} }
+		}
+	},
 	Range: class {},
 	Selection: class {},
 	TextEditorRevealType: { InCenterIfOutsideViewport: 0 },
@@ -92,6 +99,7 @@ const tests = {
 		errorsShown.length = 0
 		oscSenders.length = 0
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		const started = main.startServer()
 		spawnedServer.stdout.emit('data', Buffer.from('1 2 3 4 5 not-a-number'))
 		await started

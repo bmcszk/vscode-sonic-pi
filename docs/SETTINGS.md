@@ -6,6 +6,7 @@ All settings use the `vscode-sonic-pi.` prefix and can be set in your user or wo
 
 | Setting | Default | What it does |
 | ------- | ------- | ------------ |
+| `vscode-sonic-pi.connectionMode` | `auto` | `auto` attaches to a Sonic Pi app you started yourself (found by scanning `/proc` for `spider-server.rb` on Linux) and boots our own daemon only if none is running. `managed` always boots the daemon. `attach` never boots: it errors if no running Sonic Pi server is found. |
 | `vscode-sonic-pi.launchSonicPiServerAutomatically` | `ruby` | `ruby` starts the server with Ruby when a Sonic Pi file opens. `custom` runs the command in `launchSonicPiServerCustomExtension`. `never` never starts it; use **Sonic Pi: Start Server** by hand. |
 | `vscode-sonic-pi.sonicPiRootDirectory` | platform default | Where Sonic Pi is installed. Defaults: `/usr/lib/sonic-pi` (Linux), `/Applications/Sonic Pi.app/Contents/Resources` (macOS), `C:\Program Files\Sonic Pi` (Windows). Set it if the extension reports the root path is not configured. |
 | `vscode-sonic-pi.launchSonicPiServerCustomExtension` | unset | Full command line to start the server when the launch mode is `custom`. |
