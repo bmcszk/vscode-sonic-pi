@@ -5,7 +5,7 @@ status: completed
 type: bug
 priority: normal
 created_at: 2026-11-05T20:10:17Z
-updated_at: 2026-11-05T21:20:45Z
+updated_at: 2026-11-05T21:31:17Z
 ---
 
 # Notebook playing-line highlight wrong/intermittent (user report 2026-11-05)
@@ -45,3 +45,7 @@ Root at packet level: osc-js UDP binds default SO_REUSEADDR (exclusive:false) ->
 ## Final note (2026-11-05): superseded by the takeover-architecture session
 
 All three of this bean's surfaces shipped AND evolved: per-cell 'playing' indicator (cd03cbb), in-cell flash mapping, and the multi-window root-cause chain (EADDRINUSE fill-> takeover-on-play jnrs, exclusive bind dcf61d6). Closed: the tactics inside are now part of the deterministic-ownership architecture; remaining UX is carried by jnrs/'notebook UX' polish under normal use.
+
+## Reopened+refixed same day: cell Stop never stopped the sound (user report with guit/boom notebook)
+
+Second user sequence exposed a distinct defect: the notebook UI's per-cell Stop sends a kernel KERNEL INTERRUPT which the controller never registered -> 'stopped' a section while its live_loop kept playing and flashing (the half-cell never replaced the definition, so the old loops persisted). Fix abe15d5: interruptHandler registered - cell interrupt ends executions and stops ALL jobs (daemon has no per-cell stop; app parity). TDD red (no handler registered / interrupt must stop jobs) -> green. 16 suites (110 ok), e2e green, packaged+installed. Probe evidence: broken half-cell produced ZERO flashes (daemon syntax-errored it, old loop persisted).
