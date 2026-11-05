@@ -64,8 +64,8 @@ jobs:
             echo "tag ${GITHUB_REF_NAME} does not match package.json version ${version}" >&2
             exit 1
           fi
-          npx --yes @vscode/vsce@4.1.0 package --out "sonic-pi-extension-${version}.vsix"
-          echo "path=sonic-pi-extension-${version}.vsix" >> "$GITHUB_OUTPUT"
+          npx --yes @vscode/vsce@4.1.0 package --out "sonic-pi-5-extension-${version}.vsix"
+          echo "path=sonic-pi-5-extension-${version}.vsix" >> "$GITHUB_OUTPUT"
 
       # gh CLI instead of a third-party release action: one less pinned
       # dependency, and gh is preinstalled on GitHub-hosted runners.

@@ -23,7 +23,7 @@ Sonic Pi 5.
 
 The Marketplace listing for this fork is not published yet. Install the packaged extension instead:
 
-1. Get the `.vsix` package (`sonic-pi-extension-<version>.vsix`).
+1. Get the `.vsix` package (`sonic-pi-5-extension-<version>.vsix`).
 2. In VS Code, open the Extensions view, click the `...` menu and choose **Install from VSIX…**.
 3. Pick the file. Reload the window if VS Code asks.
 

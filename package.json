@@ -1,7 +1,7 @@
 {
-	"name": "sonic-pi-extension",
-	"displayName": "Sonic Pi Extension",
-	"publisher": "s00500",
+	"name": "sonic-pi-5-extension",
+	"displayName": "Sonic Pi 5 Extension",
+	"publisher": "bmcszk",
 	"description": "Language support and code running for Sonic Pi scripts",
 	"preview": true,
 	"version": "0.1.4",
