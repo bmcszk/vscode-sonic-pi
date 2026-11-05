@@ -34,6 +34,12 @@ Linux is the tested platform. See [Fork notes](#fork-notes).
 Run cell runs only that block in its own run. Variables from other blocks are not visible there.
 Share state with `define`d functions or `set`/`get`, or run the whole file.
 
+## Snippets
+
+Typing a prefix and accepting the suggestion inserts a template: `ll` (live loop), `lls` (live
+loop with synth), `llb` (live loop with sample), `def` (define function), `with_fx`, `use_bpm`,
+`in_thread`, `chord`, `scale`.
+
 ## Commands
 
 All commands are in the Command Palette under the **Sonic Pi** category: Start Server, Check
