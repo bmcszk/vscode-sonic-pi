@@ -175,6 +175,7 @@ Module._load = function (request, parent) {
 }
 
 const runner = require('../../out/source-runner/extension.js')
+const { CellFlashMap } = require('../../out/cell-flash-map.js')
 const { NotebookController, RunResolvers } = require('../../out/notebook.js')
 
 const flush = () => new Promise((resolve) => setImmediate(resolve))
@@ -204,8 +205,9 @@ function openController() {
 	const main = FakeMain.instances[FakeMain.instances.length - 1]
 	executions.clear()
 	createdHandlers.length = 0
-	const controller = new NotebookController('test-kernel', 'sonic-pi-book', 'Sonic Pi Player')
-	return { main, controller, handler: createdHandlers[0], notebook: makeNotebook([]) }
+	const cellFlashes = new CellFlashMap()
+	const controller = new NotebookController('test-kernel', 'sonic-pi-book', 'Sonic Pi Player', cellFlashes)
+	return { main, controller, cellFlashes, handler: createdHandlers[0], notebook: makeNotebook([]) }
 }
 
 const tests = {
@@ -354,6 +356,66 @@ const tests = {
 		await firstRun
 		await secondRun
 		assert.strictEqual(executionOf(firstCell).ended, true, 'job id 0 ends the first run')
+	},
+
+	async 'a play records which joined-script lines belong to each executed cell'() {
+		const { main, cellFlashes, handler } = openController()
+		const firstCell = makeCell('first-cell', 'play 60\nsleep 1')
+		const secondCell = makeCell('second-cell', 'sample :bd_haus\nsleep 0.5\nplay 72')
+		const notebook = makeNotebook([firstCell, secondCell])
+
+		const run = handler([firstCell, secondCell], notebook)
+		await flush()
+		main.onRunStarted.fire(0)
+		main.onRunEnded.fire(0)
+		await run
+
+		assert.deepStrictEqual(
+			[
+				cellFlashes.resolve(1),
+				cellFlashes.resolve(2),
+				cellFlashes.resolve(3),
+				cellFlashes.resolve(5),
+				cellFlashes.resolve(6),
+			],
+			[
+				{ cellKey: 'first-cell', localLine: 1 },
+				{ cellKey: 'first-cell', localLine: 2 },
+				{ cellKey: 'second-cell', localLine: 1 },
+				{ cellKey: 'second-cell', localLine: 3 },
+				undefined,
+			],
+			'the daemon flashes lines of the joined script, so each cell must own its slice of them',
+		)
+		assert.deepStrictEqual(
+			main.runs,
+			['play 60\nsleep 1\nsample :bd_haus\nsleep 0.5\nplay 72'],
+			'the run and the recorded offsets must describe the same joined script',
+		)
+	},
+
+	async 'a later play re-records the offsets of the whole joined script'() {
+		const { main, cellFlashes, handler } = openController()
+		const firstCell = makeCell('first-cell', 'play 60\nsleep 1')
+		const secondCell = makeCell('second-cell', 'play 72')
+		const notebook = makeNotebook([firstCell, secondCell])
+
+		const firstRun = handler([firstCell], notebook)
+		await flush()
+		main.onRunStarted.fire(0)
+		main.onRunEnded.fire(0)
+		await firstRun
+		assert.deepStrictEqual(cellFlashes.resolve(1), { cellKey: 'first-cell', localLine: 1 })
+
+		// The execution history still holds the first cell, so the second play joins both.
+		const secondRun = handler([secondCell], notebook)
+		await flush()
+		main.onRunStarted.fire(1)
+		main.onRunEnded.fire(1)
+		await secondRun
+
+		assert.deepStrictEqual(cellFlashes.resolve(3), { cellKey: 'second-cell', localLine: 1 })
+		assert.strictEqual(cellFlashes.resolve(4), undefined)
 	},
 
 	async 'playing a notebook cell boots the server when launch mode is ruby and no server is running'() {

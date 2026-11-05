@@ -8,8 +8,10 @@ import {
 } from './completionItems'
 import { showDocsBrowser } from './docs-browser'
 import { HoverProvider } from './HoverProvider'
+import { flashedCellKey, notebookFlashMap } from './cell-flash-map'
+import { CellFlashStatusBarProvider } from './cell-flash-provider'
 import { serializer, NotebookController } from './notebook'
-import { activate as activate_runner } from './source-runner/extension'
+import { activate as activate_runner, onFlash } from './source-runner/extension'
 
 const selector = { language: 'sonic-pi' }
 
@@ -78,9 +80,24 @@ export function activate(context: vscode.ExtensionContext) {
 		'sonic-pi-book-kernel',
 		'sonic-pi-book',
 		'Sonic Pi Player',
+		notebookFlashMap,
 	)
 
 	context.subscriptions.push(notebookController)
+
+	// A notebook editor cannot be decorated, so the cell that is making sound says so in its own
+	// cell status bar while the daemon keeps flashing its lines of the joined script.
+	const playingCellStatusBars = new CellFlashStatusBarProvider({ playingCells: notebookFlashMap })
+	context.subscriptions.push(
+		vscode.notebooks.registerNotebookCellStatusBarItemProvider('sonic-pi-book', playingCellStatusBars),
+		onFlash(({ workspace, line }) => {
+			const cellKey = flashedCellKey(notebookFlashMap, workspace, line)
+			if (cellKey !== undefined) {
+				playingCellStatusBars.noteFlash(cellKey)
+			}
+		}),
+		{ dispose: () => playingCellStatusBars.dispose() },
+	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.runCell', async () => {
