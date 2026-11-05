@@ -713,6 +713,12 @@ export class Main {
 		if (this.config.logClearOnRun()) {
 			this.logOutput.clear()
 		}
+		// Per-cell mental model: a play replaces the session's sound (matching the Sonic Pi
+		// app's Run button). testReplacesSession=false keeps Sonic Pi's stack-and-layer
+		// semantics for users who want overlapping runs.
+		if (this.config.runReplacesSession()) {
+			this.stopAllJobs()
+		}
 		if (this.config.safeMode()) {
 			code = 'use_arg_checks true #__nosave__ set by Qt GUI user preferences.\n' + code
 		}

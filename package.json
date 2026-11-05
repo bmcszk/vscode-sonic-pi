@@ -314,6 +314,12 @@
 					"default": true,
 					"description": "Synth argument checking functions.\nIf disabled, certain synth opt values may\ncreate unexpectedly loud or uncomfortable sounds."
 				},
+
+				"vscode-sonic-pi.runReplacesSession": {
+					"type": "boolean",
+					"default": true,
+					"description": "A play stops the previous jobs first (per-cell replace, matching the Sonic Pi app's Run). Turn off to layer runs on top of each other."
+				},
 				"vscode-sonic-pi.logAutoscroll": {
 					"type": "boolean",
 					"default": true,

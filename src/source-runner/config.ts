@@ -33,6 +33,9 @@ export class Config {
 	public flashTextColor(): string {
 		return this.getConfiguration(this.section).flashTextColor
 	}
+	public runReplacesSession(): boolean {
+		return this.getConfiguration(this.section).runReplacesSession !== false
+	}
 	public showPlayingLineHighlight(): boolean {
 		return this.getConfiguration(this.section).showPlayingLineHighlight === true
 	}
