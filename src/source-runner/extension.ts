@@ -72,6 +72,7 @@ export const stopAllScripts = () => {
 // before sending a run, and awaits startServer so the run lands on bound ports.
 export const serverIsRunning = () => main.serverStarted
 export const isReceiving = () => main.isReceiving()
+export const takeOverConnection = () => main.takeOverConnection()
 
 export const startServer = () => main.startServer()
 

@@ -7,6 +7,7 @@ import {
 	runScript,
 	serverIsRunning,
 	isReceiving,
+	takeOverConnection,
 	startServer,
 	stopAllScripts,
 } from './source-runner/extension'
@@ -259,15 +260,18 @@ export class NotebookController {
 	private takeoverNoticeShown = false
 
 	private async ensureServerReady(): Promise<boolean> {
-		if (!isReceiving() && !this.takeoverNoticeShown) {
-			// Another window owns the daemon's reply port. Runs sent here would execute
+		if (!isReceiving()) {
+			// Another window owns the daemon's reply port: runs sent from here would execute
 			// but this window could never see Starts/Completions, so cells would spin forever.
+			// Take ownership instead: daemon exits cleanly, fresh daemon boots (this window binds).
 			this.takeoverNoticeShown = true
-			void vscode.window.showErrorMessage(
-				'Sonic Pi: another VS Code window is already connected to this Sonic Pi server. ' +
-					'This window will not show Sonic Pi output. Close the other window, then run Sonic Pi: Restart Server here to take over.',
-			)
-			return false
+			if (!(await takeOverConnection())) {
+				void vscode.window.showErrorMessage(
+					'Sonic Pi: another VS Code window owns the Sonic Pi server and this window could not take it over.' +
+						' Close the other window and try again.',
+				)
+				return false
+			}
 		}
 		if (serverIsRunning()) return true
 		if (launchServerAutomatically() === 'never') {

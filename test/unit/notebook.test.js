@@ -140,6 +140,14 @@ class FakeMain {
 	isReceiving() {
 		return this.receiving
 	}
+	takeOverConnection() {
+		this.events.push('takeOver')
+		this.events.push('startServer:begin')
+		this.receiving = true
+		this.serverStarted = true
+		this.events.push('startServer:ready')
+		return Promise.resolve(true)
+	}
 	flashCode() {}
 	startRecording() {}
 	stopRecording() {}
@@ -196,41 +204,44 @@ function openController() {
 }
 
 const tests = {
-	async 'play while another window owns the reply port: takeover notice once, runs not driven from this window'() {
-		informationMessages.length = 0
-		errorMessages.length = 0
+	async 'play while another window owns the reply port: this window takes over and plays'() {
+		const { main, handler, notebook } = openController()
+		const cells = [makeCell('c1', 'play 61')]
+		main.receiving = false
+		main.serverStarted = true
+
+		const run = handler(cells, notebook).catch(() => {})
+		await flush()
+		await flush()
+
+		assert.ok(main.events.includes('takeOver'), 'the play takes over the connection')
+		assert.ok(main.events.includes('startServer:begin'), 'a fresh server boots for this window')
+		assert.ok(main.events.includes('runCode'), 'the play then proceeds on the taken-over server')
+		main.onRunStarted.fire(0)
+		main.onRunEnded.fire(0)
+		await run
+	},
+
+	async 'the taken-over window keeps owning: further plays need no second takeover'() {
 		const { main, handler, notebook } = openController()
 		const cells = [makeCell('c1', 'play 61'), makeCell('c2', 'play 62')]
 		main.receiving = false
 		main.serverStarted = true
 
-		await handler(cells, notebook)
-		assert.ok(!main.events.includes('startServer:begin'), 'no boot when another window is connected')
-		assert.strictEqual(
-			main.events.filter((event) => event === 'runCode').length,
-			0,
-			'runs are not driven from this window: replies are invisible to it',
-		)
-		assert.deepStrictEqual(errorMessages, [
-			'Sonic Pi: another VS Code window is already connected to this Sonic Pi server. ' +
-				'This window will not show Sonic Pi output. Close the other window, then run Sonic Pi: Restart Server here to take over.',
-		])
-	},
-
-	async 'after the port is free again (receiving), plays resume without a restart'() {
-		const { main, handler, notebook } = openController()
-		const cells = [makeCell('c1', 'play 61')]
-		main.receiving = false
-		main.serverStarted = true
-		await handler(cells, notebook)
-		assert.deepStrictEqual(main.events.filter((e) => e === 'runCode').length, 0)
-
-		main.receiving = true
-		handler(cells, notebook).catch(() => {})
+		const first = handler([cells[0]], notebook).catch(() => {})
 		await flush()
-		await flush()
+		main.onRunStarted.fire(0)
+		main.onRunEnded.fire(0)
+		await first
 
-		assert.ok(main.events.includes('runCode'), 'playing resumes when this window can receive again')
+		const second = handler([cells[1]], notebook).catch(() => {})
+		await flush()
+		main.onRunStarted.fire(1)
+		main.onRunEnded.fire(1)
+		await second
+
+		assert.deepStrictEqual(main.events.filter((e) => e === 'takeOver').length, 1, 'one takeover')
+		assert.deepStrictEqual(main.events.filter((e) => e === 'runCode').length, 2, 'both plays ran')
 	},
 
 

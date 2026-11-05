@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // /proc spider-server.rb cmdline parsing + running-server discovery. Exit code 0 = all pass.
 const assert = require('assert')
-const { parseSpiderCmdline, findRunningServer } = require('../../out/attach.js')
+const { parseSpiderCmdline, findRunningServer, takeOverRoute } = require('../../out/attach.js')
 
 // Real cmdline captured from a live Sonic Pi 5.x daemon on this machine
 // (ps aux | grep spider-server, /proc/322816/cmdline, NUL-separated):
@@ -25,6 +25,24 @@ const REAL_CMDLINE = [
 ].join('\0')
 
 const tests = {
+	'last daemon boot entry yields the daemon port and token for takeover'() {
+		const LOG = [
+			'junk',
+			'[16:08:08.736] Selected ports:',
+			'[16:08:08.736] {"spider-listen-to-gui" => 29818, "gui-send-to-spider" => 29818, "gui-listen-to-spider" => 29819, "spider-send-to-gui" => 29819, "scsynth" => 29820, "scsynth-send" => 29820, "osc-cues" => 4560, "spider" => 29821, "daemon" => 29822}',
+			'[16:08:08.736] Token: -713811861',
+			'more junk',
+		].join('\n')
+
+		const route = takeOverRoute(LOG)
+		assert.deepStrictEqual(route, { daemonPort: 29822, token: -713811861 })
+	},
+
+	'takeover route is undefined when the log carries no boot entry'() {
+		assert.strictEqual(takeOverRoute('nothing useful here'), undefined)
+	},
+
+
 	'parses the real live-daemon cmdline shape'() {
 		const ports = parseSpiderCmdline(REAL_CMDLINE)
 		assert.strictEqual(ports.sendToServerPort, 38518, 'spider server_port (argv[1]) is where /run-code goes')

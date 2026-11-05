@@ -24,6 +24,7 @@ import * as vscode from 'vscode'
 import { TextDecoder } from 'util'
 const fs = require('fs')
 const os = require('os')
+const path = require('path')
 const child_process = require('child_process')
 import { OscSender } from './oscsender'
 import { parseDaemonStdout } from './daemonstdout'
@@ -31,7 +32,7 @@ const OSC = require('osc-js')
 const utf8 = require('utf8')
 const { v4: uuidv4 } = require('uuid')
 import { Config } from './config'
-import { findRunningSpiderServer, SpiderPorts } from '../attach'
+import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } from '../attach'
 import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
 
@@ -633,6 +634,51 @@ export class Main {
 		void this.portsInitalized.then((sender) => {
 			sender.send(message)
 		})
+	}
+
+	// Another window won the reply-port bind. Take the daemon over for this window: ask its
+	// daemon to exit cleanly (audio server included) and boot a fresh one here. Use the
+	// daemon's own port+token; both live in the daemon booter's log when not managed here.
+	async takeOverConnection(): Promise<boolean> {
+		const route = this.daemonExitRoute()
+		if (!route) {
+			return false
+		}
+		const sender = new OscSender(route.daemonPort)
+		sender.send(
+			new OSC.Message('/daemon/exit', route.token),
+		)
+		this.logOutput.appendLine(
+			'Taking over the Sonic Pi server: asked the daemon in another window to exit (token-matched /daemon/exit).',
+		)
+		// The old bindings die with the daemon; boot a fresh generation owned by this window.
+		await this.startServer()
+		return true
+	}
+
+	// Managed mode already knows its daemon port; otherwise the booter log carries it
+	// (Selected ports => "daemon" => n, then Token: t - the same token spider validates).
+	private daemonExitRoute(): DaemonExitRoute | undefined {
+		if (this.daemonPort !== -1 && this.guiUuid !== -1) {
+			return { daemonPort: this.daemonPort, token: parseInt(this.guiUuid, 10) }
+		}
+		const logPath = this.spUserTmpPath ? this.daemonLogPath() : this.daemonLogPath()
+		try {
+			const bootLog = fs.readFileSync(this.daemonLogPath(), 'utf8')
+			const route = takeOverRoute(bootLog)
+			if (route) {
+				return route
+			}
+		} catch {
+			return undefined
+		}
+		return undefined
+	}
+
+	// The daemon booter writes to the shared log under the user's home; the extension
+	// already knows the log directory root from sonic pi's paths.
+	private daemonLogPath(): string {
+		return path.join(os.homedir(), '.sonic-pi', 'log', 'daemon.log')
 	}
 
 	// The daemon numbers a fragment run's flashes and errors from the first line it was given, so the
