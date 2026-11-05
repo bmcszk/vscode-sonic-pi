@@ -174,6 +174,20 @@ export class NotebookController {
 		this.disposables.add(onServerRestart(() => this.abandonRuns()))
 
 		this.controller.supportedLanguages = ['sonic-pi']
+
+		// The notebook UI's cell Stop button sends a kernel interrupt, not a command to
+		// the daemon. Without this handler the sound of a stopped cell keeps playing and
+		// the user sees 'stopped' while audio continues (user report: stopped a section,
+		// sound + highlights persisted). Daemon semantics have no per-cell stop: stopping
+		// one cell stops the whole session's jobs (same as the Sonic Pi app's Stop).
+		this.controller.interruptHandler = (notebook: vscode.NotebookDocument) => {
+			for (const notebookWorkingCopy of this.workingCopies.values()) {
+				for (const entry of notebookWorkingCopy.executionHistory.values()) {
+					endExecution(entry, 'cell interrupt')
+				}
+			}
+			stopAllScripts()
+		}
 	}
 
 	dispose() {

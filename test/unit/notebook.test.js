@@ -73,7 +73,7 @@ const vscodeStub = {
 		registerNotebookSerializer: () => ({ dispose() {} }),
 		createNotebookController: (_id, _notebookType, _label, handler) => {
 			createdHandlers.push(handler)
-			return {
+			const controllerObject = {
 				dispose() {},
 				supportedLanguages: [],
 				createNotebookCellExecution: (cell) => {
@@ -92,12 +92,15 @@ const vscodeStub = {
 					return execution
 				},
 			}
+			createdControllers.push(controllerObject)
+			return controllerObject
 		},
 	},
 	env: { openExternal: async () => true },
 }
 
 const createdHandlers = []
+const createdControllers = []
 
 // Stands in for src/source-runner/main.ts: activation only needs the event seams and the
 // run/stop entry points, so the controller is exercised without booting a daemon.
@@ -121,7 +124,9 @@ class FakeMain {
 	checkSonicPiPath() {}
 	requestVersion() {}
 	setMasterVolume() {}
-	stopAllJobs() {}
+	stopAllJobs() {
+		this.events.push('stopAll')
+	}
 	stopServer() {}
 	// Boots asynchronously like the real one, which only resolves once the daemon is ready.
 	startServer() {
@@ -394,6 +399,27 @@ const tests = {
 		)
 		settings.launchSonicPiServerAutomatically = 'ruby'
 	},
+	async 'stopping a cell stops the sound: interrupt handler ends executions and stops all jobs'() {
+		const { main, handler, notebook } = openController()
+		const cells = [makeCell('c1', 'live_loop :probe do\n  play 60\n  sleep 1\nend')]
+		main.serverStarted = true
+
+		handler(cells, notebook).catch(() => {})
+		await flush()
+		main.onRunStarted.fire(0)
+		await flush()
+
+		const controllerObject = createdControllers.at(-1)
+		assert.ok(controllerObject.interruptHandler, 'the controller registers a cell-stop handler')
+
+		await controllerObject.interruptHandler(notebook)
+
+		assert.ok(
+			main.events.includes('stopAll'),
+			'interrupt must stop all running jobs - otherwise the sound continues',
+		)
+	},
+
 }
 
 async function runAll() {
@@ -411,5 +437,6 @@ async function runAll() {
 	console.log(failures === 0 ? 'notebook.test.js: all assertions passed' : `${failures} notebook test(s) failed`)
 	process.exit(failures === 0 ? 0 : 1)
 }
+
 
 runAll()
