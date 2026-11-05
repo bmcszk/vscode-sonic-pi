@@ -55,6 +55,10 @@ export const onRunEnded = (listener: (num: number) => void) => {
 	return main.onRunEnded.event(listener)
 }
 
+export const onServerRestart = (listener: () => void) => {
+	return main.onServerRestart.event(listener)
+}
+
 export const stopAllScripts = () => {
 	if (!main) {
 		throw Error('Runner not initialized')
@@ -74,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 		config,
 		editor: () => vscode.window.activeTextEditor,
 	})
-	main.onServerRestart = () => playingLines.clear()
+	context.subscriptions.push(main.onServerRestart.event(() => playingLines.clear()))
 	const statusBar = new SonicPiStatusBar({
 		sendVersionRequest: () => main.requestVersion(),
 		sendMasterVolume: (value) => main.setMasterVolume(value),
