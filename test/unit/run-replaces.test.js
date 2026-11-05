@@ -88,7 +88,7 @@ let settings = { runReplacesSession: undefined }
 // manifest-parsed default by intercepting Config's getConfiguration - simpler: drive settings
 // through workspace.getConfiguration's captured values.
 const tests = {
-	'a play stops the previous jobs first, then the new run-code goes out (replace semantics)'() {
+	async 'a play stops the previous jobs first, then the new run-code goes out (replace semantics)'() {
 		const main = new Main()
 		main.spiderServerScanner = () => undefined
 		booted(main, 3)
@@ -96,6 +96,8 @@ const tests = {
 		last.sent.length = 0
 
 		main.runCode('live_loop :flibble do\n  sample :ambi_choir\n  sleep 1\nend')
+		await flush()
+		await flush()
 
 		const addresses = last.sent.map((m) => m.address)
 		const stopIdx = addresses.indexOf('/stop-all-jobs')
@@ -106,19 +108,17 @@ const tests = {
 		main.stopAllJobs()
 	},
 
-	'with runReplacesSession=false the play does not stop stacked jobs (layering kept)'() {
+	async 'with runReplacesSession=false the play does not stop stacked jobs (layering kept)'() {
 		const main = new Main()
 		main.spiderServerScanner = () => undefined
 		booted(main, 4)
 		const last = oscSenders.at(-1)
 		last.sent.length = 0
 
-		settings.runReplacesSession = false
-		// re-point the config: runCode reads config.logClearOnRun etc; we need runReplacesSession
-		// read in main; test via a directly-built-thin-wrapper: temporarily monkey-patch
-		// main.config.runReplacesSession if the fake path allows
-		main.config = { ...main.config, runReplacesSession: () => false }
+		main.config.runReplacesSession = () => false
 		main.runCode('sample :ambi_choir')
+		await flush()
+		await flush()
 
 		const addresses = last.sent.map((m) => m.address)
 		assert.strictEqual(addresses.filter((a) => a === '/stop-all-jobs').length, 0, 'no stop when layering is chosen')
