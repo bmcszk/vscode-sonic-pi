@@ -47,4 +47,4 @@ jobs:
         run: npx --yes @vscode/vsce@4.1.0 package --out "sonic-pi-5-extension-${GITHUB_REF_NAME}.vsix"
 
       - name: Publish to Marketplace (OIDC)
-        run: npx --yes @vscode/vsce@4.1.0 publish --no-dependencies "sonic-pi-5-extension-${GITHUB_REF_NAME}.vsix"
+        run: npx --yes @vscode/vsce@4.1.0 publish --oidc --no-dependencies "sonic-pi-5-extension-${GITHUB_REF_NAME}.vsix"
