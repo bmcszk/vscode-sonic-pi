@@ -1,11 +1,11 @@
 ---
 # sonic-pi-q65q
 title: 'Feature gap analysis: reverse-engineer sonic-pi-helper + Sonic Pi, propose extension features/fixes'
-status: in-progress
+status: completed
 type: epic
 priority: normal
 created_at: 2026-11-04T20:29:46Z
-updated_at: 2026-11-05T15:57:57Z
+updated_at: 2026-11-05T15:58:24Z
 ---
 
 # Feature gap analysis (user directive 2026-11-04)
@@ -50,3 +50,7 @@ P1 (lgv0), P2 (ui6r), P5 (knzv), P7 (lkus) implemented, merged, closed with PoW.
 ## Wave 2 complete (2026-11-05) - EPIC GOAL REACHED
 
 P3 (kmbo), P4 (dmux), P6 (h8vo) implemented, merged, closed with PoW. All 7 proposals shipped. Parent re-verified on master 73557b2: 11 suites (87 ok), live e2e gate green, vsce 324 files DONE. Merge-resolution procedure (worker branch pre-merge master merge + union test scripts) worked cleanly for both.
+
+## Proof of Work (epic closure, 2026-11-05)
+
+End-to-end: all 7 proposals (P1-P7) implemented via delegated workers on isolated branches/worktrees, every merge parent-verified with the full gate battery, master 6dd43fb pushed green (11 suites, 87 ok; live-daemon e2e gate green; vsce 324-file package DONE). Store listing already live with v0.2.2; the P-features ride the next release tag (recommended v0.3.0, user call). Epic ACs: all proposals ranked+shipped (P1-P7 = 7/7), helper reverse-engineered, OSC surface documented, user picked all 7. Residual: three pre-epic beans (dgis/rtvk/kpif) remain open pending user's cloud_beat.pi re-test - they predate this epic and are tracked separately.
