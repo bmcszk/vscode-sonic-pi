@@ -39,6 +39,7 @@ import { SonicPiStatusBar } from '../statusbar'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
 
 let main: Main
+let config: Config
 
 export const runScript = (code: string) => {
 	if (!main) {
@@ -66,14 +67,23 @@ export const stopAllScripts = () => {
 	main.stopAllJobs()
 }
 
+// Notebook plays cannot ride on the 'ruby' launch mode: a notebook editor never shows up as a
+// sonic-pi text editor, so nothing else boots a server for it. The controller asks these three
+// before sending a run, and awaits startServer so the run lands on bound ports.
+export const serverIsRunning = () => main.serverStarted
+
+export const startServer = () => main.startServer()
+
+export const launchServerAutomatically = () => config.launchSonicPiServerAutomatically()
+
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Ruby detected. Sonic Pi editor extension active!')
 
 	main = new Main()
+	config = new Config()
 
 	main.checkSonicPiPath()
 
-	let config = new Config()
 	let playingLines = new PlayingLineHighlighter({
 		config,
 		editor: () => vscode.window.activeTextEditor,
