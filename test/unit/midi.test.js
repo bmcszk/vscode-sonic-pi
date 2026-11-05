@@ -20,15 +20,43 @@ Module._load = function (request) {
 
 const { shouldAutoStartMidi } = require('../../out/midi.js')
 
-// Detection: any midi_* call in the code opts the run in. Snake case counts:
-// use_midi_notes is itself a midi function that needs /midi-start.
-assert.strictEqual(shouldAutoStartMidi('midi_note_on 60', false), true)
-assert.strictEqual(shouldAutoStartMidi('use_midi_notes :e1', false), true)
-assert.strictEqual(shouldAutoStartMidi('sample :bd_haus', false), false)
-assert.strictEqual(shouldAutoStartMidi('synth :fmidi_note', false), false, 'fmidi_note is not a midi_ call')
-assert.strictEqual(shouldAutoStartMidi('play 60', false), false)
+const tests = {
+	'detects midi_ calls in the run code'() {
+		assert.strictEqual(shouldAutoStartMidi('midi_note_on 60', false), true)
+	},
 
-// Once-per-session guard: only the first midi run in a session sends /midi-start.
-assert.strictEqual(shouldAutoStartMidi('midi_note 60', true), false, 'already sent this session')
+	'snake case counts as a midi call: use_midi_notes needs /midi-start'() {
+		assert.strictEqual(shouldAutoStartMidi('use_midi_notes :e1', false), true)
+	},
 
-console.log('midi.test.js: all assertions passed')
+	'code without midi calls does not opt in'() {
+		assert.strictEqual(shouldAutoStartMidi('sample :bd_haus', false), false)
+		assert.strictEqual(shouldAutoStartMidi('play 60', false), false)
+	},
+
+	'fmidi_note is not a midi_ call'() {
+		assert.strictEqual(shouldAutoStartMidi('synth :fmidi_note', false), false)
+	},
+
+	'once-per-session: a second midi run does not resend /midi-start'() {
+		assert.strictEqual(shouldAutoStartMidi('midi_note 60', true), false)
+	},
+}
+
+async function runAll() {
+	let failures = 0
+	for (const [name, test] of Object.entries(tests)) {
+		try {
+			await test()
+			console.log(`ok - ${name}`)
+		} catch (error) {
+			failures++
+			console.log(`not ok - ${name}`)
+			console.log(`  ${error.message}`)
+		}
+	}
+	console.log(failures === 0 ? 'midi.test.js: all assertions passed' : `${failures} midi test(s) failed`)
+	process.exit(failures === 0 ? 0 : 1)
+}
+
+runAll()

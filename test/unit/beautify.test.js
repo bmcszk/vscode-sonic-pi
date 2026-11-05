@@ -36,58 +36,62 @@ function fakeEditor(text, cursorLine, cursorChar) {
 	}
 }
 
-// Server cursor within bounds is used as-is: GUI Align parity via /buffer/replace line+index.
-{
-	const result = computeBeautifyEdit(
-		'play 50\nsleep 1\n',
-		'play 50\nsleep  1\n',
-		{ line: 1, character: 4 },
-		{ line: 1, index: 6 },
-	)
-	assert.deepStrictEqual(result, {
-		newText: 'play 50\nsleep  1\n',
-		cursor: { line: 1, character: 6 },
-	})
-	console.log('ok - server cursor applied when valid')
+const tests = {
+	'server cursor applied when within bounds (GUI Align parity via /buffer/replace line+index)'() {
+		const result = computeBeautifyEdit(
+			'play 50\nsleep 1\n',
+			'play 50\nsleep  1\n',
+			{ line: 1, character: 4 },
+			{ line: 1, index: 6 },
+		)
+		assert.deepStrictEqual(result, {
+			newText: 'play 50\nsleep  1\n',
+			cursor: { line: 1, character: 6 },
+		})
+	},
+
+	'server cursor past EOF falls back to the line ratio of the original cursor'() {
+		const oldText = 'l1\nl2\nl3\nl4\nl5\nl6\n'
+		const newText = 'l1\n\n\nl2\n\n\nl3\n\n\nl4\n\n\nl5\n\n\nl6\n'
+		const result = computeBeautifyEdit(oldText, newText, { line: 2, character: 1 }, undefined)
+		assert.strictEqual(result.cursor.line, 6)
+		assert.strictEqual(result.cursor.character, 1)
+	},
+
+	'ratio fallback clamps character to the mapped line length'() {
+		const result = computeBeautifyEdit('abcd\nefgh\n', 'a\nb\n', { line: 0, character: 3 }, undefined)
+		assert.strictEqual(result.cursor.line, 0)
+		assert.strictEqual(result.cursor.character, 1)
+	},
+
+	'empty reply is a no-op: newText undefined so callers skip the edit'() {
+		const result = computeBeautifyEdit('play 50\n', '', { line: 0, character: 0 }, undefined)
+		assert.strictEqual(result.newText, undefined)
+	},
+
+	'out-of-range server cursor clamps to the last line'() {
+		const result = computeBeautifyEdit(
+			'play 50\n',
+			'play 50\n',
+			{ line: 0, character: 4 },
+			{ line: 9, index: 0 },
+		)
+		assert.strictEqual(result.newText, 'play 50\n')
+		assert.deepStrictEqual(result.cursor, { line: 0, character: 4 })
+	},
 }
 
-// Server cursor out of bounds (past EOF) falls back to the line:character ratio of the
-// original cursor: a cursor a third down the old text lands a third down the new text.
-{
-	const oldText = 'l1\nl2\nl3\nl4\nl5\nl6\n'
-	const newText = 'l1\n\n\nl2\n\n\nl3\n\n\nl4\n\n\nl5\n\n\nl6\n'
-	const result = computeBeautifyEdit(oldText, newText, { line: 2, character: 1 }, undefined)
-	assert.strictEqual(result.cursor.line, 6)
-	assert.strictEqual(result.cursor.character, 1)
-	console.log('ok - ratio fallback maps cursor proportionally')
+let failures = 0
+for (const [name, test] of Object.entries(tests)) {
+	try {
+		test()
+		console.log(`ok - ${name}`)
+	} catch (error) {
+		failures++
+		console.log(`not ok - ${name}`)
+		console.log(`  ${error.message}`)
+	}
 }
 
-// Ratio fallback clamps character to the mapped line's length.
-{
-	const result = computeBeautifyEdit('abcd\nefgh\n', 'a\nb\n', { line: 0, character: 3 }, undefined)
-	assert.strictEqual(result.cursor.line, 0)
-	assert.strictEqual(result.cursor.character, 1)
-	console.log('ok - ratio fallback clamps character to line length')
-}
-
-// Empty reply text is a no-op: signal with newText === undefined so callers skip the edit.
-{
-	const result = computeBeautifyEdit('play 50\n', '', { line: 0, character: 0 }, undefined)
-	assert.strictEqual(result.newText, undefined)
-	console.log('ok - empty reply is a no-op')
-}
-
-// Identical text is still reported (caller decides), with a clamped server cursor.
-{
-	const result = computeBeautifyEdit(
-		'play 50\n',
-		'play 50\n',
-		{ line: 0, character: 4 },
-		{ line: 9, index: 0 },
-	)
-	assert.strictEqual(result.newText, 'play 50\n')
-	assert.deepStrictEqual(result.cursor, { line: 0, character: 4 })
-	console.log('ok - out-of-range server cursor clamps to last line')
-}
-
-console.log('beautify.test.js: all assertions passed')
+console.log(failures === 0 ? 'beautify.test.js: all assertions passed' : `${failures} beautify test(s) failed`)
+process.exit(failures === 0 ? 0 : 1)

@@ -13,19 +13,39 @@ const base = {
 
 const run = (overrides) => shouldStopServerOnLastEditorClose({ ...base, ...overrides })
 
-// Setting off: never stop.
-assert.strictEqual(run({ settingEnabled: false }), false)
+const tests = {
+	'setting off: never stop'() {
+		assert.strictEqual(run({ settingEnabled: false }), false)
+	},
 
-// Restart in progress: never stop, even with zero editors left.
-assert.strictEqual(run({ restartInProgress: true }), false)
+	'restart in progress: never stop, even with zero editors left'() {
+		assert.strictEqual(run({ restartInProgress: true }), false)
+	},
 
-// Server not running: nothing to stop.
-assert.strictEqual(run({ serverRunning: false }), false)
+	'server not running: nothing to stop'() {
+		assert.strictEqual(run({ serverRunning: false }), false)
+	},
 
-// Editors still open: keep playing.
-assert.strictEqual(run({ sonicPiEditorsRemaining: 1 }), false)
+	'editors still open: keep playing'() {
+		assert.strictEqual(run({ sonicPiEditorsRemaining: 1 }), false)
+	},
 
-// The happy path: opted in, running, idle, last editor just closed.
-assert.strictEqual(run(), true)
+	'happy path: opted in, running, idle, last editor just closed'() {
+		assert.strictEqual(run(), true)
+	},
+}
 
-console.log('editor-close.test.js: all assertions passed')
+let failures = 0
+for (const [name, test] of Object.entries(tests)) {
+	try {
+		test()
+		console.log(`ok - ${name}`)
+	} catch (error) {
+		failures++
+		console.log(`not ok - ${name}`)
+		console.log(`  ${error.message}`)
+	}
+}
+
+console.log(failures === 0 ? 'editor-close.test.js: all assertions passed' : `${failures} editor-close test(s) failed`)
+process.exit(failures === 0 ? 0 : 1)
