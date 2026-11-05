@@ -531,7 +531,11 @@ export class Main {
 		let args: String[] = [this.daemonLauncherPath] // No need for launch args on the new daemon script
 
 		return new Promise<void>((resolve, reject) => {
-			let ruby_server = child_process.spawn(this.rubyPath, args)
+			// detached + unref: the daemon outlives window reloads. A reloading window
+			// stops pinging keep-alive, but a re-activating host adopts the still-running
+			// server through the attach path instead of booting a competing generation.
+			let ruby_server = child_process.spawn(this.rubyPath, args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+			ruby_server.unref?.()
 		this.daemonProcess = ruby_server
 			ruby_server.stdout.on('data', (data: any) => {
 				// console.log(`stdout: ${data}`)
