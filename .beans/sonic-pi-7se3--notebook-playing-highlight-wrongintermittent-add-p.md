@@ -5,7 +5,7 @@ status: in-progress
 type: bug
 priority: normal
 created_at: 2026-11-05T20:10:17Z
-updated_at: 2026-11-05T20:44:29Z
+updated_at: 2026-11-05T20:51:25Z
 ---
 
 # Notebook playing-line highlight wrong/intermittent (user report 2026-11-05)
@@ -37,3 +37,7 @@ User's notebook runs DO execute: supersonic.log 21:12 shows cloud_beat sample bu
 ## Sequel: multi-window takeover honesty (2026-11-05, user 'it works in another window')
 
 Field findings: (1) my attach remap was WRONG - spider-server.rb:112 governing truth is server_port=argv[1] (receives /run-code), gui_port=argv[2] (replies): the remap sent runs to the scsynth port everywhere. Reverted (commit e6ca2c3) with fixture expectations back to source truth. (2) 'works in another window' root: second host binding the daemon reply port gets EADDRINUSE (probed dgram directly) -> deaf console + never-resolving resolvers + empty Log in the loser window while runs may still execute via the command port. Fixed: ensureServerReady gates plays on isReceiving(): loser window gets ONE error notice ('close the other window, Restart Server here to take over'), runs refused cleanly (cells ended, not spinning); bind state change auto-resumes (TDD cases for both). Gates: 15 suites (107 ok), e2e green, packaged+installed.
+
+## Exclusive bind (2026-11-05 evening, user 'worked a moment then stopped + logs disappeared')
+
+Root at packet level: osc-js UDP binds default SO_REUSEADDR (exclusive:false) -> several windows bind the same reply port; Linux delivery flips to the newest binder mid-session; that is the momentary-work-then-deaf cycle. Fix (dcf61d6): setupOscReceiver binds exclusive:true -> deterministic first-binder ownership; losers get EADDRINUSE instantly and route through the existing takeover-notice path instead of half-working then breaking. Gates: 15 suites (107 ok), e2e gate green, packaged+installed.
