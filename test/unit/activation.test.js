@@ -20,6 +20,7 @@ const vscodeStub = {
 	},
 	Range: class {},
 	Selection: class {},
+	StatusBarAlignment: { Left: 1, Right: 2 },
 	TextEditorRevealType: { InCenterIfOutsideViewport: 0 },
 	Uri: { joinPath: (...parts) => ({ fsPath: parts.join('/') }) },
 	window: {
@@ -30,6 +31,10 @@ const vscodeStub = {
 			dispose() {},
 		}),
 		createTextEditorDecorationType: () => ({}),
+		createStatusBarItem: () => ({
+			show() {},
+			dispose() {},
+		}),
 		showErrorMessage: async () => undefined,
 		showInformationMessage: async () => undefined,
 		onDidChangeVisibleTextEditors: () => ({ dispose() {} }),
