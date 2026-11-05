@@ -45,6 +45,7 @@ const vscodeStub = {
 		getConfiguration: () => ({ get: (_key, fallback) => fallback }),
 		onDidChangeConfiguration: () => ({ dispose() {} }),
 		onDidChangeTextDocument: () => ({ dispose() {} }),
+		onDidCloseTextDocument: () => ({ dispose() {} }),
 		registerNotebookSerializer: (..._a) => ({ dispose() {} }),
 	},
 	commands: {

@@ -35,6 +35,7 @@ import { Config } from './config'
 import { SonicPiCodeLensProvider } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
+import { shouldStopServerOnLastEditorClose } from '../editor-close'
 
 let main: Main
 
@@ -86,6 +87,30 @@ export function activate(context: vscode.ExtensionContext) {
 			statusBar.showVolumeQuickPick(),
 		),
 		{ dispose: () => statusBar.dispose() },
+	)
+
+	// When the user opts in, closing the last Sonic Pi editor shuts the server down.
+	// The editor list is sampled after the close event, so it counts the editors that remain.
+	context.subscriptions.push(
+		vscode.workspace.onDidCloseTextDocument(() => {
+			const sonicPiEditorsRemaining = [
+				...vscode.window.visibleTextEditors.map((editor) => editor.document),
+				...vscode.workspace.textDocuments,
+			].filter(
+				(document, index, all) =>
+					document.languageId === 'sonic-pi' && all.indexOf(document) === index,
+			).length
+			const decision = shouldStopServerOnLastEditorClose({
+				settingEnabled: config.stopServerOnLastEditorClose(),
+				serverRunning: main.serverStarted,
+				restartInProgress: main.restartInProgress,
+				sonicPiEditorsRemaining,
+			})
+			if (decision) {
+				main.stopServer()
+				playingLines.clear()
+			}
+		}),
 	)
 	context.subscriptions.push(
 		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),

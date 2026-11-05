@@ -62,6 +62,7 @@ Settings use the `vscode-sonic-pi.` prefix. The full table with defaults lives i
   default location (`/usr/lib/sonic-pi` on Linux, `/Applications/Sonic Pi.app/Contents/Resources`
   on macOS, `C:\Program Files\Sonic Pi` on Windows).
 - `sonic-pi.showEditorControls`: the Run/Stop/Run cell controls.
+- `sonic-pi.stopServerOnLastEditorClose`: shut the server down when the last Sonic Pi editor closes.
 - `sonic-pi.showPlayingLineHighlight`: the playing-line highlight.
 - `sonic-pi.autoMidiStart`: sends `/midi-start` automatically before code that uses `midi_*` functions.
 - `sonic-pi.safeMode`: synth argument checking. Keep it on; turning it off lets bad synth
