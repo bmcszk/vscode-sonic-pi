@@ -42,6 +42,15 @@ import { shouldStopServerOnLastEditorClose } from '../editor-close'
 let main: Main
 let config: Config
 
+export const scriptRunEnsuresServer = async (code: string, offset = 0) => {
+	// Command-Palette/editor Run must survive a cold window: a play before any boot went
+	// to unbound ports and vanished without feedback (user: 'no logs, no feedback').
+	if (!main.serverStarted && config.launchSonicPiServerAutomatically() !== 'never') {
+		await main.startServer()
+	}
+	main.runCode(code, offset)
+}
+
 export const runScript = (code: string) => {
 	if (!main) {
 		throw Error('Runner not initialized')
@@ -187,8 +196,7 @@ export function activate(context: vscode.ExtensionContext) {
 			doc = rubyEditors[0].document
 		}
 		let code = doc.getText()
-		main.flashCode(textEditor, true)
-		runFileCode(code)
+		void scriptRunEnsuresServer(code).then(() => main.flashCode(textEditor, true))
 	})
 
 	context.subscriptions.push(
