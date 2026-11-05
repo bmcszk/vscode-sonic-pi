@@ -293,6 +293,7 @@ export class Main {
 	}
 
 	applySpiderPorts(ports: SpiderPorts) {
+		this.daemonPort = ports.daemonPort
 		this.guiSendToServerPort = ports.sendToServerPort
 		this.guiListenToServerPort = ports.listenFromServerPort
 		this.serverOscCuesPort = ports.oscCuesPort

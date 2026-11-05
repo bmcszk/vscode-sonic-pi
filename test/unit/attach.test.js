@@ -27,8 +27,9 @@ const REAL_CMDLINE = [
 const tests = {
 	'parses the real live-daemon cmdline shape'() {
 		const ports = parseSpiderCmdline(REAL_CMDLINE)
-		assert.strictEqual(ports.sendToServerPort, 38518)
+		assert.strictEqual(ports.sendToServerPort, 38520, 'gui-send-to-server (args[2]) is where /run-code goes; args[0] is the daemon keepalive port')
 		assert.strictEqual(ports.listenFromServerPort, 38519)
+		assert.strictEqual(ports.daemonPort, 38518, 'keepalive must reach the daemon')
 		assert.strictEqual(ports.oscCuesPort, 4560)
 		assert.strictEqual(ports.token, -402713833)
 	},
@@ -37,8 +38,9 @@ const tests = {
 		const ports = parseSpiderCmdline(
 			['ruby', '/opt/spi/spider-server.rb', '-u', '4557', '4558', '4556', '4556', '4560', '42'].join('\0'),
 		)
-		assert.strictEqual(ports.sendToServerPort, 4557)
+		assert.strictEqual(ports.sendToServerPort, 4556)
 		assert.strictEqual(ports.listenFromServerPort, 4558)
+		assert.strictEqual(ports.daemonPort, 4557)
 		assert.strictEqual(ports.token, 42)
 	},
 
@@ -117,7 +119,8 @@ const tests = {
 			() => ['20', '10', '30'],
 			(path) => cmdlines[path.split('/')[2]],
 		)
-		assert.strictEqual(found.sendToServerPort, 38518)
+		assert.strictEqual(found.sendToServerPort, 38520)
+		assert.strictEqual(found.daemonPort, 38518)
 		assert.strictEqual(found.token, -402713833)
 	},
 

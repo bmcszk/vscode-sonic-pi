@@ -1,7 +1,9 @@
 export type SpiderPorts = {
-	// server-listen-to-gui: the port we send /run-code etc. to
+	// daemon-keep-alive: the daemon's own port; keep-alive pings go here
+	daemonPort: number
+	// gui-send-to-server: the port we send /run-code etc. to (args[2])
 	sendToServerPort: number
-	// server-send-to-gui: the port we listen on for server messages
+	// gui-listen-to-server: the port we listen on for server messages (args[1])
 	listenFromServerPort: number
 	oscCuesPort: number
 	token: number
@@ -26,12 +28,12 @@ export function parseSpiderCmdline(cmdline: string): SpiderPorts | undefined {
 	if (numbers.some((n) => !Number.isInteger(n))) {
 		return undefined
 	}
-	const [sendToServerPort, listenFromServerPort, , , oscCuesPort, token] = numbers
-	const ports = [sendToServerPort, listenFromServerPort, oscCuesPort]
+	const [daemonPort, listenFromServerPort, sendToServerPort, scsynthPort, oscCuesPort, token] = numbers
+	const ports = [daemonPort, listenFromServerPort, sendToServerPort, scsynthPort, oscCuesPort]
 	if (ports.some((p) => p < 1 || p > 65535)) {
 		return undefined
 	}
-	return { sendToServerPort, listenFromServerPort, oscCuesPort, token }
+	return { daemonPort, sendToServerPort, listenFromServerPort, oscCuesPort, token }
 }
 
 // Mechanism wrapper with injected fs so tests never touch /proc
