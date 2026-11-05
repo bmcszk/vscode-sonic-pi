@@ -43,8 +43,10 @@ loop with synth), `llb` (live loop with sample), `def` (define function), `with_
 ## Commands
 
 All commands are in the Command Palette under the **Sonic Pi** category: Start Server, Check
-Install, Open Examples, Open Tutorial, Run, Run selected text, Beautify, Stop, Toggle recording,
-and the notebook commands (create notebook, run cell, stop).
+Install, Open Examples, Open Tutorial, Docs, Run, Run selected text, Beautify, Stop, Toggle
+recording, and the notebook commands (create notebook, run cell, stop). **Docs** opens a
+searchable browser over the built-in synths, FX, samples and commands; picking an entry shows its
+documentation and options.
 
 | Key | Action |
 | --- | ------ |

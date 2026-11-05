@@ -6,6 +6,7 @@ import {
 	SampleCompletionItemProvider,
 	SynthCompletionItemProvider,
 } from './completionItems'
+import { showDocsBrowser } from './docs-browser'
 import { HoverProvider } from './HoverProvider'
 import { serializer, NotebookController } from './notebook'
 import { activate as activate_runner } from './source-runner/extension'
@@ -38,6 +39,12 @@ export function activate(context: vscode.ExtensionContext) {
 				vscode.Uri.joinPath(context.extensionUri, 'tutorial', '1_Welcome to Sonic Pi.pibook'),
 				'sonic-pi-book',
 			)
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.docs', () => {
+			void showDocsBrowser()
 		}),
 	)
 
