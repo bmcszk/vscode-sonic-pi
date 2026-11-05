@@ -19,7 +19,7 @@
 	},
 	"scripts": {
 		"build":"tsc",
-		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/playing-lines.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/activation.test.js",
+		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/playing-lines.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/activation.test.js && node test/unit/beautify.test.js",
 		"test:e2e":"npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",
@@ -189,6 +189,11 @@
 				"command": "vscode-sonic-pi.togglerecording",
 				"title": "Toggle recording",
 				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.beautify",
+				"title": "Beautify",
+				"category": "Sonic Pi"
 			}
 		],
 		"keybindings": [
@@ -230,6 +235,11 @@
 			{
 				"command": "vscode-sonic-pi.togglerecording",
 				"key": "shift+alt+r",
+				"when": "editorLangId=='sonic-pi'"
+			},
+			{
+				"command": "vscode-sonic-pi.beautify",
+				"key": "shift+alt+b",
 				"when": "editorLangId=='sonic-pi'"
 			}
 		],
