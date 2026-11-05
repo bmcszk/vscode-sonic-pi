@@ -1,7 +1,7 @@
 {
 	"name": "sonic-pi-5-extension",
 	"displayName": "Sonic Pi 5 Extension",
-	"publisher": "bmcszk",
+	"publisher": "blazesoftware",
 	"description": "Language support and code running for Sonic Pi scripts",
 	"preview": true,
 	"version": "0.1.4",
