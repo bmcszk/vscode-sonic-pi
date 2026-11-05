@@ -5,7 +5,7 @@ status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-05T12:35:32Z
-updated_at: 2026-11-05T14:25:32Z
+updated_at: 2026-11-05T15:00:58Z
 parent: sonic-pi-q65q
 ---
 
@@ -46,7 +46,7 @@ Research highlights landed in docs/research/marketplace-publishing.md: global PA
 ## Still open for 0.2.0
 - [ ] version bump 0.2.0 + tag + release workflow green
 - [x] icon: user-provided sonic-pi-5.png artwork (distinct identity, copycat risk cleared)
-- [ ] user creates publisher 'bmcszk' on the marketplace + PAT (org-scoped, Marketplace Manage) or sets up Trusted Publishing
+- [x] publisher blazesoftware exists (user confirmed, Trusted Publishing policy bound to workflow publish.yml on bmcszk/vscode-sonic-pi); manifest publisher updated
 - [ ] fresh-profile smoke on 0.2.0 build
 
 ## Icon done (2026-11-05)

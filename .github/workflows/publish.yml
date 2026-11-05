@@ -1,0 +1,50 @@
+name: Publish to Marketplace (Trusted Publishing)
+
+# Runs on the same version tags as the Release workflow. The publisher's
+# Trusted Publishing policy is bound to this workflow file name; the
+# marketplace job lives here so the policy matches exactly.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to Marketplace
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      # Same suites as CI; no live-daemon e2e on hosted runners.
+      - run: npm test
+
+      # The tag must name the version being shipped (same check as the
+      # Release workflow): a mismatch would publish a wrong version.
+      - name: Verify tag matches package.json version
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match package.json version ${version}" >&2
+            exit 1
+          fi
+
+      - name: Package VSIX
+        run: npx --yes @vscode/vsce@4.1.0 package --out "sonic-pi-5-extension-${GITHUB_REF_NAME}.vsix"
+
+      - name: Publish to Marketplace (OIDC)
+        run: npx --yes @vscode/vsce@4.1.0 publish --no-dependency "sonic-pi-5-extension-${GITHUB_REF_NAME}.vsix"

@@ -4,7 +4,8 @@ on:
   push:
     tags: ['v*']
 
-# Read-only by default; the publish jobs get scoped write access.
+# Read-only by default; the publish job below is the single place that gets
+# write access.
 permissions:
   contents: read
 
@@ -29,8 +30,10 @@ jobs:
       # real Sonic Pi 5 daemon, which GitHub-hosted runners do not have.
       - run: npm test
 
-  # GitHub release (VSIX asset) — write scope contained to this job
-  publish-github:
+  # Publishing lives in its own job because it is the only step that needs
+  # `contents: write`. A separate job keeps the test steps on a read-only
+  # token and scopes the write grant to just creating the release.
+  publish:
     name: Create GitHub release
     needs: test
     runs-on: ubuntu-latest
@@ -49,6 +52,9 @@ jobs:
 
       - run: npm run build
 
+      # The tag must name the version being shipped: package.json is the source
+      # of the VSIX filename, so a tag/version mismatch would publish a release
+      # whose asset name contradicts its tag. Fail before packaging instead.
       - name: Package VSIX
         id: package
         run: |
@@ -70,31 +76,3 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" "${{ steps.package.outputs.path }}"
           --title "${GITHUB_REF_NAME}"
           --generate-notes
-
-  # Marketplace publish (OIDC) — id-token scope, no PAT
-  publish-marketplace:
-    name: Publish to Marketplace (Trusted Publishing)
-    needs: test
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-
-      - run: npm ci
-
-      - run: npm test
-
-      - name: Package
-        run: npx --yes @vscode/vsce@4.1.0 package --out sonic-pi-5-extension-${{ github.ref_name }}.vsix
-
-      - name: Publish to Marketplace (OIDC)
-        env:
-          VSCE_PAT: ""
-        run: npx --yes @vscode/vsce@4.1.0 publish --no-dependency -p "$VSCE_PAT" sonic-pi-5-extension-${{ github.ref_name }}.vsix
