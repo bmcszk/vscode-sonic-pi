@@ -121,6 +121,12 @@
 				"configuration": "./language-configuration.json"
 			}
 		],
+		"snippets": [
+			{
+				"language": "sonic-pi",
+				"path": "./snippets/sonic-pi.json"
+			}
+		],
 		"commands": [
 			{
 				"command": "vscode-sonic-pi.startserver",
