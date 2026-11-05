@@ -5,7 +5,7 @@ status: in-progress
 type: epic
 priority: normal
 created_at: 2026-11-04T20:29:46Z
-updated_at: 2026-11-04T23:33:50Z
+updated_at: 2026-11-05T15:45:51Z
 ---
 
 # Feature gap analysis (user directive 2026-11-04)
@@ -42,3 +42,7 @@ Phase A analysis delivered: docs/research/feature-gaps.md (helper reverse-engine
 ## Skills-rules audit of all our commits (2026-11-04, user-ordered)
 
 Scope: every commit on the fork (fork-fixes, maturity, audio-recovery, editor-controls, highlight, codelens, variant B/A, research docs, skills). Verdict per coding-rules: architecture compliant (intent/mechanism split, call-order layout, black-box tests, fake-clock/editor only at boundaries, error-early). Found+fixed 1 residue: dead runOffset field (always 0 since variant A) with both error-path additions + a comment contradicting the code (e2693a4). Earlier audits this session: variant-B jobid residue (ece073f), lying config default. Skill-rules honored in process: no gate bypassed, all tests kept, red->green evidence per feature, minimal diffs.
+
+## Wave 1 complete (2026-11-05)
+
+P1 (lgv0), P2 (ui6r), P5 (knzv), P7 (lkus) implemented, merged, closed with PoW. All parent-re-verified on master: 9 suites green, live e2e gate green, pushed. Coordination incident during wave: shared-checkout collisions (main worktree moved under live workers twice) - fixed with dedicated worktrees + supervisor replies; structural fix owed: dispatch contract must create one worktree per worker. Wave 2 (kmbo P3, dmux P4, h8vo P6) dispatches next with per-worker worktrees.
