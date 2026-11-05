@@ -5,7 +5,7 @@ status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-05T22:19:20Z
-updated_at: 2026-11-05T22:23:59Z
+updated_at: 2026-11-05T22:26:14Z
 ---
 
 sonic-pi-oow6  in-progress   task  [normal]                                               
@@ -38,3 +38,11 @@ Lint hardening: eslint+prettier into npm test and GHA CI (bulletproof gate, zero
 - [ ] No 'eslint-disable', '@ts-ignore', '@ts-expect-error', '@ts-expect-error --typescript' or suppression markers anywhere in the repo (grep gate in CI or package test)
 - [ ] tsc strict-relevant findings resolved by real code
 - [ ] Formatting findings fixed by prettier 3 run once (config unmodified from research proposal's tab-preserving form)
+
+## Honest-fix pass complete (2026-11-05, user directive)
+
+- 4 no-floating-promises: REAL async bugs fixed in code (startServer fire-and-forget callers lacked failure surfaces; boot failure now logged + user-visible).
+- 34 prettier findings: single honest formatting pass (prettier --write once; .prettierrc untouched; tabs preserved).
+- Cold-window Run/runWithText now route through scriptRunEnsuresServer (kills the 'no logs no feedback' class at its source).
+- Gates: eslint src exits 0; NO suppression markers in repo (grep gate); 16 suites green; live e2e green.
+Remaining under researcher: flat-config migration proposal (oow6 research lane in flight), then Phase B config + CI wiring.
