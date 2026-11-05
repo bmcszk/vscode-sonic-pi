@@ -98,13 +98,15 @@ const tests = {
 		)
 	},
 
-	'attach decision succeeds against this machine\'s live server (real /proc scan)'() {
-		const fs = require('fs')
+	'attach decision succeeds when a synthetic live server exists in /proc'() {
+		// A machine-independent version of the live-scan case: the same readdir/readFile
+		// seam the real /proc scan uses, fed the real-cmdline fixture from the top of
+		// this file joined in /proc cmdline (NUL-separated) form.
 		const ports = findRunningServer(
-			() => fs.readdirSync('/proc').filter((p) => /^\d+$/.test(p)),
-			(path) => fs.readFileSync(path, 'utf8'),
+			() => ['4242'],
+			(path) => (path === '/proc/4242/cmdline' ? REAL_CMDLINE : ''),
 		)
-		assert.ok(ports, 'a live spider-server.rb should be discoverable on this machine')
+		assert.ok(ports, 'the synthetic live server should be discoverable')
 		assert.ok(ports.sendToServerPort > 0 && ports.sendToServerPort <= 65535)
 		assert.notStrictEqual(ports.token, 0)
 	},
