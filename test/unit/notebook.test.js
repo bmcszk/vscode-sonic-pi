@@ -58,6 +58,9 @@ const vscodeStub = {
 		registerNotebookSerializer: () => ({ dispose() {} }),
 		visibleTextEditors: [],
 		textDocuments: [],
+		// The controller prefers itself for every notebook of its type as the notebook opens.
+		notebookDocuments: [],
+		onDidOpenNotebookDocument: () => ({ dispose() {} }),
 	},
 	commands: {
 		registerCommand: () => ({ dispose() {} }),
@@ -75,6 +78,7 @@ const vscodeStub = {
 			createdHandlers.push(handler)
 			const controllerObject = {
 				dispose() {},
+				updateNotebookAffinity: () => {},
 				supportedLanguages: [],
 				createNotebookCellExecution: (cell) => {
 					const execution = {
@@ -473,6 +477,29 @@ const tests = {
 
 		assert.deepStrictEqual(cellFlashes.resolve(1), { cellKey: 'second-cell', localLine: 1 })
 		assert.strictEqual(cellFlashes.resolve(2), undefined, 'the map covers only the played cell')
+	},
+
+	async 'a played cell is marked playing for the whole run, not just for the flash TTL'() {
+		const { main, cellFlashes, handler } = openController()
+		const cell = makeCell('playing-cell', 'play 60\nsleep 1')
+		const notebook = makeNotebook([cell])
+
+		const run = handler([cell], notebook)
+		await flush()
+		main.onRunStarted.fire(0)
+
+		assert.ok(
+			cellFlashes.activeCells().has('playing-cell'),
+			'the played cell must carry the steady playing mark while its job runs',
+		)
+
+		main.onRunEnded.fire(0)
+		await run
+		assert.strictEqual(
+			cellFlashes.activeCells().has('playing-cell'),
+			false,
+			'ending the job must clear the playing mark',
+		)
 	},
 
 	async 'playing a notebook cell boots the server when launch mode is ruby and no server is running'() {

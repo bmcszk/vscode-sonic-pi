@@ -20,7 +20,8 @@
 	"scripts": {
 		"build":"tsc",
 		"lint":"eslint src/**/*.ts",
-		"test":"npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js",
+		"test":"npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js",
+		"test:integration":"npm run build && vscode-test",
 		"test:e2e":"npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",
@@ -327,6 +328,11 @@
 					"default": false,
 					"description": "Replay every executed cell of the notebook on each play (the notebook as one instrument). Default off: the played cell runs alone."
 				},
+				"vscode-sonic-pi.stopServerOnLastEditorClose": {
+					"type": "boolean",
+					"default": false,
+					"description": "Stop the Sonic Pi server when the last Sonic Pi editor is closed. Off by default: a running server survives your editing session."
+				},
 				"vscode-sonic-pi.logAutoscroll": {
 					"type": "boolean",
 					"default": true,
@@ -377,6 +383,8 @@
 		"@types/vscode": "^1.144.0",
 		"@typescript-eslint/eslint-plugin": "^4.19.0",
 		"@typescript-eslint/parser": "^4.19.0",
+		"@vscode/test-cli": "^0.0.15",
+		"@vscode/test-electron": "^2.5.2",
 		"eslint": "^7.23.0",
 		"eslint-config-prettier": "^8.1.0",
 		"eslint-plugin-prettier": "^3.3.1",

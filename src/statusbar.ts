@@ -26,6 +26,9 @@ export class SonicPiStatusBar {
 	private item: vscode.StatusBarItem
 	private state: ServerState = 'stopped'
 	private version: string | undefined
+	// The box opens at the volume this window last set, so Enter is never an error on an
+	// empty field and a half-typed volume is not silently replaced by a full one.
+	private volume = 100
 
 	constructor(
 		private readonly bridge: {
@@ -53,13 +56,17 @@ export class SonicPiStatusBar {
 	}
 
 	async showVolumeQuickPick(): Promise<void> {
-		const input = await vscode.window.showInputBox({ prompt: 'Master volume (0-100)' })
+		const input = await vscode.window.showInputBox({
+			prompt: 'Master volume (0-100)',
+			value: String(this.volume),
+		})
 		if (input === undefined) return
 		const value = parseVolumeInput(input)
 		if (value === undefined) {
 			void vscode.window.showErrorMessage('Master volume must be a number from 0 to 100')
 			return
 		}
+		this.volume = value
 		this.bridge.sendMasterVolume(value)
 	}
 

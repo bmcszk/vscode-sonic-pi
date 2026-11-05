@@ -311,6 +311,19 @@ export class Main {
 		this.serverOscCuesPort = ports.oscCuesPort
 		this.guiUuid = ports.token
 		this.portsInitalizedResolver(new OscSender(ports.sendToServerPort))
+		// An adopted daemon has no child process here, so the booter log is the only place its
+		// keep-alive port can come from. Without it no keep-alive is sent and the daemon's kill
+		// switch stops the audio of a playing set a hundred seconds after attaching.
+		const route = this.daemonExitRoute()
+		if (route) {
+			this.daemonPort = route.daemonPort
+			this.log(`Adopted the running Sonic Pi daemon: keep-alive goes to its port ${route.daemonPort}`)
+			return
+		}
+		this.log(
+			'Adopted the running Sonic Pi app, but its booter log carries no daemon port: ' +
+				'no keep-alive will be sent and its kill switch may stop the audio.',
+		)
 	}
 
 	log(str: string) {
@@ -527,13 +540,22 @@ export class Main {
 	}
 
 	startKeepAlive() {
-		this.stopKeepAlive()
+		this.clearKeepAlive()
 		const daemonSender = new OscSender(this.daemonPort)
-		console.log('Sending Keepalive to', this.daemonPort)
+		this.log(`Keep-alive started: pinging daemon port ${this.daemonPort} with /daemon/keep-alive`)
 		this.keepAliveTimer = setInterval(() => {
 			let message = new OSC.Message('/daemon/keep-alive', parseInt(this.guiUuid))
 			daemonSender.send(message)
 		}, 1000)
+	}
+
+	private clearKeepAlive(): boolean {
+		if (!this.keepAliveTimer) {
+			return false
+		}
+		clearInterval(this.keepAliveTimer)
+		this.keepAliveTimer = undefined
+		return true
 	}
 
 	// This is the main part of launching Sonic Pi's backend
@@ -681,9 +703,8 @@ export class Main {
 	}
 
 	private stopKeepAlive() {
-		if (this.keepAliveTimer) {
-			clearInterval(this.keepAliveTimer)
-			this.keepAliveTimer = undefined
+		if (this.clearKeepAlive()) {
+			this.log('Keep-alive stopped: this window no longer owns the daemon it was pinging')
 		}
 	}
 

@@ -134,15 +134,27 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	// When the user opts in, closing the last Sonic Pi editor shuts the server down.
-	// The editor list is sampled after the close event, so it counts the editors that remain.
+	// Only a Sonic Pi editor closing says anything about Sonic Pi editors: closing the
+	// settings file or a README of an otherwise Sonic Pi-free window must not kill the server.
+	// The count is sampled after the close event, so it sees the editors that remain: open
+	// editor tabs, not every document the extension host still holds open (a document can
+	// outlive its tab) and not a notebook's Sonic Pi cell documents, which have no tab of
+	// their own - closing a notebook tab closes the notebook, never its cells one by one.
 	context.subscriptions.push(
-		vscode.workspace.onDidCloseTextDocument(() => {
-			const sonicPiEditorsRemaining = [
-				...vscode.window.visibleTextEditors.map((editor) => editor.document),
-				...vscode.workspace.textDocuments,
-			].filter(
-				(document, index, all) =>
-					document.languageId === 'sonic-pi' && all.indexOf(document) === index,
+		vscode.workspace.onDidCloseTextDocument((closed) => {
+			if (closed.languageId !== 'sonic-pi') {
+				return
+			}
+			const openEditorUris = new Set(
+				vscode.window.tabGroups.all
+					.flatMap((group) => group.tabs)
+					.map((tab) => tab.input)
+					.filter((input): input is vscode.TabInputText => input instanceof vscode.TabInputText)
+					.map((input) => input.uri.toString()),
+			)
+			const sonicPiEditorsRemaining = vscode.workspace.textDocuments.filter(
+				(document) =>
+					document.languageId === 'sonic-pi' && openEditorUris.has(document.uri.toString()),
 			).length
 			const decision = shouldStopServerOnLastEditorClose({
 				settingEnabled: config.stopServerOnLastEditorClose(),

@@ -182,6 +182,20 @@ export class NotebookController {
 
 		this.disposables.add(this.controller)
 
+		// A notebook executes only through a kernel picked for it, and a controller that never asks
+		// for a notebook is not picked automatically: a freshly opened book would offer no kernel
+		// and its play buttons would do nothing until the user chose one by hand.
+		const preferKernel = (notebook: vscode.NotebookDocument) => {
+			if (notebook.notebookType === notebookType) {
+				this.controller.updateNotebookAffinity(
+					notebook,
+					vscode.NotebookControllerAffinity.Preferred,
+				)
+			}
+		}
+		vscode.workspace.notebookDocuments.forEach(preferKernel)
+		this.disposables.add(vscode.workspace.onDidOpenNotebookDocument(preferKernel))
+
 		this.disposables.add(
 			onRunStarted((num) => {
 				this.executions.startRun(num)
@@ -410,7 +424,11 @@ export class NotebookController {
 		// The daemon flashes lines of the joined script, so remember which cell owns which lines.
 		this.cellFlashes.recordScript(scriptToPlay)
 
-		await this.runScript(scriptToPlay.map((cell) => cell.content).join('\n'), false)
+		await this.runScript(
+			scriptToPlay.map((cell) => cell.content).join('\n'),
+			false,
+			scriptToPlay.map((cell) => cell.cellKey),
+		)
 	}
 
 	private runID = 0

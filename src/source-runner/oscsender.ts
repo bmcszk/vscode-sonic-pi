@@ -29,7 +29,13 @@ export class OscSender {
 	private osc: any
 	constructor(private port: number) {
 		this.osc = new OSC({
-			plugin: new OSC.DatagramPlugin({ send: { port, host: '127.0.0.1' } }),
+			plugin: new OSC.DatagramPlugin({
+				// Send-only socket: bind ephemeral. The library default ('localhost':41234) is still
+				// binding when the first send fires, which drops it (the first run after a cold boot
+				// vanished), and 41234 can already belong to another window's sender.
+				open: { port: 0, host: '127.0.0.1' },
+				send: { port, host: '127.0.0.1' },
+			}),
 		})
 		this.osc.open()
 	}

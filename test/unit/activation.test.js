@@ -47,6 +47,10 @@ const vscodeStub = {
 		onDidChangeTextDocument: () => ({ dispose() {} }),
 		onDidCloseTextDocument: () => ({ dispose() {} }),
 		registerNotebookSerializer: (..._a) => ({ dispose() {} }),
+		// A controller asks for the notebooks of its type as they open, so the kernel is picked
+		// for a book without the user choosing one.
+		notebookDocuments: [],
+		onDidOpenNotebookDocument: () => ({ dispose() {} }),
 	},
 	commands: {
 		registerCommand: (id, _fn) => {
@@ -70,6 +74,7 @@ const vscodeStub = {
 		createNotebookController: (_id, _label, _kind, _handler) => ({
 			dispose() {},
 			onDidChangeActiveNotebookEditor: () => ({ dispose() {} }),
+			updateNotebookAffinity: () => {},
 			createNotebookCellExecution: () => ({}),
 		}),
 	},
