@@ -5,7 +5,7 @@ status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-05T12:35:32Z
-updated_at: 2026-11-05T13:19:03Z
+updated_at: 2026-11-05T14:25:32Z
 parent: sonic-pi-q65q
 ---
 
@@ -45,6 +45,16 @@ Research highlights landed in docs/research/marketplace-publishing.md: global PA
 
 ## Still open for 0.2.0
 - [ ] version bump 0.2.0 + tag + release workflow green
-- [ ] icon decision (keep upstream art = copycat signal risk; or replace)
+- [x] icon: user-provided sonic-pi-5.png artwork (distinct identity, copycat risk cleared)
 - [ ] user creates publisher 'bmcszk' on the marketplace + PAT (org-scoped, Marketplace Manage) or sets up Trusted Publishing
 - [ ] fresh-profile smoke on 0.2.0 build
+
+## Icon done (2026-11-05)
+
+Subtle '5' watermark composited behind original logo (dark graphite behind the white-on-transparent Sonic Pi lettering). Legible on both light/dark VS Code themes; original artwork preserved. Packaged + installed locally as bmcszk.sonic-pi-5-extension@0.1.4. Gates re-run green. Removed copycat-impersonation risk.
+
+All store-readiness local work complete. Awaiting:
+- user creates publisher bmcszk on marketplace.visualstudio.com/manage
+- PAT or Trusted Publishing setup
+- 0.2.0 bump + tag + Release workflow
+- vsce publish
