@@ -1,9 +1,12 @@
 import * as vscode from 'vscode'
 import {
+	launchServerAutomatically,
 	onRunEnded,
 	onRunStarted,
 	onServerRestart,
 	runScript,
+	serverIsRunning,
+	startServer,
 	stopAllScripts,
 } from './source-runner/extension'
 
@@ -150,6 +153,8 @@ export class NotebookController {
 
 	private disposables = new Set<{ dispose: () => void }>()
 
+	private notRunningNoticeShown = false
+
 	constructor(id: string, notebookType: string, label: string) {
 		this.controller = vscode.notebooks.createNotebookController(
 			id,
@@ -207,6 +212,7 @@ export class NotebookController {
 		}
 
 		const executed = this.queueCell(notebook, cell)
+		await this.ensureServerReady()
 		await this.triggerPlay(notebook)
 		endExecution(executed, 'playcellFromURI')
 	}
@@ -233,8 +239,28 @@ export class NotebookController {
 		this.workingCopies.set(notebook.uri.toString(), workingCopy)
 
 		const cellWorkingCopies = cells.map((cell) => this.queueCell(notebook, cell))
+		await this.ensureServerReady()
 		await this.triggerPlay(notebook)
 		cellWorkingCopies.forEach((e) => endExecution(e, 'handler'))
+	}
+
+	// A notebook editor is not a sonic-pi text editor, so no visible-editor change ever matches and
+	// the 'ruby' launch mode never boots a server for a notebook. A run sent before the boot lands
+	// on unbound ports and the cell spins forever, so every notebook play boots first and waits.
+	// Launch mode never is left alone: the user starts the server themselves, and one notice tells
+	// them why nothing is playing.
+	private async ensureServerReady(): Promise<void> {
+		if (serverIsRunning()) return
+		if (launchServerAutomatically() === 'never') {
+			if (!this.notRunningNoticeShown) {
+				this.notRunningNoticeShown = true
+				void vscode.window.showInformationMessage(
+					'Sonic Pi server not running - launch mode is set to never',
+				)
+			}
+			return
+		}
+		await startServer()
 	}
 
 	private queueCell(notebook: vscode.NotebookDocument, cell: vscode.NotebookCell): CellWorkingCopy {

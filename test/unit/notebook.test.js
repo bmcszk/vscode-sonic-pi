@@ -20,6 +20,11 @@ class StubEventEmitter {
 
 const executions = new Map()
 
+// The launch mode the controller reads before deciding to boot a server.
+const settings = { launchSonicPiServerAutomatically: 'ruby' }
+
+const informationMessages = []
+
 const vscodeStub = {
 	EventEmitter: StubEventEmitter,
 	NotebookCellKind: { Markup: 1, Code: 2 },
@@ -34,14 +39,16 @@ const vscodeStub = {
 		createTextEditorDecorationType: () => ({}),
 		createStatusBarItem: () => ({ show() {}, dispose() {} }),
 		showErrorMessage: async () => undefined,
-		showInformationMessage: async () => undefined,
+		showInformationMessage: async (message) => {
+			informationMessages.push(message)
+		},
 		showWarningMessage: async () => undefined,
 		activeTextEditor: undefined,
 		visibleTextEditors: [],
 		onDidChangeVisibleTextEditors: () => ({ dispose() {} }),
 	},
 	workspace: {
-		getConfiguration: () => ({}),
+		getConfiguration: () => settings,
 		onDidChangeConfiguration: () => ({ dispose() {} }),
 		onDidChangeTextDocument: () => ({ dispose() {} }),
 		onDidCloseTextDocument: () => ({ dispose() {} }),
@@ -102,6 +109,8 @@ class FakeMain {
 		this.serverStarted = false
 		this.restartInProgress = false
 		this.runs = []
+		// One ordered log of what the controller did, so a test can assert the boot came first.
+		this.events = []
 		FakeMain.instances.push(this)
 	}
 	checkSonicPiPath() {}
@@ -109,7 +118,17 @@ class FakeMain {
 	setMasterVolume() {}
 	stopAllJobs() {}
 	stopServer() {}
-	startServer() {}
+	// Boots asynchronously like the real one, which only resolves once the daemon is ready.
+	startServer() {
+		this.events.push('startServer:begin')
+		return new Promise((resolve) =>
+			setImmediate(() => {
+				this.serverStarted = true
+				this.events.push('startServer:ready')
+				resolve()
+			}),
+		)
+	}
 	restartServer() {
 		this.onServerRestart.fire()
 	}
@@ -120,6 +139,7 @@ class FakeMain {
 	deleteRecording() {}
 	runCode(code) {
 		this.runs.push(code)
+		this.events.push('runCode')
 	}
 }
 FakeMain.instances = []
@@ -267,6 +287,50 @@ const tests = {
 		await firstRun
 		await secondRun
 		assert.strictEqual(executionOf(firstCell).ended, true, 'job id 0 ends the first run')
+	},
+
+	async 'playing a notebook cell boots the server when launch mode is ruby and no server is running'() {
+		informationMessages.length = 0
+		settings.launchSonicPiServerAutomatically = 'ruby'
+		const { main, handler } = openController()
+		const cell = makeCell('boot-cell')
+		const notebook = makeNotebook([cell])
+
+		const run = handler([cell], notebook)
+		await flush()
+		main.onRunStarted.fire(0)
+		main.onRunEnded.fire(0)
+		await run
+
+		assert.deepStrictEqual(
+			main.events,
+			['startServer:begin', 'startServer:ready', 'runCode'],
+			'the run must be sent only after the boot resolved; unbound ports swallow it silently',
+		)
+		assert.strictEqual(main.serverStarted, true, 'the boot must leave the server running')
+
+		// Launch mode never is a deliberate 'I start the server myself': no boot, one notice.
+		settings.launchSonicPiServerAutomatically = 'never'
+		const never = openController()
+		const neverCell = makeCell('never-cell')
+		const secondNeverCell = makeCell('second-never-cell')
+		const neverNotebook = makeNotebook([neverCell, secondNeverCell])
+
+		void never.handler([neverCell], neverNotebook)
+		await flush()
+		void never.handler([secondNeverCell], neverNotebook)
+		await flush()
+
+		assert.ok(
+			!never.main.events.includes('startServer:begin'),
+			'launch mode never must not boot a server from a notebook play',
+		)
+		assert.deepStrictEqual(
+			informationMessages,
+			['Sonic Pi server not running - launch mode is set to never'],
+			'the notice must appear once per session, not once per play',
+		)
+		settings.launchSonicPiServerAutomatically = 'ruby'
 	},
 }
 

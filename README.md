@@ -85,6 +85,11 @@ If VS Code says the Sonic Pi root path is not properly configured, set
 If Run and Stop do nothing, check the language mode in the status bar; the shortcuts need a Sonic
 Pi editor. Notebooks have their own bindings.
 
+If notebook cells play nothing after a window reload, that is fixed: playing a cell now boots the
+server itself before sending the run, because a notebook never opens as a Sonic Pi editor and used
+to wait for one forever. With `sonic-pi.launchSonicPiServerAutomatically` set to `never` nothing
+boots and the extension says so; run **Sonic Pi: Start Server** first in that case.
+
 To check that the extension loaded, run **Sonic Pi: Check Install**.
 
 ## Fork notes
