@@ -1,11 +1,11 @@
 ---
 # sonic-pi-dmux
 title: '[P4] Beautify buffer via daemon /buffer-beautify (GUI Align parity)'
-status: todo
+status: in-progress
 type: feature
 priority: normal
 created_at: 2026-11-04T20:36:14Z
-updated_at: 2026-11-04T23:29:50Z
+updated_at: 2026-11-05T15:46:51Z
 parent: sonic-pi-q65q
 ---
 
