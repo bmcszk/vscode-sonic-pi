@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-04T20:36:14Z
-updated_at: 2026-11-05T16:39:21Z
+updated_at: 2026-11-05T19:46:08Z
 parent: sonic-pi-q65q
 ---
 
@@ -37,3 +37,7 @@ Worker 1ed04e6f on p6-attach (afdbd92): 13 attach tests (real cmdline fixture, t
 ## Follow-up (2026-11-05): CI caught a machine-dependent test
 
 The P6 suite's live-scan case ('this machine's live server') passed locally and failed CI - the environment-dependence class the CI gate exists for; parent missed it at merge (local run had the live daemon). Fixed a5300e3: same readdir/readFile seam, synthetic pid + the real-cmdline fixture already in the file. CI green post-fix. Lesson recorded: branch gates must be run in a CI-equivalent context (or the suite must be machine-independent by construction) before merge.
+
+## Sequel: attach port mapping was wrong (2026-11-05, user 'tutorial not working at all')
+
+parseSpiderCmdline mapped sendToServerPort=args[0] = the DAEMON keepalive port (cmdline order: daemon-keep-alive, gui-listen-to-server, gui-send-to-server, scsynth, osc-cues, token per daemon.rb:104 + live /proc). Attach-mode /run-code went to the daemon, which ignores it -> no sound, no spider reply, Log empty; fresh daemons also self-killed after ~50s (daemonPort never captured -> no keepalive). Fixed 35622dc (TDD: fixture expectations corrected RED, parser GREEN, range check extended to all 5 ports) + applySpiderPorts sets daemonPort (keepalive works in attach). Parent re-verified: 13 attach cases, 105 ok total, e2e gate green, packaged+installed. Orphaned 16:08 daemon killed for a clean slate.
