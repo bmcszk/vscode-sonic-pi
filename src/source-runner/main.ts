@@ -52,7 +52,7 @@ export class Main {
 	onRunStarted = new vscode.EventEmitter<number>()
 	onRunEnded = new vscode.EventEmitter<number>()
 	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
-	onServerRestart: (() => void) | undefined = undefined
+	onServerRestart = new vscode.EventEmitter<void>()
 	onServerState = new vscode.EventEmitter<'stopped' | 'starting' | 'running'>()
 
 	// Outstanding /buffer-beautify request: buffer id and the promise resolving with
@@ -559,9 +559,7 @@ export class Main {
 		this.logOutput.appendLine('Restarting Sonic Pi server...')
 		this.restartInProgress = true
 		try {
-			if (this.onServerRestart) {
-				this.onServerRestart()
-			}
+			this.onServerRestart.fire()
 			if (this.daemonProcess) {
 				this.daemonProcess.kill()
 				this.daemonProcess = null

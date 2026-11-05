@@ -1,5 +1,11 @@
 import * as vscode from 'vscode'
-import { onRunEnded, onRunStarted, runScript, stopAllScripts } from './source-runner/extension'
+import {
+	onRunEnded,
+	onRunStarted,
+	onServerRestart,
+	runScript,
+	stopAllScripts,
+} from './source-runner/extension'
 
 const header = `> Play this document as a notebook with the [Sonic Pi Extension for VS Code](https://marketplace.visualstudio.com/items?itemName=jakearl.vscode-sonic-pi\n`
 
@@ -99,14 +105,48 @@ type NotebookWorkingCopy = {
 const getKey = (thing: vscode.NotebookCell | vscode.NotebookDocument) =>
 	((thing as vscode.NotebookDocument).uri ?? (thing as vscode.NotebookCell).document.uri).toString()
 
+// Maps the daemon's job ids to the resolver that settles one of our run promises. The daemon
+// numbers jobs from 0 in every daemon generation, so an id only means something within the
+// generation that reported it: entries are dropped as they resolve and the whole map is cleared
+// when the server restarts.
+export class RunResolvers {
+	private pending: (() => void)[] = []
+	private sent = new Map<number, () => void>()
+
+	addPending(resolve: () => void) {
+		this.pending.push(resolve)
+	}
+
+	// Starts arrive in dispatch order for the scripts we send, so the oldest pending run takes the id.
+	startRun(num: number) {
+		const started = this.pending.shift()
+		if (started) this.sent.set(num, started)
+	}
+
+	endRun(num: number): boolean {
+		const resolve = this.sent.get(num)
+		if (!resolve) return false
+		this.sent.delete(num)
+		resolve()
+		return true
+	}
+
+	// Returns the resolvers of the runs that were in flight, which the caller must settle.
+	clear(): (() => void)[] {
+		const abandoned = [...this.pending, ...this.sent.values()]
+		this.pending = []
+		this.sent.clear()
+		return abandoned
+	}
+}
+
 export class NotebookController {
 	private workingCopies = new Map<string, NotebookWorkingCopy>()
 	private controller: vscode.NotebookController
 
 	private pendingCancellations = new Set<Promise<void>>()
 
-	private pendingExecutions: (() => void)[] = []
-	private sentExecutions: Map<number, () => void> = new Map()
+	private executions = new RunResolvers()
 
 	private disposables = new Set<{ dispose: () => void }>()
 
@@ -120,20 +160,11 @@ export class NotebookController {
 
 		this.disposables.add(this.controller)
 
-		this.disposables.add(
-			onRunStarted((num) => {
-				if (this.pendingExecutions.length) {
-					const started = this.pendingExecutions.shift()!
-					this.sentExecutions.set(num, started)
-				}
-			}),
-		)
+		this.disposables.add(onRunStarted((num) => this.executions.startRun(num)))
 
-		this.disposables.add(
-			onRunEnded((num) => {
-				this.sentExecutions.get(num)?.()
-			}),
-		)
+		this.disposables.add(onRunEnded((num) => this.executions.endRun(num)))
+
+		this.disposables.add(onServerRestart(() => this.abandonRuns()))
 
 		this.controller.supportedLanguages = ['sonic-pi']
 	}
@@ -178,6 +209,19 @@ export class NotebookController {
 		const executed = this.queueCell(notebook, cell)
 		await this.triggerPlay(notebook)
 		endExecution(executed, 'playcellFromURI')
+	}
+
+	// A server restart kills every run in flight. Settle their promises and end their executions,
+	// otherwise the cells keep spinning and later runs queue behind a run that never finishes.
+	private abandonRuns() {
+		const abandoned = this.executions.clear()
+		for (const notebookWorkingCopy of this.workingCopies.values()) {
+			for (const entry of notebookWorkingCopy.executionHistory.values()) {
+				endExecution(entry, 'server restart')
+			}
+			notebookWorkingCopy.executionHistory.clear()
+		}
+		for (const resolve of abandoned) resolve()
 	}
 
 	private async handler(cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument): Promise<void> {
@@ -257,7 +301,7 @@ export class NotebookController {
 				c()
 				console.log('Finished running script', id)
 			}
-			this.pendingExecutions.push(resolve)
+			this.executions.addPending(resolve)
 			runScript(script)
 		})
 	}
