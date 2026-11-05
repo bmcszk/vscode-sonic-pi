@@ -317,8 +317,13 @@ export class Main {
 	// This is where the incoming OSC messages are processed.
 	// We are processing most of the incoming OSC messages, but not everything yet.
 	setupOscReceiver() {
+		// exclusive: true -> a second window's bind fails with EADDRINUSE instead of
+		// (SO_REUSEADDR) both binding and Linux flipping packet delivery between
+		// binders mid-session. Ownership becomes deterministic and detectable.
 		let osc = new OSC({
-			plugin: new OSC.DatagramPlugin({ open: { port: this.guiListenToServerPort, host: '127.0.0.1' } }),
+			plugin: new OSC.DatagramPlugin({
+				open: { port: this.guiListenToServerPort, host: '127.0.0.1', exclusive: true },
+			}),
 		})
 		osc.open()
 		// Another VS Code window attached to the same server wins the reply-port bind
