@@ -1,11 +1,11 @@
 ---
 # sonic-pi-7se3
 title: 'Notebook: playing highlight wrong/intermittent; add per-cell playing indicator'
-status: in-progress
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-05T20:10:17Z
-updated_at: 2026-11-05T20:51:25Z
+updated_at: 2026-11-05T21:20:45Z
 ---
 
 # Notebook playing-line highlight wrong/intermittent (user report 2026-11-05)
@@ -41,3 +41,7 @@ Field findings: (1) my attach remap was WRONG - spider-server.rb:112 governing t
 ## Exclusive bind (2026-11-05 evening, user 'worked a moment then stopped + logs disappeared')
 
 Root at packet level: osc-js UDP binds default SO_REUSEADDR (exclusive:false) -> several windows bind the same reply port; Linux delivery flips to the newest binder mid-session; that is the momentary-work-then-deaf cycle. Fix (dcf61d6): setupOscReceiver binds exclusive:true -> deterministic first-binder ownership; losers get EADDRINUSE instantly and route through the existing takeover-notice path instead of half-working then breaking. Gates: 15 suites (107 ok), e2e gate green, packaged+installed.
+
+## Final note (2026-11-05): superseded by the takeover-architecture session
+
+All three of this bean's surfaces shipped AND evolved: per-cell 'playing' indicator (cd03cbb), in-cell flash mapping, and the multi-window root-cause chain (EADDRINUSE fill-> takeover-on-play jnrs, exclusive bind dcf61d6). Closed: the tactics inside are now part of the deterministic-ownership architecture; remaining UX is carried by jnrs/'notebook UX' polish under normal use.

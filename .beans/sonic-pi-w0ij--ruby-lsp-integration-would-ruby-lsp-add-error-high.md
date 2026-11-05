@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-05T21:09:11Z
-updated_at: 2026-11-05T21:17:18Z
+updated_at: 2026-11-05T21:20:34Z
 ---
 
 # Ruby LSP: does integrating ruby-lsp improve our language support? (user directive 2026-11-05)

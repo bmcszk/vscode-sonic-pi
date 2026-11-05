@@ -1,11 +1,11 @@
 ---
 # sonic-pi-kpif
 title: Playing-line highlight maps cell-run flashes to wrong editor lines (no fragment offset)
-status: in-progress
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-04T18:14:56Z
-updated_at: 2026-11-04T20:43:54Z
+updated_at: 2026-11-05T21:20:45Z
 ---
 
 sonic-pi-kpif  in-progress   bug  [normal]                                             
@@ -104,3 +104,5 @@ NOTE: 'more flashes than expected' from OTHER still-running jobs (e.g. an earlie
 - [x] cells highlight the right editor lines (variant A live-probed [61,63,64] from a line-60 block, both safe-mode states)
 - [x] upstream issue filed (sonic-pi-net/sonic-pi#3606; NO PR per user directive)
 - [ ] User sign-off pending (cloud_beat re-test on variant A build)
+
+## Final note (2026-11-05): variant A shipped and battle-tested through the takeover chain; fragment/cell line mapping has been green through every later regression cycle (fix e2e still green tonight). Closed with the current implementation.
