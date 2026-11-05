@@ -66,6 +66,7 @@ const vscodeStub = {
 	},
 	notebooks: {
 		registerNotebookSerializer: () => ({ dispose() {} }),
+		registerNotebookCellStatusBarItemProvider: () => ({ dispose() {} }),
 		createNotebookController: (_id, _label, _kind, _handler) => ({
 			dispose() {},
 			onDidChangeActiveNotebookEditor: () => ({ dispose() {} }),

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import { CellFlashMap, ExecutedCell } from './cell-flash-map'
 import {
 	launchServerAutomatically,
 	onRunEnded,
@@ -155,7 +156,15 @@ export class NotebookController {
 
 	private notRunningNoticeShown = false
 
-	constructor(id: string, notebookType: string, label: string) {
+	private readonly cellFlashes: CellFlashMap
+
+	constructor(
+		id: string,
+		notebookType: string,
+		label: string,
+		cellFlashes: CellFlashMap = new CellFlashMap(),
+	) {
+		this.cellFlashes = cellFlashes
 		this.controller = vscode.notebooks.createNotebookController(
 			id,
 			notebookType,
@@ -308,12 +317,17 @@ export class NotebookController {
 
 		const cells = notebook.getCells()
 
-		const scriptToPlay = cells
-			.map((cell) => workingCopy.executionHistory.get(getKey(cell))?.content)
-			.filter((x): x is string => x !== undefined)
-			.join('\n')
+		const scriptToPlay: ExecutedCell[] = cells
+			.map((cell) => ({
+				cellKey: getKey(cell),
+				content: workingCopy.executionHistory.get(getKey(cell))?.content,
+			}))
+			.filter((cell): cell is ExecutedCell => cell.content !== undefined)
 
-		await this.runScript(scriptToPlay)
+		// The daemon flashes lines of the joined script, so remember which cell owns which lines.
+		this.cellFlashes.recordScript(scriptToPlay)
+
+		await this.runScript(scriptToPlay.map((cell) => cell.content).join('\n'))
 	}
 
 	private runID = 0

@@ -33,6 +33,7 @@ import * as vscode from 'vscode'
 import { Main } from './main'
 import { Config } from './config'
 import { computeBeautifyEdit } from '../beautify'
+import { flashPaintFor, notebookFlashMap } from '../cell-flash-map'
 import { SonicPiCodeLensProvider } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
@@ -58,6 +59,10 @@ export const onRunEnded = (listener: (num: number) => void) => {
 
 export const onServerRestart = (listener: () => void) => {
 	return main.onServerRestart.event(listener)
+}
+
+export const onFlash = (listener: (flash: { workspace: string; line: number }) => void) => {
+	return main.onFlash.event(listener)
 }
 
 export const stopAllScripts = () => {
@@ -87,8 +92,20 @@ export function activate(context: vscode.ExtensionContext) {
 	let playingLines = new PlayingLineHighlighter({
 		config,
 		editor: () => vscode.window.activeTextEditor,
+		flashTarget: (workspace, line) =>
+			flashPaintFor(
+				notebookFlashMap,
+				workspace,
+				vscode.window.activeTextEditor?.document.uri.toString(),
+				line,
+			),
 	})
-	context.subscriptions.push(main.onServerRestart.event(() => playingLines.clear()))
+	// A stopped run says nothing more about playing lines or playing cells.
+	const clearPlaying = () => {
+		playingLines.clear()
+		notebookFlashMap.clear()
+	}
+	context.subscriptions.push(main.onServerRestart.event(() => clearPlaying()))
 	const statusBar = new SonicPiStatusBar({
 		sendVersionRequest: () => main.requestVersion(),
 		sendMasterVolume: (value) => main.setMasterVolume(value),
@@ -123,7 +140,7 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 			if (decision) {
 				main.stopServer()
-				playingLines.clear()
+				clearPlaying()
 			}
 		}),
 	)
@@ -137,6 +154,12 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	let isRecording = false
+
+	// A file run reports the lines of that file, so a notebook's joined-script offsets stop applying.
+	const runFileCode = (code: string, offset: number = 0) => {
+		notebookFlashMap.clear()
+		main.runCode(code, offset)
+	}
 
 	// Register the editor commands. For now, run, stop and recording. Those should be enough for
 	// some initial fun...
@@ -162,14 +185,14 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		let code = doc.getText()
 		main.flashCode(textEditor, true)
-		main.runCode(code)
+		runFileCode(code)
 	})
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.runWithText', (code: string, blockLine?: number) => {
 			// A Run cell sends only its block, so pass the block's editor line: runCode pads the text
 			// up to that line and the daemon then reports file-absolute flash lines.
-			main.runCode(code, blockLine ?? 0)
+			runFileCode(code, blockLine ?? 0)
 		}),
 	)
 
@@ -205,12 +228,12 @@ export function activate(context: vscode.ExtensionContext) {
 						if (item === 'Yes, once') {
 							code = doc.getText()
 							main.flashCode(textEditor, true)
-							main.runCode(code)
+							runFileCode(code)
 						} else if (item === 'Yes, always') {
 							config.updateRunFileWhenRunSelectedIsEmpty('always')
 							code = doc.getText()
 							main.flashCode(textEditor, true)
-							main.runCode(code)
+							runFileCode(code)
 						} else if (item === 'No, never') {
 							config.updateRunFileWhenRunSelectedIsEmpty('never')
 						}
@@ -221,16 +244,16 @@ export function activate(context: vscode.ExtensionContext) {
 			} else if (runFileWhenRunSelectedIsEmpty === 'always') {
 				code = doc.getText()
 				main.flashCode(textEditor, true)
-				main.runCode(code)
+				runFileCode(code)
 			}
 		}
 		main.flashCode(textEditor, false)
-		main.runCode(code, textEditor.selection.start.line)
+		runFileCode(code, textEditor.selection.start.line)
 	})
 
 	disposable = vscode.commands.registerCommand('vscode-sonic-pi.stop', () => {
 		main.stopAllJobs()
-		playingLines.clear()
+		clearPlaying()
 	})
 
 	disposable = vscode.commands.registerCommand('vscode-sonic-pi.restartserver', () => {
