@@ -27,6 +27,9 @@ export class CellFlashMap {
 	private readonly now: () => number
 	private spans: FlashCellSpan[] = []
 	private flashedAt = new Map<string, number>()
+	// Cells of the run in flight: lit for the whole run (a missing `end` means the loop
+	// keeps sounding), not blinking with the per-trigger flash TTL.
+	private playingRun = new Set<string>()
 
 	constructor(now: () => number = () => Date.now()) {
 		this.now = now
@@ -83,14 +86,32 @@ export class CellFlashMap {
 		}
 	}
 
+	// The playing run takes over: its cells are steadily active until the run ends.
+	markPlaying(cellKeys: string[]) {
+		this.playingRun = new Set(cellKeys)
+	}
+
+	endPlaying(cellKeys: string[]) {
+		for (const cellKey of cellKeys) {
+			this.playingRun.delete(cellKey)
+		}
+	}
+
 	activeCells(): Map<string, number> {
 		this.expire()
-		return new Map(this.flashedAt)
+		const merged = new Map(this.flashedAt)
+		for (const cellKey of this.playingRun) {
+			if (!merged.has(cellKey)) {
+				merged.set(cellKey, this.now())
+			}
+		}
+		return merged
 	}
 
 	clear() {
 		this.spans = []
 		this.flashedAt.clear()
+		this.playingRun.clear()
 	}
 }
 

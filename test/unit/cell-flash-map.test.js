@@ -177,6 +177,42 @@ const tests = {
 		assert.strictEqual(flashedCellKey(flashes, 'eval', 4), undefined, 'no cell owns line 4')
 		assert.strictEqual(flashedCellKey(flashes, 'buffer-0', 1), undefined, 'not our run')
 	},
+
+	'a run marks its cells playing: steady lit state, no blinking'() {
+		const map = new CellFlashMap()
+		map.markPlaying(['cell-a', 'cell-b'])
+
+		assert.deepStrictEqual([...map.activeCells().keys()], ['cell-a', 'cell-b'])
+
+		// Flash TTL expiry must not clear a run-marked playing cell.
+		map.expire()
+		assert.deepStrictEqual([...map.activeCells().keys()], ['cell-a', 'cell-b'])
+	},
+
+	'ending the run unmarks the playing cells'() {
+		const map = new CellFlashMap()
+		map.markPlaying(['cell-a'])
+
+		map.endPlaying(['cell-a'])
+
+		assert.deepStrictEqual([...map.activeCells().keys()], [])
+	},
+
+	'markPlaying replaces the run set (a new run supersedes the old one)'() {
+		const map = new CellFlashMap()
+		map.markPlaying(['cell-a'])
+
+		map.markPlaying(['cell-b'])
+		assert.deepStrictEqual([...map.activeCells().keys()], ['cell-b'])
+	},
+
+	'versus the run set, re-triggered flashes still pulse-flash while a different loop plays'() {
+		const map = new CellFlashMap()
+		// The loop keeps playing (steady), so a different cell's flash must show it separately.
+		map.markPlaying(['loop-cell'])
+		map.noteFlash('pulse-cell')
+		assert.deepStrictEqual([...map.activeCells().keys()].sort(), ['loop-cell', 'pulse-cell'])
+	},
 }
 
 async function runAll() {

@@ -117,11 +117,11 @@ const getKey = (thing: vscode.NotebookCell | vscode.NotebookDocument) =>
 // generation that reported it: entries are dropped as they resolve and the whole map is cleared
 // when the server restarts.
 export class RunResolvers {
-	private pending: (() => void)[] = []
-	private sent = new Map<number, () => void>()
+	private pending: { resolve: () => void; cells?: string[] }[] = []
+	private sent = new Map<number, { resolve: () => void; cells?: string[] }>()
 
-	addPending(resolve: () => void) {
-		this.pending.push(resolve)
+	addPending(resolve: () => void, cells?: string[]) {
+		this.pending.push({ resolve, cells })
 	}
 
 	// Starts arrive in dispatch order for the scripts we send, so the oldest pending run takes the id.
@@ -130,16 +130,21 @@ export class RunResolvers {
 		if (started) this.sent.set(num, started)
 	}
 
-	endRun(num: number): boolean {
-		const resolve = this.sent.get(num)
-		if (!resolve) return false
+	// The just-sent entry: the controller needs the run's cells to light them by id.
+	sentFor(num: number): { resolve?: () => void; cells?: string[] } {
+		return this.sent.get(num) ?? {}
+	}
+
+	endRun(num: number): { resolve?: () => void; cells?: string[] } {
+		const sent = this.sent.get(num)
+		if (!sent) return {}
 		this.sent.delete(num)
-		resolve()
-		return true
+		sent.resolve()
+		return sent
 	}
 
 	// Returns the resolvers of the runs that were in flight, which the caller must settle.
-	clear(): (() => void)[] {
+	clear(): { resolve: () => void }[] {
 		const abandoned = [...this.pending, ...this.sent.values()]
 		this.pending = []
 		this.sent.clear()
@@ -177,9 +182,24 @@ export class NotebookController {
 
 		this.disposables.add(this.controller)
 
-		this.disposables.add(onRunStarted((num) => this.executions.startRun(num)))
+		this.disposables.add(
+			onRunStarted((num) => {
+				this.executions.startRun(num)
+				const sent = this.executions.sentFor(num)
+				if (sent.cells) {
+					this.cellFlashes.markPlaying(sent.cells)
+				}
+			}),
+		)
 
-		this.disposables.add(onRunEnded((num) => this.executions.endRun(num)))
+		this.disposables.add(
+			onRunEnded((num) => {
+				const ended = this.executions.endRun(num)
+				if (ended.cells) {
+					this.cellFlashes.endPlaying(ended.cells)
+				}
+			}),
+		)
 
 		this.disposables.add(onServerRestart(() => this.abandonRuns()))
 
@@ -250,13 +270,14 @@ export class NotebookController {
 	// otherwise the cells keep spinning and later runs queue behind a run that never finishes.
 	private abandonRuns() {
 		const abandoned = this.executions.clear()
+		this.cellFlashes.clear()
 		for (const notebookWorkingCopy of this.workingCopies.values()) {
 			for (const entry of notebookWorkingCopy.executionHistory.values()) {
 				endExecution(entry, 'server restart')
 			}
 			notebookWorkingCopy.executionHistory.clear()
 		}
-		for (const resolve of abandoned) resolve()
+		for (const entry of abandoned) entry.resolve()
 	}
 
 	private async handler(cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument): Promise<void> {
@@ -376,21 +397,18 @@ export class NotebookController {
 		// The daemon flashes lines of the joined script, so remember which cell owns which lines.
 		this.cellFlashes.recordScript(scriptToPlay)
 
-		await this.runScript(scriptToPlay.map((cell) => cell.content).join('\n'))
+		await this.runScript(scriptToPlay.map((cell) => cell.content).join('\n'), false)
 	}
 
 	private runID = 0
-	private async runScript(script: string, isCancellation = false): Promise<void> {
+	private async runScript(script: string, isCancellation = false, cells: string[] = []): Promise<void> {
 		const id = this.runID++
 		if (!isCancellation) await Promise.all(this.pendingCancellations.values())
 		return new Promise((c) => {
-			console.log('Running script', id, ':', script)
-
 			const resolve = () => {
 				c()
-				console.log('Finished running script', id)
 			}
-			this.executions.addPending(resolve)
+			this.executions.addPending(resolve, cells)
 			runScript(script)
 		})
 	}

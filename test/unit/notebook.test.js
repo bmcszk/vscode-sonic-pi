@@ -312,11 +312,15 @@ const tests = {
 		resolvers.addPending(() => resolutions++)
 		resolvers.startRun(3)
 
-		const resolved = resolvers.endRun(3)
+		const firstEntry = resolvers.endRun(3)
 		const resolvedAgain = resolvers.endRun(3)
 
 		assert.deepStrictEqual(
-			{ resolved, resolvedAgain, resolutions },
+			{
+				resolved: Boolean(firstEntry.resolve),
+				resolvedAgain: Boolean(resolvedAgain.resolve),
+				resolutions,
+			},
 			{ resolved: true, resolvedAgain: false, resolutions: 1 },
 			'a job id must resolve once and the entry must be dropped so a recycled id cannot hit it',
 		)
