@@ -32,6 +32,7 @@ import * as vscode from 'vscode'
 
 import { Main } from './main'
 import { Config } from './config'
+import { computeBeautifyEdit } from '../beautify'
 import { SonicPiCodeLensProvider } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
@@ -236,6 +237,45 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			})
 		}
+	})
+
+	// Beautify: send the active Sonic Pi document to the daemon's /buffer-beautify and
+	// apply the returned aligned text as a whole-document edit, cursor best-effort.
+	disposable = vscode.commands.registerTextEditorCommand('vscode-sonic-pi.beautify', (textEditor) => {
+		const doc = textEditor.document
+		if (doc.languageId !== 'sonic-pi') {
+			return
+		}
+		const bufferId = doc.uri.toString()
+		const cursor = textEditor.selection.active
+		main
+			.beautify(bufferId, doc.getText(), cursor.line, cursor.character)
+			.then((reply) => {
+				const result = computeBeautifyEdit(
+					doc.getText(),
+					reply.content,
+					{ line: cursor.line, character: cursor.character },
+					{ line: reply.line, index: reply.index },
+				)
+				if (result.newText === undefined) {
+					return
+				}
+				void textEditor.edit((editBuilder) => {
+					const whole = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length))
+					editBuilder.replace(whole, result.newText!)
+				}).then((applied) => {
+					if (applied) {
+						const lastLine = doc.lineCount - 1
+						const line = Math.min(result.cursor.line, lastLine)
+						const character = Math.min(result.cursor.character, doc.lineAt(line).range.end.character)
+						const pos = new vscode.Position(line, character)
+						textEditor.selection = new vscode.Selection(pos, pos)
+					}
+				})
+			})
+			.catch((error: Error) => {
+				void vscode.window.showErrorMessage('Beautify failed: ' + error.message)
+			})
 	})
 
 	context.subscriptions.push(

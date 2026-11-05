@@ -53,6 +53,15 @@ export class Main {
 	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
 	onServerRestart: (() => void) | undefined = undefined
 	onServerState = new vscode.EventEmitter<'stopped' | 'starting' | 'running'>()
+
+	// Outstanding /buffer-beautify request: buffer id and the promise resolving with
+	// the daemon's /buffer/replace reply. One request at a time (beautify is modal).
+	private pendingBeautify:
+		| {
+				bufferId: string
+				resolve: (reply: { content: string; line: number; index: number }) => void
+		  }
+		| undefined
 	onVersion = new vscode.EventEmitter<string>()
 
 	guiSendToServerPort: number
@@ -338,6 +347,23 @@ export class Main {
 			this.onFlash.fire({ workspace: message.args[1], line: message.args[2] })
 		})
 
+		// Reply to /buffer-beautify: the daemon drains its message queue and answers with
+		// gui.send("/buffer/replace", buf_id, content, line, index, first_line) — same
+		// address the Qt GUI consumes for buffer replacements (spider-server.rb:1035).
+		osc.on('/buffer/replace', (message: { args: any }) => {
+			const bufferId = message.args[0]
+			const pending = this.pendingBeautify
+			if (!pending || bufferId !== pending.bufferId) {
+				return
+			}
+			this.pendingBeautify = undefined
+			pending.resolve({
+				content: message.args[1],
+				line: message.args[2],
+				index: message.args[3],
+			})
+		})
+
 		//osc.on('*', (message: {address: string}) => {
 		//    this.logOutput.appendLine("Got message of type: " + message.address);
 		//});
@@ -576,6 +602,32 @@ export class Main {
 		this.clearErrorHighlight()
 		let message = new OSC.Message('/run-code', parseInt(this.guiUuid), code)
 		this.sendOsc(message)
+	}
+
+	// Beautify the given buffer via the daemon (GUI Align parity). Sends /buffer-beautify
+	// with (token, buffer id, code, cursor line, cursor index, first_line) exactly as the
+	// daemon's add_method handler expects (spider-server.rb:447) and resolves with the
+	// aligned text and server-adjusted cursor from the /buffer/replace reply. The buffer
+	// is registered first with /save-buffer so the daemon knows its id, mirroring the Qt
+	// GUI's save-and-run buffer handling. Rejects if no reply arrives.
+	beautify(bufferId: string, code: string, line: number, index: number): Promise<{ content: string; line: number; index: number }> {
+		return new Promise((resolve, reject) => {
+			this.pendingBeautify = { bufferId, resolve }
+			const timeout = setTimeout(() => {
+				if (this.pendingBeautify && this.pendingBeautify.bufferId === bufferId) {
+					this.pendingBeautify = undefined
+					reject(new Error('Sonic Pi daemon did not reply to /buffer-beautify'))
+				}
+			}, 5000)
+			this.pendingBeautify.resolve = (reply) => {
+				clearTimeout(timeout)
+				resolve(reply)
+			}
+			this.sendOsc(new OSC.Message('/save-buffer', bufferId, utf8.encode(code)))
+			this.sendOsc(
+				new OSC.Message('/buffer-beautify', bufferId, utf8.encode(code), line, index, 0),
+			)
+		})
 	}
 
 	flashCode(editor: TextEditor, isWhole: boolean) {
