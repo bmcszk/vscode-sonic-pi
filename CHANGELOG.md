@@ -4,7 +4,7 @@ All notable changes to the "sonic-pi-5-extension" extension will be documented i
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [0.2.0] - unreleased
+## [0.2.0] - 2026-11-05
 
 ### Added
 - Editor run controls for Sonic Pi files: **▶ Run / ■ Stop** CodeLens above the file, **▶ Run cell**

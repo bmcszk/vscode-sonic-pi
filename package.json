@@ -4,7 +4,7 @@
 	"publisher": "blazesoftware",
 	"description": "Language support and code running for Sonic Pi scripts",
 	"preview": true,
-	"version": "0.1.4",
+	"version": "0.2.0",
 	"license": "MIT",
 	"homepage": "https://github.com/bmcszk/vscode-sonic-pi#readme",
 	"keywords": [
