@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-05T21:00:56Z
-updated_at: 2026-11-05T21:11:51Z
+updated_at: 2026-11-05T21:38:48Z
 ---
 
 # Takeover-on-play (user decision, 2026-11-05, Option B)
@@ -35,3 +35,7 @@ Option B shipped (commit 50d8600 on dev). Root design per user choice: whoever p
 ## Sequel: takeover exited old daemon but never booted ours (user 22:10 report)
 
 The token-matched /daemon/exit worked (booter log Goodbye at 22:10:08) but the window's attach-era state blocked the successor: serverStarted=true early-returned startServer(); the RESOLVED portsInitalized promise kept routing sends to a dead OscSender; the keepalive interval kept pinging the dead port. Fixed 4609ca5: reset flag, re-arm send queue promise, stop keepalive timer, clear daemonPort -> startServer() boots the fresh generation owned by this window. Gates: 15 suites (109 ok), e2e gate green, packaged+installed.
+
+## Sequel 2: reload killed the loop mid-play (user 22:36 report)
+
+Timeline from daemon.log: reload at 22:35:04 -> owner host's keepalive died -> kill-switch timeout at 22:35:55 -> sound died 51s into the play. Structural fix 6dd361c: daemon spawned detached+unref (test-fake guarded) -> daemon outlives host teardown; re-activating hosts adopt the still-running generation through the attach path (startKeepAlive restarts adoption-side; daemonPort flow from h8vo), so the daemon never orphans into the 90-second death. Gates: 16 suites (110 ok), e2e gate green, packaged+installed. This closes the last reload-sensitivity of the whole notebook/multi-window chain.
