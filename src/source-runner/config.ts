@@ -63,6 +63,9 @@ export class Config {
 	public safeMode(): boolean {
 		return this.getConfiguration(this.section).safeMode
 	}
+	public connectionMode(): string {
+		return this.getConfiguration(this.section).connectionMode || 'auto'
+	}
 	public stopServerOnLastEditorClose(): boolean {
 		return this.getConfiguration(this.section).stopServerOnLastEditorClose === true
 	}

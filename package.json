@@ -19,7 +19,7 @@
 	},
 	"scripts": {
 		"build":"tsc",
-		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/activation.test.js",
+		"test":"npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/activation.test.js",
 		"test:e2e":"npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",
@@ -254,6 +254,21 @@
 				"vscode-sonic-pi.sonicPiRootDirectory": {
 					"type": "string",
 					"description": "Set Sonic Pi installation directory.\nOnly use this if the default does not work for you."
+				},
+				"vscode-sonic-pi.connectionMode": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"managed",
+						"attach"
+					],
+					"enumDescriptions": [
+						"Attach to a running Sonic Pi app if one is found, otherwise boot our own server",
+						"Always boot our own server daemon (previous behavior)",
+						"Only attach to a running Sonic Pi app; never boot a server"
+					],
+					"default": "auto",
+					"description": "How to get a Sonic Pi server: attach to the app you run yourself, or manage a daemon."
 				},
 				"vscode-sonic-pi.launchSonicPiServerAutomatically": {
 					"type": "string",

@@ -94,6 +94,7 @@ const tests = {
 	'offers Restart Server when the daemon reports audio connection loss': () => {
 		reset()
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		booted(main, 3)
 		spawnedServer.stderr.emit('data', Buffer.from(CONNECTION_LOST + '\n'))
 		assert.deepStrictEqual(errorsShown, ['Sonic Pi: Audio server connection lost'])
@@ -107,6 +108,7 @@ const tests = {
 	'debounces repeated connection-loss lines within the outage window': () => {
 		reset()
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		booted(main, 3)
 		spawnedServer.stderr.emit('data', Buffer.from(CONNECTION_LOST + '\n'))
 		spawnedServer.stderr.emit('data', Buffer.from('Daemon SuperSonic Conn: reconnected\n'))
@@ -120,6 +122,7 @@ const tests = {
 	'no notification for run-completion pause lines or unrelated stderr': () => {
 		reset()
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		booted(main, 3)
 		spawnedServer.stderr.emit('data', Buffer.from('Pausing SuperSonic Audio Server\n'))
 		spawnedServer.stderr.emit('data', Buffer.from('some noise\n'))
@@ -130,6 +133,7 @@ const tests = {
 	'restarting kills the current daemon process and boots a fresh one': async () => {
 		reset()
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		await Promise.all([
 			booted(main, 3),
 			sleep(0).then(() => {

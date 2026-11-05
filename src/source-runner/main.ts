@@ -31,6 +31,7 @@ const OSC = require('osc-js')
 const utf8 = require('utf8')
 const { v4: uuidv4 } = require('uuid')
 import { Config } from './config'
+import { findRunningSpiderServer, SpiderPorts } from '../attach'
 import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
 
@@ -91,6 +92,7 @@ export class Main {
 	platform: string
 	guiUuid: any
 	config: any
+	spiderServerScanner: () => SpiderPorts | undefined = findRunningSpiderServer
 
 	errorHighlightDecorationType = vscode.window.createTextEditorDecorationType({
 		border: '2px solid red',
@@ -256,16 +258,46 @@ export class Main {
 		this.logOutput.appendLine('Will start server')
 
 		try {
-			await this.startRubyServer()
+			await this.connectToServer()
 		} catch (error: any) {
 			this.logOutput.appendLine(`Server start aborted: ${error.message}`)
 			void vscode.window.showErrorMessage(error.message)
 			return
 		}
 		this.logOutput.append('Done starting server!')
-		this.startKeepAlive()
+		if (this.daemonPort !== -1) {
+			this.startKeepAlive()
+		}
 		this.setupOscReceiver()
 		this.onServerState.fire('running')
+	}
+
+	// Business order: attach to a user-run Sonic Pi when allowed, otherwise boot our own daemon
+	async connectToServer(): Promise<void> {
+		const mode = this.config.connectionMode()
+		if (mode !== 'managed') {
+			const ports = this.spiderServerScanner()
+			if (ports) {
+				this.logOutput.appendLine(
+					`Attaching to running Sonic Pi server (ports ${ports.sendToServerPort}/${ports.listenFromServerPort})`,
+				)
+				this.applySpiderPorts(ports)
+				return
+			}
+			if (mode === 'attach') {
+				throw new Error('No running Sonic Pi server found in /proc (connectionMode: attach)')
+			}
+			this.logOutput.appendLine('No running Sonic Pi server found, falling back to managed daemon')
+		}
+		await this.startRubyServer()
+	}
+
+	applySpiderPorts(ports: SpiderPorts) {
+		this.guiSendToServerPort = ports.sendToServerPort
+		this.guiListenToServerPort = ports.listenFromServerPort
+		this.serverOscCuesPort = ports.oscCuesPort
+		this.guiUuid = ports.token
+		this.portsInitalizedResolver(new OscSender(ports.sendToServerPort))
 	}
 
 	log(str: string) {
