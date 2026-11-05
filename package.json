@@ -19,6 +19,7 @@
 	},
 	"scripts": {
 		"build":"tsc",
+		"lint":"eslint src/**/*.ts",
 		"test":"npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js",
 		"test:e2e":"npm run build && node test/e2e/protocol.js"
 	},
