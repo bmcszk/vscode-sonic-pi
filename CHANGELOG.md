@@ -4,6 +4,11 @@ All notable changes to the "sonic-pi-5-extension" extension will be documented i
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.2.2] - 2026-11-05
+
+### Fixed
+- Marketplace publish: vsce publish called with correct arguments (version from manifest, not the vsix path).
+
 ## [0.2.1] - 2026-11-05
 
 ### Fixed
