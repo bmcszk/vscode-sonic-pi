@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-04T20:36:14Z
-updated_at: 2026-11-05T15:57:57Z
+updated_at: 2026-11-05T16:39:21Z
 parent: sonic-pi-q65q
 ---
 
@@ -33,3 +33,7 @@ Precedence: repo local style (classes, tabs, established naming) outranks these 
 ## Proof of Work
 
 Worker 1ed04e6f on p6-attach (afdbd92): 13 attach tests (real cmdline fixture, token -402713833), two supervisor rounds (stub-only EventEmitter addition; injected discovery hook instead of mutable property). Parent re-verified post master-merge-resolution: 11 suites green (87 ok), live e2e gate green, vsce package DONE. Residual: none.
+
+## Follow-up (2026-11-05): CI caught a machine-dependent test
+
+The P6 suite's live-scan case ('this machine's live server') passed locally and failed CI - the environment-dependence class the CI gate exists for; parent missed it at merge (local run had the live daemon). Fixed a5300e3: same readdir/readFile seam, synthetic pid + the real-cmdline fixture already in the file. CI green post-fix. Lesson recorded: branch gates must be run in a CI-equivalent context (or the suite must be machine-independent by construction) before merge.
