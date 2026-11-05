@@ -1,132 +1,88 @@
-# Sonic Pi for VS Code
+# Sonic Pi 5 for VS Code
 
-Write and run [Sonic Pi](https://sonic-pi.net/) code in VS Code: syntax highlighting, completions and
+Write and run [Sonic Pi](https://sonic-pi.net/) code in VS Code. Syntax highlighting, completions,
 hovers for samples, synths, FX and commands, a log channel, and Run/Stop straight to a running
-Sonic Pi server.
+Sonic Pi 5 server.
 
-This is a fork of [s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi), which in turn
-builds on the work of [JacksonKearl/vscode-sonic-pi](https://github.com/JacksonKearl/vscode-sonic-pi)
-and [llloret/sonic-pi-vscode-editor](https://github.com/llloret/sonic-pi-vscode-editor). It targets
-Sonic Pi 5.
+Fork of [s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi), targeting Sonic Pi 5.
+Linux is the tested platform. See [Fork notes](#fork-notes).
 
 ## Requirements
 
-- VS Code 1.58 or newer.
-- Sonic Pi 5.x installed on the same machine. The extension starts Sonic Pi's own server, so check
-  first that Sonic Pi plays sound on its own.
-- Sonic Pi found in the platform default location: `/usr/lib/sonic-pi` on Linux,
-  `/Applications/Sonic Pi.app/Contents/Resources` on macOS, `C:\Program Files\Sonic Pi` on Windows.
-  Only the Linux layout has been tested against Sonic Pi 5. If your install lives somewhere else,
-  set [`sonicPiRootDirectory`](#settings).
+- VS Code 1.144 or newer.
+- Sonic Pi 5.x installed on the same machine. Check that Sonic Pi plays sound on its own first.
 
 ## Install
 
-The Marketplace listing for this fork is not published yet. Install the packaged extension instead:
-
-1. Get the `.vsix` package (`sonic-pi-5-extension-<version>.vsix`).
-2. In VS Code, open the Extensions view, click the `...` menu and choose **Install from VSIX…**.
-3. Pick the file. Reload the window if VS Code asks.
+1. Download the `.vsix` from [Releases](https://github.com/bmcszk/vscode-sonic-pi/releases).
+2. In VS Code, open the Extensions view, click the `...` menu, choose **Install from VSIX…**, and
+   pick the file.
 
 ## Getting started
 
-1. Open the file you want to play. Files ending in `.pi` open as Sonic Pi automatically; for any
-   other file, such as a `.rb`, run **Change Language Mode** from the Command Palette and choose
-   **Sonic Pi**. Run and Stop only fire in a Sonic Pi editor.
-2. The server starts by itself once a Sonic Pi file is open, since
-   [`launchSonicPiServerAutomatically`](#settings) defaults to `ruby`. To start it by hand, run
-   **Sonic Pi: Start Server**.
-3. Press `F5` (or `Alt+R`) to run the whole file, `Alt+S` to stop it. The played region flashes
-   briefly, and the **Cues** and **Log** output channels show what the server reports.
-4. Or use the editor controls: a **▶ Run / ■ Stop** row above the first line, a **▶ Run cell**
-   above each blank-line-separated block that plays something, a **⟳ Load def** above a block
-   that starts with `define`/`defonce` (reloads that function into the running session), and a
-   **▶** button at the top right of the editor tab. Blocks that only assign variables
-   (`chord_low_1 = ...`) or only set options (`use_bpm 120`) get no lens because running them
-   makes no sound. Everything clickable runs the same commands as the keys. Turn them off with
-   [`showEditorControls`](#settings).
+1. Open a `.pi` file. For a `.rb` file, run **Change Language Mode** and choose **Sonic Pi**. The
+   server starts automatically when a Sonic Pi file is open.
+2. Press `F5` or `Alt+R` to run the file, `Alt+S` to stop.
+3. The editor shows controls above the code: **▶ Run / ■ Stop** above the first line, **▶ Run
+   cell** above each block that plays something, and **⟳ Load def** above `define` blocks. Load
+   def reloads that function into the running session, so a running loop picks up your edit on
+   its next cycle. A **▶** button also sits at the top right of the editor tab. Turn all of this
+   off with `sonic-pi.showEditorControls`.
+4. While code plays, the lines that are currently making sound light up, like in the Sonic Pi
+   app. Turn it off with `sonic-pi.showPlayingLineHighlight`.
 
-   Run cell executes only that block in its own run. Plain local variables from other blocks are
-   not visible there; share state with `define`d functions or Time State (`set`/`get`), or use Run
-   for the whole file.
+Run cell runs only that block in its own run. Variables from other blocks are not visible there.
+Share state with `define`d functions or `set`/`get`, or run the whole file.
 
-### Keyboard shortcuts
+## Commands
 
-| Shortcut      | Action               | Active in               |
-| ------------- | -------------------- | ----------------------- |
-| `F5`, `Alt+R` | Run the whole file   | Sonic Pi editor         |
-| `Alt+S`       | Stop                 | Sonic Pi editor         |
-| `Alt+T`       | Run selected text    | Sonic Pi editor         |
-| `Shift+Alt+R` | Toggle recording     | Sonic Pi editor or cell |
-| `F5`, `Alt+R` | Run the current cell | Sonic Pi notebook       |
-| `Alt+S`       | Stop the notebook    | Sonic Pi notebook       |
+All commands are in the Command Palette under the **Sonic Pi** category: Start Server, Check
+Install, Open Examples, Open Tutorial, Run, Run selected text, Stop, Toggle recording, and the
+notebook commands (create notebook, run cell, stop).
 
-### Commands
-
-All commands sit in the Command Palette under the **Sonic Pi** category.
-
-| Command                                    | What it does                                        |
-| ------------------------------------------ | --------------------------------------------------- |
-| **Sonic Pi: Start Server**                 | Starts the Sonic Pi server without needing a file   |
-| **Sonic Pi: Check Install**                | Confirms the extension is running (`All Good!`)     |
-| **Sonic Pi: Open Examples**                | Opens the bundled example pieces                    |
-| **Sonic Pi: Open Tutorial**                | Opens the bundled tutorial as a notebook            |
-| **Sonic Pi: Run**                          | Runs the current file                               |
-| **Sonic Pi: Run selected text**            | Runs the selection                                  |
-| **Sonic Pi: Stop**                         | Stops every running job                             |
-| **Sonic Pi: Toggle recording**             | Toggles Sonic Pi's recording                        |
-| **Sonic Pi: Create new Sonic Pi notebook** | New notebook with a cell-by-cell player             |
-| **Sonic Pi: Run Notebook Cell**            | Runs the cell the cursor is in, in a notebook       |
-| **Sonic Pi: Stop Notebook**                | Stops a notebook's player                           |
+| Key | Action |
+| --- | ------ |
+| `F5`, `Alt+R` | Run file (or notebook cell) |
+| `Alt+S` | Stop |
+| `Alt+T` | Run selection |
+| `Shift+Alt+R` | Toggle recording |
 
 ## Settings
 
-All settings live under **Settings → Extensions → Sonic Pi**, or in `settings.json` under the
-`vscode-sonic-pi.` prefix.
+Settings use the `vscode-sonic-pi.` prefix. The full table with defaults lives in
+[docs/SETTINGS.md](docs/SETTINGS.md). The ones you are most likely to touch:
 
-| Setting | Default | Meaning |
-| ------- | ------- | ------- |
-| `vscode-sonic-pi.sonicPiRootDirectory` | unset | Sonic Pi installation directory. Leave it unset unless your install is outside the platform default; the extension warns when the configured root has no `daemon.rb` under it. |
-| `vscode-sonic-pi.launchSonicPiServerAutomatically` | `"ruby"` | When to start the server automatically: `ruby` (a Sonic Pi file is open), `start` (VS Code starts), `never` (only via **Sonic Pi: Start Server**), `custom` (a file with the extension named in `launchSonicPiServerCustomExtension` is open). |
-| `vscode-sonic-pi.launchSonicPiServerCustomExtension` | unset | File extension that triggers the automatic start when the setting above is `custom`. |
-| `vscode-sonic-pi.runFileWhenRunSelectedIsEmpty` | unset | What **Run selected text** does when nothing is selected: `always` runs the whole file, `never` does nothing. While unset, the extension asks once and offers to remember the answer. |
-| `vscode-sonic-pi.invertStereo` | `false` | Invert stereo output. |
-| `vscode-sonic-pi.forceMono` | `false` | Force mono output. |
-| `vscode-sonic-pi.safeMode` | `true` | Synth argument checking. Turning it off lets synth opt values create unexpectedly loud or uncomfortable sounds. |
-| `vscode-sonic-pi.logAutoscroll` | `true` | Autoscroll the log. |
-| `vscode-sonic-pi.logClearOnRun` | `true` | Clear the log when a run starts. |
-| `vscode-sonic-pi.flashBackgroundColor` | `"rgba(255,20,147,1.0)"` | Background flash color while code runs. |
-| `vscode-sonic-pi.flashTextColor` | `"rgba(255,255,255,1.0)"` | Text flash color while code runs. |
-| `vscode-sonic-pi.showPlayingLineHighlight` | `true` | Highlight the line that is currently playing, like the Sonic Pi app. |
-| `vscode-sonic-pi.showEditorControls` | `true` | Show Run/Stop controls above the editor (CodeLens) and in the editor title bar. |
+- `sonic-pi.sonicPiRootDirectory`: set this only if your Sonic Pi install is not in the platform
+  default location (`/usr/lib/sonic-pi` on Linux, `/Applications/Sonic Pi.app/Contents/Resources`
+  on macOS, `C:\Program Files\Sonic Pi` on Windows).
+- `sonic-pi.showEditorControls`: the Run/Stop/Run cell controls.
+- `sonic-pi.showPlayingLineHighlight`: the playing-line highlight.
+- `sonic-pi.safeMode`: synth argument checking. Keep it on; turning it off lets bad synth
+  argument values produce loud or uncomfortable sounds.
 
 ## Troubleshooting
 
-- **No sound, or the server never comes up.** Check that Sonic Pi itself plays sound. Then read the
-  **Log** and **Cues** output channels in VS Code (View → Output), and the log files Sonic Pi writes
-  to `~/.sonic-pi/log/`:
-  - `daemon.log` — server startup, including the port and token line the extension reads.
-  - `spider.log` — whether a run was accepted, and any error in your Sonic Pi code.
-  - `supersonic.log` — audio engine activity. Sonic Pi 5 logs the audio engine to `supersonic.log`;
-    there is no `scsynth.log` on 5.x.
-- **"The Sonic Pi root path is not properly configured".** The extension found no
-  `app/server/ruby/bin/daemon.rb` (or `server/ruby/bin/daemon.rb`) under the configured root. Click
-  **Go to settings** and set `sonicPiRootDirectory`, for example `/usr/lib/sonic-pi` on Linux.
-- **Run and Stop do nothing.** The shortcuts need a Sonic Pi editor: check the language mode in the
-  status bar. Inside a notebook use the notebook shortcuts instead.
-- **Unsure the extension is loaded?** Run **Sonic Pi: Check Install**.
+If there is no sound or the server never comes up, check that Sonic Pi itself plays sound. Then
+read the **Log** and **Cues** output channels in VS Code, plus the files in `~/.sonic-pi/log/`:
+`daemon.log` for startup, `spider.log` for run errors, `supersonic.log` for the audio engine.
+
+If VS Code says the Sonic Pi root path is not properly configured, set
+`sonic-pi.sonicPiRootDirectory`, for example `/usr/lib/sonic-pi` on Linux.
+
+If Run and Stop do nothing, check the language mode in the status bar; the shortcuts need a Sonic
+Pi editor. Notebooks have their own bindings.
+
+To check that the extension loaded, run **Sonic Pi: Check Install**.
 
 ## Fork notes
 
-- Tested against Sonic Pi 5.0.0 on Linux (pacman package), daemon at
-  `/usr/lib/sonic-pi/app/server/ruby/bin/daemon.rb`: a live run and stop were accepted by
-  `spider.log`.
-- Divergences from the s00500 fork: Linux root defaults to `/usr/lib/sonic-pi` and both the `app/`
-  and flat daemon layouts are detected; the Sonic Pi 5 daemon line is parsed for its 6 values,
-  negative tokens are kept, and an unparsable line aborts the start instead of sending a bogus token;
-  the dead log parser is gone.
-- Version 0.1.1.
+Tested against Sonic Pi 5.0.0 on Linux (pacman layout, daemon under `app/server/ruby/bin/`). The
+Linux root path defaults to `/usr/lib/sonic-pi`, both daemon layouts are detected, and the Sonic
+Pi 5 token line is parsed (6 values, negative tokens kept, unparsable line aborts the start).
+Editor controls and the playing-line highlight are this fork's additions. Full change history:
+[CHANGELOG.md](CHANGELOG.md).
 
 ## License and credits
 
-MIT — see [LICENSE](LICENSE). The language support builds on the previous work of Jackson Kearl,
-Luis Lloret and the s00500 fork; the bundled tutorial content is copyright Scott Aaron.
+MIT, see [LICENSE](LICENSE). Builds on the work of Jackson Kearl, Luis Lloret and the s00500
+fork. Bundled tutorial content is copyright Scott Aaron.
