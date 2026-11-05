@@ -305,7 +305,6 @@ const tests = {
 		assert.deepStrictEqual(main.events.filter((e) => e === 'runCode').length, 2, 'both plays ran')
 	},
 
-
 	'a resolved run id is forgotten'() {
 		const resolvers = new RunResolvers()
 		let resolutions = 0
@@ -465,7 +464,7 @@ const tests = {
 		await firstRun
 		assert.deepStrictEqual(cellFlashes.resolve(1), { cellKey: 'first-cell', localLine: 1 })
 
-			// Per-cell join: the second play records only the second cell's own lines.
+		// Per-cell join: the second play records only the second cell's own lines.
 		const secondRun = handler([secondCell], notebook)
 		await flush()
 		main.onRunStarted.fire(1)
@@ -539,7 +538,6 @@ const tests = {
 			'interrupt must stop all running jobs - otherwise the sound continues',
 		)
 	},
-
 }
 
 async function runAll() {
@@ -554,9 +552,10 @@ async function runAll() {
 			console.log(`  ${error.message}`)
 		}
 	}
-	console.log(failures === 0 ? 'notebook.test.js: all assertions passed' : `${failures} notebook test(s) failed`)
+	console.log(
+		failures === 0 ? 'notebook.test.js: all assertions passed' : `${failures} notebook test(s) failed`,
+	)
 	process.exit(failures === 0 ? 0 : 1)
 }
-
 
 runAll()

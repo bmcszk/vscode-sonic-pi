@@ -60,7 +60,6 @@ export function findRunningServer(
 	return undefined
 }
 
-
 export type DaemonExitRoute = {
 	// daemon-keep-alive port: /daemon/exit goes here
 	daemonPort: number
@@ -73,9 +72,7 @@ export type DaemonExitRoute = {
 // The last entry with both values is the current daemon generation - that is the
 // takeover route: /daemon/exit(token) to daemonPort ends the old daemon cleanly.
 export function takeOverRoute(booterLog: string): DaemonExitRoute | undefined {
-	const portMatches = [
-		...booterLog.matchAll(/"daemon"\s*=>\s*(\d+)/g),
-	]
+	const portMatches = [...booterLog.matchAll(/"daemon"\s*=>\s*(\d+)/g)]
 	const tokenMatches = [...booterLog.matchAll(/Token:\s*(-?\d+)/g)]
 	const lastPort = portMatches[portMatches.length - 1]
 	const lastToken = tokenMatches[tokenMatches.length - 1]

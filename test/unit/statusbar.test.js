@@ -164,7 +164,6 @@ test('volume quick pick ignores cancel and rejects non-numeric input', async () 
 	assert.strictEqual(errorMessages.length, 1)
 	bar.dispose()
 })
-
 ;(async () => {
 	let failed = 0
 	for (const [name, fn] of tests) {

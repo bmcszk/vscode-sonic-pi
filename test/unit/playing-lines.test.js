@@ -146,7 +146,10 @@ const tests = {
 		timers.advance(200)
 		instance.flash('eval', 5)
 
-		assert.deepStrictEqual(editor.lastRanges(), [new FakeRange(3, 0, 3, 1000), new FakeRange(4, 0, 4, 1000)])
+		assert.deepStrictEqual(editor.lastRanges(), [
+			new FakeRange(3, 0, 3, 1000),
+			new FakeRange(4, 0, 4, 1000),
+		])
 
 		timers.advance(50)
 		assert.deepStrictEqual(editor.lastRanges(), [new FakeRange(4, 0, 4, 1000)])

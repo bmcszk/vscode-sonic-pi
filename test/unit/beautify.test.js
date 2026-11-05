@@ -93,5 +93,7 @@ for (const [name, test] of Object.entries(tests)) {
 	}
 }
 
-console.log(failures === 0 ? 'beautify.test.js: all assertions passed' : `${failures} beautify test(s) failed`)
+console.log(
+	failures === 0 ? 'beautify.test.js: all assertions passed' : `${failures} beautify test(s) failed`,
+)
 process.exit(failures === 0 ? 0 : 1)

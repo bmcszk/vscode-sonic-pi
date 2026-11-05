@@ -42,7 +42,12 @@ Module._load = function (request) {
 	return load.apply(this, arguments)
 }
 
-const { allDocsEntries, filterDocsEntries, formatDocsDetail, showDocsBrowser } = require('../../out/docs-browser.js')
+const {
+	allDocsEntries,
+	filterDocsEntries,
+	formatDocsDetail,
+	showDocsBrowser,
+} = require('../../out/docs-browser.js')
 
 const SLICER = 'slicer'
 
@@ -52,7 +57,10 @@ const tests = {
 		assert.deepStrictEqual([...kinds].sort(), ['command', 'fx', 'sample', 'synth'])
 		const slicer = allDocsEntries.find((entry) => entry.name === SLICER)
 		assert.ok(slicer, 'fx slicer present')
-		assert.ok(slicer.options.some((option) => option.name === 'amp'), 'options carried from data')
+		assert.ok(
+			slicer.options.some((option) => option.name === 'amp'),
+			'options carried from data',
+		)
 	},
 
 	'empty query returns every entry'() {
@@ -75,14 +83,21 @@ const tests = {
 	'search matches description text, not just names'() {
 		// A word that appears in a detail string but in no entry name.
 		const described = allDocsEntries.find((entry) =>
-			entry.detail.toLowerCase().split(/\W+/).some((word) =>
-				word.length > 6 && allDocsEntries.every((other) => !other.name.toLowerCase().includes(word)),
-			),
+			entry.detail
+				.toLowerCase()
+				.split(/\W+/)
+				.some(
+					(word) =>
+						word.length > 6 &&
+						allDocsEntries.every((other) => !other.name.toLowerCase().includes(word)),
+				),
 		)
 		const word = described.detail
 			.toLowerCase()
 			.split(/\W+/)
-			.filter((w) => w.length > 6 && allDocsEntries.every((other) => !other.name.toLowerCase().includes(w)))[0]
+			.filter(
+				(w) => w.length > 6 && allDocsEntries.every((other) => !other.name.toLowerCase().includes(w)),
+			)[0]
 		assert.ok(word, 'fixture precondition: a detail-only word exists')
 		assert.ok(filterDocsEntries(word).includes(described))
 	},

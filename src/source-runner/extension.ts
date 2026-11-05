@@ -162,7 +162,7 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	if (config.launchSonicPiServerAutomatically() === 'start') {
-		main.startServer()
+		main.startServerReported()
 	}
 
 	let isRecording = false
@@ -176,7 +176,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// Register the editor commands. For now, run, stop and recording. Those should be enough for
 	// some initial fun...
 	let disposable = vscode.commands.registerCommand('vscode-sonic-pi.startserver', () => {
-		main.startServer()
+		main.startServerReported()
 	})
 
 	disposable = vscode.commands.registerTextEditorCommand('vscode-sonic-pi.run', (textEditor) => {
@@ -202,8 +202,9 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.runWithText', (code: string, blockLine?: number) => {
 			// A Run cell sends only its block, so pass the block's editor line: runCode pads the text
-			// up to that line and the daemon then reports file-absolute flash lines.
-			runFileCode(code, blockLine ?? 0)
+			// up to that line and the daemon then reports file-absolute flash lines. A cold-window
+			// cell play must boot the server first (Option B takeover-on-play).
+			void scriptRunEnsuresServer(code, blockLine ?? 0).then(() => notebookFlashMap.clear())
 		}),
 	)
 
@@ -296,8 +297,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 		const bufferId = doc.uri.toString()
 		const cursor = textEditor.selection.active
-		main
-			.beautify(bufferId, doc.getText(), cursor.line, cursor.character)
+		main.beautify(bufferId, doc.getText(), cursor.line, cursor.character)
 			.then((reply) => {
 				const result = computeBeautifyEdit(
 					doc.getText(),
@@ -308,18 +308,26 @@ export function activate(context: vscode.ExtensionContext) {
 				if (result.newText === undefined) {
 					return
 				}
-				void textEditor.edit((editBuilder) => {
-					const whole = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length))
-					editBuilder.replace(whole, result.newText!)
-				}).then((applied) => {
-					if (applied) {
-						const lastLine = doc.lineCount - 1
-						const line = Math.min(result.cursor.line, lastLine)
-						const character = Math.min(result.cursor.character, doc.lineAt(line).range.end.character)
-						const pos = new vscode.Position(line, character)
-						textEditor.selection = new vscode.Selection(pos, pos)
-					}
-				})
+				void textEditor
+					.edit((editBuilder) => {
+						const whole = new vscode.Range(
+							doc.positionAt(0),
+							doc.positionAt(doc.getText().length),
+						)
+						editBuilder.replace(whole, result.newText!)
+					})
+					.then((applied) => {
+						if (applied) {
+							const lastLine = doc.lineCount - 1
+							const line = Math.min(result.cursor.line, lastLine)
+							const character = Math.min(
+								result.cursor.character,
+								doc.lineAt(line).range.end.character,
+							)
+							const pos = new vscode.Position(line, character)
+							textEditor.selection = new vscode.Selection(pos, pos)
+						}
+					})
 			})
 			.catch((error: Error) => {
 				void vscode.window.showErrorMessage('Beautify failed: ' + error.message)

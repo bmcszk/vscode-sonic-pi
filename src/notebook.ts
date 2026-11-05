@@ -369,7 +369,10 @@ export class NotebookController {
 		return cellWorkingCopy
 	}
 
-	private async triggerPlay(notebook: vscode.NotebookDocument, playedCells?: vscode.NotebookCell[]): Promise<void> {
+	private async triggerPlay(
+		notebook: vscode.NotebookDocument,
+		playedCells?: vscode.NotebookCell[],
+	): Promise<void> {
 		const workingCopy: NotebookWorkingCopy = this.workingCopies.get(getKey(notebook)) ?? {
 			executionHistory: new Map<string, CellWorkingCopy>(),
 			notebook,
@@ -386,7 +389,17 @@ export class NotebookController {
 			playable = cells.filter((cell) => playedKeys.has(getKey(cell)))
 		}
 
-		if (process.env.NB_DEBUG) console.error('DEBUG playable', playable.length, 'cells:', cells.map((c) => getKey(c)), 'played:', playedCells && [...new Set(playedCells.map((c) => getKey(c)))], 'whole:', notebookRunsWholeSong())
+		if (process.env.NB_DEBUG)
+			console.error(
+				'DEBUG playable',
+				playable.length,
+				'cells:',
+				cells.map((c) => getKey(c)),
+				'played:',
+				playedCells && [...new Set(playedCells.map((c) => getKey(c)))],
+				'whole:',
+				notebookRunsWholeSong(),
+			)
 		const scriptToPlay: ExecutedCell[] = playable
 			.map((cell) => ({
 				cellKey: getKey(cell),

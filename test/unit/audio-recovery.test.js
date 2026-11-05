@@ -14,8 +14,7 @@ class FakeVsCodeEventEmitter {
 	dispose() {}
 }
 
-const CONNECTION_LOST =
-	'Daemon SuperSonic Conn: connection lost (EOFError: connection closed) - reconnecting'
+const CONNECTION_LOST = 'Daemon SuperSonic Conn: connection lost (EOFError: connection closed) - reconnecting'
 
 const loggedLines = []
 const errorsShown = []
@@ -80,7 +79,10 @@ const { Main } = require('../../out/source-runner/main.js')
 
 function booted(main, tokenOffset) {
 	const started = main.startServer()
-	spawnedServer.stdout.emit('data', Buffer.from(`3888${tokenOffset % 10} 38877 38876 38878 4560 73422429${tokenOffset % 10}`))
+	spawnedServer.stdout.emit(
+		'data',
+		Buffer.from(`3888${tokenOffset % 10} 38877 38876 38878 4560 73422429${tokenOffset % 10}`),
+	)
 	return started
 }
 

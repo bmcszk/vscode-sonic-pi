@@ -189,7 +189,7 @@ export class Main {
 					editors[i].document.languageId === 'sonic-pi' &&
 					!this.serverStarted
 				) {
-					this.startServer()
+					this.startServerReported()
 					break
 				}
 				if (launchAuto === 'custom') {
@@ -212,7 +212,7 @@ export class Main {
 						editors[i].document.fileName.endsWith(customExtension) &&
 						!this.serverStarted
 					) {
-						this.startServer()
+						this.startServerReported()
 						break
 					}
 				}
@@ -250,6 +250,15 @@ export class Main {
 
 	sonicPiHomePath() {
 		return os.homedir()
+	}
+
+	// Fire-and-forget boot with its failure surfaced: an auto-boot that fails must show in
+	// the Server log via the standard restart flow, not die as an unhandled rejection.
+	startServerReported(): void {
+		void this.startServer().catch((error: Error) => {
+			this.logOutput.appendLine('Server start failed: ' + error.message)
+			void window.showErrorMessage('Sonic Pi: server start failed - ' + error.message)
+		})
 	}
 
 	async startServer() {
@@ -334,12 +343,13 @@ export class Main {
 			if (error.code !== 'EADDRINUSE') return
 			this.receiving = false
 			this.logOutput.appendLine(
-				'Cannot receive Sonic Pi responses on port ' + this.guiListenToServerPort +
-				' - another VS Code window is already connected to this server.'
+				'Cannot receive Sonic Pi responses on port ' +
+					this.guiListenToServerPort +
+					' - another VS Code window is already connected to this server.',
 			)
 			this.logOutput.appendLine(
 				'Runs sent from this window still start on the server, but this window will not show log output. ' +
-				'Close the other window and press Restart Server to take over the connection.'
+					'Close the other window and press Restart Server to take over the connection.',
 			)
 			this.onReceiverFailed.fire()
 		})
@@ -534,9 +544,12 @@ export class Main {
 			// detached + unref: the daemon outlives window reloads. A reloading window
 			// stops pinging keep-alive, but a re-activating host adopts the still-running
 			// server through the attach path instead of booting a competing generation.
-			let ruby_server = child_process.spawn(this.rubyPath, args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'] })
+			let ruby_server = child_process.spawn(this.rubyPath, args, {
+				detached: true,
+				stdio: ['ignore', 'pipe', 'pipe'],
+			})
 			ruby_server.unref?.()
-		this.daemonProcess = ruby_server
+			this.daemonProcess = ruby_server
 			ruby_server.stdout.on('data', (data: any) => {
 				// console.log(`stdout: ${data}`)
 				this.logOutput.appendLine(`Daemon Out: ${data}`)
@@ -651,9 +664,7 @@ export class Main {
 			return false
 		}
 		const sender = new OscSender(route.daemonPort)
-		sender.send(
-			new OSC.Message('/daemon/exit', route.token),
-		)
+		sender.send(new OSC.Message('/daemon/exit', route.token))
 		this.logOutput.appendLine(
 			'Taking over the Sonic Pi server: asked the daemon in another window to exit (token-matched /daemon/exit).',
 		)
@@ -738,7 +749,12 @@ export class Main {
 	// aligned text and server-adjusted cursor from the /buffer/replace reply. The buffer
 	// is registered first with /save-buffer so the daemon knows its id, mirroring the Qt
 	// GUI's save-and-run buffer handling. Rejects if no reply arrives.
-	beautify(bufferId: string, code: string, line: number, index: number): Promise<{ content: string; line: number; index: number }> {
+	beautify(
+		bufferId: string,
+		code: string,
+		line: number,
+		index: number,
+	): Promise<{ content: string; line: number; index: number }> {
 		return new Promise((resolve, reject) => {
 			this.pendingBeautify = { bufferId, resolve }
 			const timeout = setTimeout(() => {

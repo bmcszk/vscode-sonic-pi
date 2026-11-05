@@ -8,7 +8,12 @@ export type DocsEntry = {
 	options: { name: string; detail: string; default?: string }[]
 }
 
-const synthsDocs: DocsEntry[] = synths.map((s) => ({ kind: 'synth', name: s.id, detail: s.detail, options: s.options }))
+const synthsDocs: DocsEntry[] = synths.map((s) => ({
+	kind: 'synth',
+	name: s.id,
+	detail: s.detail,
+	options: s.options,
+}))
 const fxsDocs: DocsEntry[] = fx.map((f) => ({ kind: 'fx', name: f.id, detail: f.detail, options: f.options }))
 const samplesDocs: DocsEntry[] = samples.map((s) => ({
 	kind: 'sample',

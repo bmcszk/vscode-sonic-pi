@@ -47,5 +47,9 @@ for (const [name, test] of Object.entries(tests)) {
 	}
 }
 
-console.log(failures === 0 ? 'editor-close.test.js: all assertions passed' : `${failures} editor-close test(s) failed`)
+console.log(
+	failures === 0
+		? 'editor-close.test.js: all assertions passed'
+		: `${failures} editor-close test(s) failed`,
+)
 process.exit(failures === 0 ? 0 : 1)

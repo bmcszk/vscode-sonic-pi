@@ -61,12 +61,10 @@ function blockLenses(text: string): vscode.CodeLens[] {
 }
 
 function hasPlayableLine(blockText: string): boolean {
-	return blockText
-		.split(/\r?\n/)
-		.some((raw) => {
-			const line = raw.trim()
-			return line !== '' && !line.startsWith('#') && !SETTING_LINE.test(line)
-		})
+	return blockText.split(/\r?\n/).some((raw) => {
+		const line = raw.trim()
+		return line !== '' && !line.startsWith('#') && !SETTING_LINE.test(line)
+	})
 }
 
 function isAssignmentOnly(blockText: string): boolean {
@@ -82,12 +80,10 @@ function lensTitle(blockText: string): string {
 }
 
 function codeLinesOf(blockText: string): string[] {
-	return blockText
-		.split(/\r?\n/)
-		.filter((raw) => {
-			const line = raw.trim()
-			return line !== '' && !line.startsWith('#')
-		})
+	return blockText.split(/\r?\n/).filter((raw) => {
+		const line = raw.trim()
+		return line !== '' && !line.startsWith('#')
+	})
 }
 
 // Assignment-only cells are silent: plain locals die with the run and are invisible to later runs.
@@ -97,12 +93,7 @@ const DEFINITION_LINE = /^\s*(define|defonce)\b/
 
 const SETTING_LINE = /^(use_[a-z_]+|set_[a-z_]+!|set!)[ (]/
 
-function codeLens(
-	line: number,
-	title: string,
-	command: string,
-	args?: (string | number)[],
-): vscode.CodeLens {
+function codeLens(line: number, title: string, command: string, args?: (string | number)[]): vscode.CodeLens {
 	return new vscode.CodeLens(new vscode.Range(line, 0, line, 0), { title, command, arguments: args })
 }
 

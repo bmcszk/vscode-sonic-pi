@@ -121,7 +121,11 @@ const tests = {
 		await flush()
 
 		const addresses = last.sent.map((m) => m.address)
-		assert.strictEqual(addresses.filter((a) => a === '/stop-all-jobs').length, 0, 'no stop when layering is chosen')
+		assert.strictEqual(
+			addresses.filter((a) => a === '/stop-all-jobs').length,
+			0,
+			'no stop when layering is chosen',
+		)
 		assert.ok(addresses.includes('/run-code'))
 		main.stopAllJobs()
 	},
@@ -144,7 +148,11 @@ async function runAll() {
 			console.log(`  ${error.stack}`)
 		}
 	}
-	console.log(failures === 0 ? 'run-replaces.test.js: all assertions passed' : `${failures} run-replaces test(s) failed`)
+	console.log(
+		failures === 0
+			? 'run-replaces.test.js: all assertions passed'
+			: `${failures} run-replaces test(s) failed`,
+	)
 	process.exit(failures === 0 ? 0 : 1)
 }
 

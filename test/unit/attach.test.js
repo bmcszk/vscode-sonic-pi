@@ -42,18 +42,27 @@ const tests = {
 		assert.strictEqual(takeOverRoute('nothing useful here'), undefined)
 	},
 
-
 	'parses the real live-daemon cmdline shape'() {
 		const ports = parseSpiderCmdline(REAL_CMDLINE)
-		assert.strictEqual(ports.sendToServerPort, 38518, 'spider server_port (argv[1]) is where /run-code goes')
-		assert.strictEqual(ports.listenFromServerPort, 38519, 'spider gui_port (argv[2]) is where replies arrive')
+		assert.strictEqual(
+			ports.sendToServerPort,
+			38518,
+			'spider server_port (argv[1]) is where /run-code goes',
+		)
+		assert.strictEqual(
+			ports.listenFromServerPort,
+			38519,
+			'spider gui_port (argv[2]) is where replies arrive',
+		)
 		assert.strictEqual(ports.oscCuesPort, 4560)
 		assert.strictEqual(ports.token, -402713833)
 	},
 
 	'parses default-looking ports'() {
 		const ports = parseSpiderCmdline(
-			['ruby', '/opt/spi/spider-server.rb', '-u', '4557', '4558', '4556', '4556', '4560', '42'].join('\0'),
+			['ruby', '/opt/spi/spider-server.rb', '-u', '4557', '4558', '4556', '4556', '4560', '42'].join(
+				'\0',
+			),
 		)
 		assert.strictEqual(ports.sendToServerPort, 4557)
 		assert.strictEqual(ports.listenFromServerPort, 4558)
@@ -61,13 +70,28 @@ const tests = {
 	},
 
 	'rejects a cmdline without spider-server.rb'() {
-		assert.strictEqual(parseSpiderCmdline(['ruby', 'other.rb', '-u', '4557', '4558', '4556', '4556', '4560', '42'].join('\0')), undefined)
+		assert.strictEqual(
+			parseSpiderCmdline(
+				['ruby', 'other.rb', '-u', '4557', '4558', '4556', '4556', '4560', '42'].join('\0'),
+			),
+			undefined,
+		)
 	},
 
 	'rejects a spider cmdline missing the -u flag'() {
 		assert.strictEqual(
 			parseSpiderCmdline(
-				['ruby', '/opt/spi/spider-server.rb', '-t', '4557', '4558', '4556', '4556', '4560', '42'].join('\0'),
+				[
+					'ruby',
+					'/opt/spi/spider-server.rb',
+					'-t',
+					'4557',
+					'4558',
+					'4556',
+					'4556',
+					'4560',
+					'42',
+				].join('\0'),
 			),
 			undefined,
 		)
@@ -75,43 +99,88 @@ const tests = {
 
 	'rejects wrong arg counts after -u (5 args, token missing)'() {
 		assert.strictEqual(
-			parseSpiderCmdline(['ruby', '/opt/spi/spider-server.rb', '-u', '4557', '4558', '4556', '4556', '4560'].join('\0')),
+			parseSpiderCmdline(
+				['ruby', '/opt/spi/spider-server.rb', '-u', '4557', '4558', '4556', '4556', '4560'].join(
+					'\0',
+				),
+			),
 			undefined,
 		)
 		assert.strictEqual(
-			parseSpiderCmdline(['ruby', '/opt/spi/spider-server.rb', '-u', '4557', '4558', '4556', '4556', '4560', '42', '99'].join('\0')),
+			parseSpiderCmdline(
+				[
+					'ruby',
+					'/opt/spi/spider-server.rb',
+					'-u',
+					'4557',
+					'4558',
+					'4556',
+					'4556',
+					'4560',
+					'42',
+					'99',
+				].join('\0'),
+			),
 			undefined,
 		)
 	},
 
 	'rejects non-numeric ports'() {
 		assert.strictEqual(
-			parseSpiderCmdline(['ruby', '/opt/spi/spider-server.rb', '-u', 'abc', '4558', '4556', '4556', '4560', '42'].join('\0')),
+			parseSpiderCmdline(
+				['ruby', '/opt/spi/spider-server.rb', '-u', 'abc', '4558', '4556', '4556', '4560', '42'].join(
+					'\0',
+				),
+			),
 			undefined,
 		)
 	},
 
 	'rejects negative or zero ports'() {
 		assert.strictEqual(
-			parseSpiderCmdline(['ruby', '/opt/spi/spider-server.rb', '-u', '-1', '4558', '4556', '4556', '4560', '42'].join('\0')),
+			parseSpiderCmdline(
+				['ruby', '/opt/spi/spider-server.rb', '-u', '-1', '4558', '4556', '4556', '4560', '42'].join(
+					'\0',
+				),
+			),
 			undefined,
 		)
 		assert.strictEqual(
-			parseSpiderCmdline(['ruby', '/opt/spi/spider-server.rb', '-u', '0', '4558', '4556', '4556', '4560', '42'].join('\0')),
+			parseSpiderCmdline(
+				['ruby', '/opt/spi/spider-server.rb', '-u', '0', '4558', '4556', '4556', '4560', '42'].join(
+					'\0',
+				),
+			),
 			undefined,
 		)
 	},
 
 	'rejects a non-numeric token'() {
 		assert.strictEqual(
-			parseSpiderCmdline(['ruby', '/opt/spi/spider-server.rb', '-u', '4557', '4558', '4556', '4556', '4560', 'x'].join('\0')),
+			parseSpiderCmdline(
+				['ruby', '/opt/spi/spider-server.rb', '-u', '4557', '4558', '4556', '4556', '4560', 'x'].join(
+					'\0',
+				),
+			),
 			undefined,
 		)
 	},
 
 	'rejects ports above 65535'() {
 		assert.strictEqual(
-			parseSpiderCmdline(['ruby', '/opt/spi/spider-server.rb', '-u', '70000', '4558', '4556', '4556', '4560', '42'].join('\0')),
+			parseSpiderCmdline(
+				[
+					'ruby',
+					'/opt/spi/spider-server.rb',
+					'-u',
+					'70000',
+					'4558',
+					'4556',
+					'4556',
+					'4560',
+					'42',
+				].join('\0'),
+			),
 			undefined,
 		)
 	},
@@ -130,7 +199,7 @@ const tests = {
 	},
 
 	'findRunningServer returns the first matching pid'() {
-		const cmdlines = { '10': REAL_CMDLINE, '20': 'nope' }
+		const cmdlines = { 10: REAL_CMDLINE, 20: 'nope' }
 		const found = findRunningServer(
 			() => ['20', '10', '30'],
 			(path) => cmdlines[path.split('/')[2]],
@@ -151,7 +220,13 @@ const tests = {
 	},
 
 	'findRunningServer tolerates an empty or failing /proc listing'() {
-		assert.strictEqual(findRunningServer(() => [], () => ''), undefined)
+		assert.strictEqual(
+			findRunningServer(
+				() => [],
+				() => '',
+			),
+			undefined,
+		)
 		assert.strictEqual(
 			findRunningServer(
 				() => {
