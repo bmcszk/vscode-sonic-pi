@@ -16,6 +16,7 @@ All settings use the `vscode-sonic-pi.` prefix and can be set in your user or wo
 | ------- | ------- | ------------ |
 | `vscode-sonic-pi.safeMode` | `true` | Prepends `use_arg_checks true` to every run. With it off, bad synth argument values can produce loud or uncomfortable sounds. |
 | `vscode-sonic-pi.runFileWhenRunSelectedIsEmpty` | `true` | `Alt+T` with no selection runs the whole file instead of doing nothing. |
+| `vscode-sonic-pi.autoMidiStart` | `true` | Sends `/midi-start` once per session before running code that uses `midi_*` functions, so MIDI is not silently ignored. |
 
 ## Editor controls
 

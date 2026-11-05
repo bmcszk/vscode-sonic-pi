@@ -31,6 +31,7 @@ const OSC = require('osc-js')
 const utf8 = require('utf8')
 const { v4: uuidv4 } = require('uuid')
 import { Config } from './config'
+import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
 
 export class Main {
@@ -68,7 +69,9 @@ export class Main {
 	cuesOutput: vscode.OutputChannel
 
 	serverStarted: boolean
+	midiAutoStartSent: boolean = false
 	daemonProcess: any
+	restartInProgress = false
 
 	// Timestamp of the last 'connection lost' notification, to debounce
 	// the burst of reconnect lines the daemon prints per audio outage.
@@ -153,6 +156,7 @@ export class Main {
 		this.logOutput.show()
 
 		this.serverStarted = false
+		this.midiAutoStartSent = false
 
 		// this.oscSender = new OscSender()
 
@@ -485,15 +489,34 @@ export class Main {
 	// Kill the current daemon and boot a fresh one, bringing back a dead audio server.
 	async restartServer(): Promise<void> {
 		this.logOutput.appendLine('Restarting Sonic Pi server...')
-		if (this.onServerRestart) {
-			this.onServerRestart()
+		this.restartInProgress = true
+		try {
+			if (this.onServerRestart) {
+				this.onServerRestart()
+			}
+			if (this.daemonProcess) {
+				this.daemonProcess.kill()
+				this.daemonProcess = null
+			}
+			this.serverStarted = false
+			this.midiAutoStartSent = false
+			await this.startServer()
+		} finally {
+			this.restartInProgress = false
 		}
+	}
+
+	// Shut the whole backend down: stop playing runs, then kill the daemon like restartServer
+	// does, but without booting a fresh one.
+	stopServer() {
+		this.stopAllJobs()
 		if (this.daemonProcess) {
 			this.daemonProcess.kill()
 			this.daemonProcess = null
 		}
 		this.serverStarted = false
-		await this.startServer()
+		this.midiAutoStartSent = false
+		this.logOutput.appendLine('Sonic Pi server stopped (last Sonic Pi editor closed)')
 	}
 
 	updateMixerSettings() {
@@ -534,6 +557,10 @@ export class Main {
 			code = 'use_arg_checks true #__nosave__ set by Qt GUI user preferences.\n' + code
 		}
 		code = utf8.encode(code)
+		if (this.config.autoMidiStart() && shouldAutoStartMidi(code, this.midiAutoStartSent)) {
+			this.sendOsc(new OSC.Message('/midi-start', parseInt(this.guiUuid)))
+			this.midiAutoStartSent = true
+		}
 		this.clearErrorHighlight()
 		let message = new OSC.Message('/run-code', parseInt(this.guiUuid), code)
 		this.sendOsc(message)
