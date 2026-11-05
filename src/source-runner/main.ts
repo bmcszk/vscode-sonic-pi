@@ -52,6 +52,8 @@ export class Main {
 	onRunEnded = new vscode.EventEmitter<number>()
 	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
 	onServerRestart: (() => void) | undefined = undefined
+	onServerState = new vscode.EventEmitter<'stopped' | 'starting' | 'running'>()
+	onVersion = new vscode.EventEmitter<string>()
 
 	guiSendToServerPort: number
 	daemonPort: number
@@ -254,6 +256,7 @@ export class Main {
 		this.logOutput.append('Done starting server!')
 		this.startKeepAlive()
 		this.setupOscReceiver()
+		this.onServerState.fire('running')
 	}
 
 	log(str: string) {
@@ -271,6 +274,13 @@ export class Main {
 			plugin: new OSC.DatagramPlugin({ open: { port: this.guiListenToServerPort, host: '127.0.0.1' } }),
 		})
 		osc.open()
+
+		osc.on('/version', (message: { args: any }) => {
+			const version = message.args[0]
+			if (typeof version === 'string' && version) {
+				this.onVersion.fire(version)
+			}
+		})
 
 		osc.on('/log/info', (message: { args: any }) => {
 			// this.logOutput.appendLine('Got /log/info' + ' -> ' + message.args[0] + ', ' + message.args[1])
@@ -499,6 +509,7 @@ export class Main {
 				this.daemonProcess = null
 			}
 			this.serverStarted = false
+			this.onServerState.fire('stopped')
 			this.midiAutoStartSent = false
 			await this.startServer()
 		} finally {
@@ -515,6 +526,7 @@ export class Main {
 			this.daemonProcess = null
 		}
 		this.serverStarted = false
+		this.onServerState.fire('stopped')
 		this.midiAutoStartSent = false
 		this.logOutput.appendLine('Sonic Pi server stopped (last Sonic Pi editor closed)')
 	}
@@ -630,6 +642,17 @@ export class Main {
 
 	mixerStereoMode() {
 		let message = new OSC.Message('/mixer-stereo-mode', this.guiUuid)
+		this.sendOsc(message)
+	}
+
+	// Master fader after the limiter; the server clamps the passed amp to 0..1.
+	setMasterVolume(volumePercent: number) {
+		let message = new OSC.Message('/mixer-output-volume', parseInt(this.guiUuid), volumePercent / 100)
+		this.sendOsc(message)
+	}
+
+	requestVersion() {
+		let message = new OSC.Message('/version', parseInt(this.guiUuid))
 		this.sendOsc(message)
 	}
 

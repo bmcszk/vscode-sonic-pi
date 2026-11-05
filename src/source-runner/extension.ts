@@ -34,6 +34,7 @@ import { Main } from './main'
 import { Config } from './config'
 import { SonicPiCodeLensProvider } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
+import { SonicPiStatusBar } from '../statusbar'
 
 let main: Main
 
@@ -72,6 +73,20 @@ export function activate(context: vscode.ExtensionContext) {
 		editor: () => vscode.window.activeTextEditor,
 	})
 	main.onServerRestart = () => playingLines.clear()
+	const statusBar = new SonicPiStatusBar({
+		sendVersionRequest: () => main.requestVersion(),
+		sendMasterVolume: (value) => main.setMasterVolume(value),
+	})
+	statusBar.setServerState('starting')
+	if (!main.serverStarted) statusBar.setServerState('stopped')
+	context.subscriptions.push(
+		main.onServerState.event((state) => statusBar.setServerState(state)),
+		main.onVersion.event((version) => statusBar.setVersion(version)),
+		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () =>
+			statusBar.showVolumeQuickPick(),
+		),
+		{ dispose: () => statusBar.dispose() },
+	)
 	context.subscriptions.push(
 		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),
 		{ dispose: () => playingLines.dispose() },

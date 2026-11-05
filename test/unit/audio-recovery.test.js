@@ -6,6 +6,14 @@ const assert = require('assert')
 const Module = require('module')
 const { EventEmitter } = require('events')
 
+class FakeVsCodeEventEmitter {
+	constructor() {
+		this.event = (_listener) => ({ dispose() {} })
+	}
+	fire() {}
+	dispose() {}
+}
+
 const CONNECTION_LOST =
 	'Daemon SuperSonic Conn: connection lost (EOFError: connection closed) - reconnecting'
 
@@ -21,7 +29,7 @@ class FakeOscSender {
 }
 
 const vscodeStub = {
-	EventEmitter,
+	EventEmitter: FakeVsCodeEventEmitter,
 	Range: class {},
 	Selection: class {},
 	TextEditorRevealType: { InCenterIfOutsideViewport: 0 },
@@ -33,6 +41,10 @@ const vscodeStub = {
 			dispose() {},
 		}),
 		createTextEditorDecorationType: () => ({}),
+		createStatusBarItem: () => ({
+			show() {},
+			dispose() {},
+		}),
 		showErrorMessage: async (message) => {
 			errorsShown.push(message)
 			return undefined
