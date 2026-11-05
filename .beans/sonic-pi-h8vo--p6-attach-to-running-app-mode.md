@@ -1,11 +1,11 @@
 ---
 # sonic-pi-h8vo
 title: '[P6] Attach-to-running-app mode'
-status: todo
+status: in-progress
 type: feature
 priority: normal
 created_at: 2026-11-04T20:36:14Z
-updated_at: 2026-11-04T23:29:50Z
+updated_at: 2026-11-05T15:46:51Z
 parent: sonic-pi-q65q
 ---
 
