@@ -71,6 +71,7 @@ export const stopAllScripts = () => {
 // sonic-pi text editor, so nothing else boots a server for it. The controller asks these three
 // before sending a run, and awaits startServer so the run lands on bound ports.
 export const serverIsRunning = () => main.serverStarted
+export const isReceiving = () => main.isReceiving()
 
 export const startServer = () => main.startServer()
 

@@ -24,6 +24,7 @@ const executions = new Map()
 const settings = { launchSonicPiServerAutomatically: 'ruby' }
 
 const informationMessages = []
+const errorMessages = []
 
 const vscodeStub = {
 	EventEmitter: StubEventEmitter,
@@ -38,7 +39,9 @@ const vscodeStub = {
 		createOutputChannel: () => ({ append() {}, appendLine() {}, show() {}, dispose() {} }),
 		createTextEditorDecorationType: () => ({}),
 		createStatusBarItem: () => ({ show() {}, dispose() {} }),
-		showErrorMessage: async () => undefined,
+		showErrorMessage: async (message) => {
+			errorMessages.push(message)
+		},
 		showInformationMessage: async (message) => {
 			informationMessages.push(message)
 		},
@@ -106,6 +109,8 @@ class FakeMain {
 		this.onServerState = new StubEventEmitter()
 		this.onVersion = new StubEventEmitter()
 		this.onServerRestart = new StubEventEmitter()
+		this.onReceiverFailed = new StubEventEmitter()
+		this.receiving = true
 		this.serverStarted = false
 		this.restartInProgress = false
 		this.runs = []
@@ -132,6 +137,9 @@ class FakeMain {
 	restartServer() {
 		this.onServerRestart.fire()
 	}
+	isReceiving() {
+		return this.receiving
+	}
 	flashCode() {}
 	startRecording() {}
 	stopRecording() {}
@@ -157,6 +165,11 @@ const runner = require('../../out/source-runner/extension.js')
 const { NotebookController, RunResolvers } = require('../../out/notebook.js')
 
 const flush = () => new Promise((resolve) => setImmediate(resolve))
+const awaitFlushing = async () => {
+	await flush()
+	await flush()
+	await flush()
+}
 
 const makeCell = (name, text = 'play 60') => ({
 	document: { uri: { toString: () => name }, getText: () => text },
@@ -183,6 +196,44 @@ function openController() {
 }
 
 const tests = {
+	async 'play while another window owns the reply port: takeover notice once, runs not driven from this window'() {
+		informationMessages.length = 0
+		errorMessages.length = 0
+		const { main, handler, notebook } = openController()
+		const cells = [makeCell('c1', 'play 61'), makeCell('c2', 'play 62')]
+		main.receiving = false
+		main.serverStarted = true
+
+		await handler(cells, notebook)
+		assert.ok(!main.events.includes('startServer:begin'), 'no boot when another window is connected')
+		assert.strictEqual(
+			main.events.filter((event) => event === 'runCode').length,
+			0,
+			'runs are not driven from this window: replies are invisible to it',
+		)
+		assert.deepStrictEqual(errorMessages, [
+			'Sonic Pi: another VS Code window is already connected to this Sonic Pi server. ' +
+				'This window will not show Sonic Pi output. Close the other window, then run Sonic Pi: Restart Server here to take over.',
+		])
+	},
+
+	async 'after the port is free again (receiving), plays resume without a restart'() {
+		const { main, handler, notebook } = openController()
+		const cells = [makeCell('c1', 'play 61')]
+		main.receiving = false
+		main.serverStarted = true
+		await handler(cells, notebook)
+		assert.deepStrictEqual(main.events.filter((e) => e === 'runCode').length, 0)
+
+		main.receiving = true
+		handler(cells, notebook).catch(() => {})
+		await flush()
+		await flush()
+
+		assert.ok(main.events.includes('runCode'), 'playing resumes when this window can receive again')
+	},
+
+
 	'a resolved run id is forgotten'() {
 		const resolvers = new RunResolvers()
 		let resolutions = 0

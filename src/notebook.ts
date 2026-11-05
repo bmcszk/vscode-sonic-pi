@@ -6,6 +6,7 @@ import {
 	onServerRestart,
 	runScript,
 	serverIsRunning,
+	isReceiving,
 	startServer,
 	stopAllScripts,
 } from './source-runner/extension'
@@ -212,7 +213,10 @@ export class NotebookController {
 		}
 
 		const executed = this.queueCell(notebook, cell)
-		await this.ensureServerReady()
+		if (!(await this.ensureServerReady())) {
+			endExecution(executed, 'not connected from this window')
+			return
+		}
 		await this.triggerPlay(notebook)
 		endExecution(executed, 'playcellFromURI')
 	}
@@ -239,7 +243,10 @@ export class NotebookController {
 		this.workingCopies.set(notebook.uri.toString(), workingCopy)
 
 		const cellWorkingCopies = cells.map((cell) => this.queueCell(notebook, cell))
-		await this.ensureServerReady()
+		if (!(await this.ensureServerReady())) {
+			cellWorkingCopies.forEach((e) => endExecution(e, 'not connected from this window'))
+			return
+		}
 		await this.triggerPlay(notebook)
 		cellWorkingCopies.forEach((e) => endExecution(e, 'handler'))
 	}
@@ -249,8 +256,20 @@ export class NotebookController {
 	// on unbound ports and the cell spins forever, so every notebook play boots first and waits.
 	// Launch mode never is left alone: the user starts the server themselves, and one notice tells
 	// them why nothing is playing.
-	private async ensureServerReady(): Promise<void> {
-		if (serverIsRunning()) return
+	private takeoverNoticeShown = false
+
+	private async ensureServerReady(): Promise<boolean> {
+		if (!isReceiving() && !this.takeoverNoticeShown) {
+			// Another window owns the daemon's reply port. Runs sent here would execute
+			// but this window could never see Starts/Completions, so cells would spin forever.
+			this.takeoverNoticeShown = true
+			void vscode.window.showErrorMessage(
+				'Sonic Pi: another VS Code window is already connected to this Sonic Pi server. ' +
+					'This window will not show Sonic Pi output. Close the other window, then run Sonic Pi: Restart Server here to take over.',
+			)
+			return false
+		}
+		if (serverIsRunning()) return true
 		if (launchServerAutomatically() === 'never') {
 			if (!this.notRunningNoticeShown) {
 				this.notRunningNoticeShown = true
@@ -258,9 +277,10 @@ export class NotebookController {
 					'Sonic Pi server not running - launch mode is set to never',
 				)
 			}
-			return
+			return false
 		}
 		await startServer()
+		return true
 	}
 
 	private queueCell(notebook: vscode.NotebookDocument, cell: vscode.NotebookCell): CellWorkingCopy {

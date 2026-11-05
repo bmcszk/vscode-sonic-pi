@@ -36,6 +36,7 @@ import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
 
 export class Main {
+	private receiving = true
 	rootPath: string
 	rubyPath: string
 	daemonLauncherPath: string
@@ -53,6 +54,7 @@ export class Main {
 	onRunEnded = new vscode.EventEmitter<number>()
 	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
 	onServerRestart = new vscode.EventEmitter<void>()
+	onReceiverFailed = new vscode.EventEmitter<void>()
 	onServerState = new vscode.EventEmitter<'stopped' | 'starting' | 'running'>()
 
 	// Outstanding /buffer-beautify request: buffer id and the promise resolving with
@@ -293,7 +295,6 @@ export class Main {
 	}
 
 	applySpiderPorts(ports: SpiderPorts) {
-		this.daemonPort = ports.daemonPort
 		this.guiSendToServerPort = ports.sendToServerPort
 		this.guiListenToServerPort = ports.listenFromServerPort
 		this.serverOscCuesPort = ports.oscCuesPort
@@ -303,6 +304,10 @@ export class Main {
 
 	log(str: string) {
 		this.logOutput.appendLine(str)
+	}
+
+	isReceiving(): boolean {
+		return this.receiving
 	}
 
 	cueLog(str: string) {
@@ -316,6 +321,21 @@ export class Main {
 			plugin: new OSC.DatagramPlugin({ open: { port: this.guiListenToServerPort, host: '127.0.0.1' } }),
 		})
 		osc.open()
+		// Another VS Code window attached to the same server wins the reply-port bind
+		// (EADDRINUSE). This host would send runs that execute but never see replies.
+		osc.on('error', (error: Error & { code?: string }) => {
+			if (error.code !== 'EADDRINUSE') return
+			this.receiving = false
+			this.logOutput.appendLine(
+				'Cannot receive Sonic Pi responses on port ' + this.guiListenToServerPort +
+				' - another VS Code window is already connected to this server.'
+			)
+			this.logOutput.appendLine(
+				'Runs sent from this window still start on the server, but this window will not show log output. ' +
+				'Close the other window and press Restart Server to take over the connection.'
+			)
+			this.onReceiverFailed.fire()
+		})
 
 		osc.on('/version', (message: { args: any }) => {
 			const version = message.args[0]
