@@ -28,7 +28,16 @@ export const allDocsEntries: DocsEntry[] = [...commandsDocs, ...synthsDocs, ...f
 export function filterDocsEntries(query: string): DocsEntry[] {
 	const q = query.toLowerCase().trim()
 	if (q === '') return allDocsEntries
-	return allDocsEntries.filter((entry) => entry.name.toLowerCase().includes(q))
+	// A category word ("synth(s)", "fx", "sample(s)", "command(s)") selects that kind
+	// alone; anything else matches names and description text.
+	const kinds = ['synth', 'fx', 'sample', 'command']
+	const category = kinds.find((kind) => kind.startsWith(q.replace(/s$/, '')) || q === kind + 's')
+	if (category) {
+		return allDocsEntries.filter((entry) => entry.kind === category)
+	}
+	return allDocsEntries.filter(
+		(entry) => entry.name.toLowerCase().includes(q) || entry.detail.toLowerCase().includes(q),
+	)
 }
 
 export function formatDocsDetail(entry: DocsEntry): string {
@@ -44,21 +53,19 @@ export function formatDocsDetail(entry: DocsEntry): string {
 }
 
 export async function showDocsBrowser(): Promise<void> {
-	const query = await vscode.window.showInputBox({
-		prompt: 'Search Sonic Pi docs (synths, FX, samples, commands)',
-		placeHolder: 'e.g. slice, wrongbass, play',
-	})
-	if (query === undefined) return
-
-	const matches = filterDocsEntries(query)
-	if (matches.length === 0) {
-		void vscode.window.showInformationMessage(`No Sonic Pi docs match "${query}"`)
-		return
-	}
-
+	// Open with everything; the QuickPick's own filter box does the searching. An
+	// input-box-first design dead-ends on category words like "synths" that are
+	// visible only after you see the entries.
 	const picked = await vscode.window.showQuickPick(
-		matches.map((entry) => ({ label: entry.name, description: entry.kind, entry })),
-		{ placeHolder: `${matches.length} matching Sonic Pi builtins` },
+		allDocsEntries.map((entry) => ({
+			label: entry.name,
+			description: entry.kind,
+			detail: entry.detail,
+			entry,
+		})),
+		{
+			placeHolder: `${allDocsEntries.length} Sonic Pi builtins - type to search (names, kinds, descriptions)`,
+		},
 	)
 	if (!picked) return
 

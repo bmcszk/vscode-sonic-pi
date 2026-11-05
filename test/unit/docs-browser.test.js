@@ -66,6 +66,27 @@ const tests = {
 		assert.ok(filterDocsEntries('drum_snare').every((entry) => entry.name.includes('drum_snare')))
 	},
 
+	'search matches the category word: "synths" and "fx" return only that kind'() {
+		assert.ok(filterDocsEntries('synths').length > 0)
+		assert.ok(filterDocsEntries('synths').every((entry) => entry.kind === 'synth'))
+		assert.ok(filterDocsEntries('fx').every((entry) => entry.kind === 'fx'))
+	},
+
+	'search matches description text, not just names'() {
+		// A word that appears in a detail string but in no entry name.
+		const described = allDocsEntries.find((entry) =>
+			entry.detail.toLowerCase().split(/\W+/).some((word) =>
+				word.length > 6 && allDocsEntries.every((other) => !other.name.toLowerCase().includes(word)),
+			),
+		)
+		const word = described.detail
+			.toLowerCase()
+			.split(/\W+/)
+			.filter((w) => w.length > 6 && allDocsEntries.every((other) => !other.name.toLowerCase().includes(w)))[0]
+		assert.ok(word, 'fixture precondition: a detail-only word exists')
+		assert.ok(filterDocsEntries(word).includes(described))
+	},
+
 	'filter is pure: repeated calls give identical results'() {
 		assert.deepStrictEqual(filterDocsEntries('amen'), filterDocsEntries('amen'))
 	},

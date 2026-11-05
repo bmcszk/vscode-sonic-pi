@@ -655,9 +655,17 @@ export class Main {
 				clearTimeout(timeout)
 				resolve(reply)
 			}
-			this.sendOsc(new OSC.Message('/save-buffer', bufferId, utf8.encode(code)))
+			this.sendOsc(new OSC.Message('/save-buffer', parseInt(this.guiUuid), bufferId, utf8.encode(code)))
 			this.sendOsc(
-				new OSC.Message('/buffer-beautify', bufferId, utf8.encode(code), line, index, 0),
+				new OSC.Message(
+					'/buffer-beautify',
+					parseInt(this.guiUuid),
+					bufferId,
+					utf8.encode(code),
+					line,
+					index,
+					0,
+				),
 			)
 		})
 	}
