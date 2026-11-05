@@ -3,8 +3,9 @@
 title: 'Release v0.2.0: store-readiness pass (maturity, tests, manifest, listing)'
 status: in-progress
 type: task
+priority: normal
 created_at: 2026-11-05T12:35:32Z
-updated_at: 2026-11-05T12:35:32Z
+updated_at: 2026-11-05T13:19:03Z
 parent: sonic-pi-q65q
 ---
 
@@ -35,3 +36,15 @@ parent: sonic-pi-q65q
 - package.json: surgical text edits only (established repo incident).
 
 Stop rule: release ops only (version, CHANGELOG, README, .vscodeignore). Feature code changes -> separate bean.
+
+## Publisher + identity resolved (2026-11-05, user decision)
+
+User chose name 'Sonic Pi 5 Extension' (id sonic-pi-5-extension) - also the anti-impersonation move the research flagged. publisher: bmcszk (user's MS account dzikun@live.com; publisher handle must exist on marketplace.visualstudio.com/manage before vsce publish - user-side step). Renamed surgically across package.json (name/displayName/publisher), lockfile, release workflow asset names, README, CHANGELOG. Gates: 7 suites green, vsce package DONE 317 files, installed + verified locally as bmcszk.sonic-pi-5-extension@0.1.4 (old upstream-listing extension uninstalled locally).
+
+Research highlights landed in docs/research/marketplace-publishing.md: global PATs decommissioned 2026-12-01 (org-scoped PAT short-term, Trusted Publishing OIDC recommended); forks get copycat review (distinct name/publisher/README/icon required - name now distinct, icon still upstream img/icon.png: flagged for user decision); no EV signing needed.
+
+## Still open for 0.2.0
+- [ ] version bump 0.2.0 + tag + release workflow green
+- [ ] icon decision (keep upstream art = copycat signal risk; or replace)
+- [ ] user creates publisher 'bmcszk' on the marketplace + PAT (org-scoped, Marketplace Manage) or sets up Trusted Publishing
+- [ ] fresh-profile smoke on 0.2.0 build
