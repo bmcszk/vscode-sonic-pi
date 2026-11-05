@@ -1,10 +1,11 @@
 ---
 # sonic-pi-w0ij
 title: 'Ruby LSP integration: would ruby-lsp add error highlighting + better completions for Sonic Pi .rb files? (deep online research)'
-status: todo
+status: completed
 type: feature
+priority: normal
 created_at: 2026-11-05T21:09:11Z
-updated_at: 2026-11-05T21:09:11Z
+updated_at: 2026-11-05T21:17:18Z
 ---
 
 # Ruby LSP: does integrating ruby-lsp improve our language support? (user directive 2026-11-05)
@@ -29,9 +30,10 @@ Deliverable: docs/research/ruby-lsp-integration.md with verdict + recommended in
 ## Phase B (separate contract later): only after research verdict + user pick.
 
 ## AC
-- [ ] research doc committed with primary citations + local ruby-lsp presence noted
-- [ ] explicit feasibility verdict for diagnostics-on-type + DSL-taught completions
-- [ ] option comparison with effort estimates
+
+- [x] research doc committed with primary citations + local ruby-lsp presence noted (docs/research/ruby-lsp-integration.md, branch w0ij-ruby-lsp)
+- [x] explicit feasibility verdict: diagnostics = Prism syntax errors only (no unknown-method noise, DSL concern is moot); completions: our static set stays, addon adds navigation only
+- [x] option comparison with effort estimates: (a) embedded client recommended 1-2 weeks; (b) impossible (Shopify ext never activates for sonic-pi + no Gemfile); (c) skip = forfeits the biggest gap
 
 Stop rule: docs/research/ruby-lsp-integration.md only (plus its bean note). No code.
 Skills: /home/blaze/.agents/skills/coding-rules/SKILL.md (for the eventual coder), researcher discipline (report-first).
