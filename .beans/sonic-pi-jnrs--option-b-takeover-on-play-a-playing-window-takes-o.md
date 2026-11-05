@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-05T21:00:56Z
-updated_at: 2026-11-05T21:06:32Z
+updated_at: 2026-11-05T21:11:51Z
 ---
 
 # Takeover-on-play (user decision, 2026-11-05, Option B)
@@ -31,3 +31,7 @@ Stop rule: src/notebook.ts, src/source-runner/main.ts (quit path + takeover stat
 ## Proof of Work (2026-11-05, live-final)
 
 Option B shipped (commit 50d8600 on dev). Root design per user choice: whoever plays last owns the daemon. Implementation: ensureServerReady -> isReceiving false -> main.takeOverConnection(): (1) route = last daemon-boot entry from booter log (Selected ports 'daemon'=>n, Token t; pure takeOverRoute parser, daemon.log as the mechanism); (2) /daemon/exit(t) - token-matched kill switch validated live (old daemon exited); (3) fresh daemon boots in the playing window (this host binds the reply port first). Symmetric: each window's next play owns; no shared/deaf states remain. Live E2E at protocol level: /daemon/exit applied to the user's live daemon -> clean exit -> successor boot (pids 372994/373002 at 22:03:18). Gates: 15 suites (109 ok incl. new notebook takeover cases: takeover happens, boots, plays; single-takeover on subsequent plays), e2e gate green, packaged + installed into the user profile. Residual: none for Option B; both windows may legally bounce ownership by play - documented UX.
+
+## Sequel: takeover exited old daemon but never booted ours (user 22:10 report)
+
+The token-matched /daemon/exit worked (booter log Goodbye at 22:10:08) but the window's attach-era state blocked the successor: serverStarted=true early-returned startServer(); the RESOLVED portsInitalized promise kept routing sends to a dead OscSender; the keepalive interval kept pinging the dead port. Fixed 4609ca5: reset flag, re-arm send queue promise, stop keepalive timer, clear daemonPort -> startServer() boots the fresh generation owned by this window. Gates: 15 suites (109 ok), e2e gate green, packaged+installed.
