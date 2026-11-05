@@ -5,7 +5,7 @@ status: todo
 type: feature
 priority: normal
 created_at: 2026-11-04T20:36:14Z
-updated_at: 2026-11-04T23:29:49Z
+updated_at: 2026-11-05T12:35:32Z
 parent: sonic-pi-q65q
 ---
 
@@ -15,7 +15,7 @@ Source: docs/research/feature-gaps.md (sonic-pi-q65q Phase A). No upstream PRs p
 
 ## AC
 
-- [ ] Implemented on a branch with red->green where logic is testable (per repo gates: npm test suites + live e2e + vsce package)
+- [ ] Implemented on a branch (PARKED: user directive - v0.2.0 release first) with red->green where logic is testable (per repo gates: npm test suites + live e2e + vsce package)
 - [ ] README/settings docs updated to match shipped behavior
 - [ ] User sign-off obtained before merge
 

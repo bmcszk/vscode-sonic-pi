@@ -4,3 +4,12 @@
 .claude/**
 .beans/**
 skills-lock.json
+# Development surface - only out/ + examples/ + img/ + node_modules deps ship.
+src/**
+test/**
+docs/**
+.github/**
+.vscode/**
+tsconfig.json
+**/*.map
+**/.DS_Store
