@@ -93,6 +93,17 @@ Module._load = function (request, parent, isMain) {
 }
 
 const tests = {
+	'every contributed command activates the extension on invocation'() {
+		const manifest = require('../../package.json')
+		const commands = manifest.contributes.commands.map((entry) => entry.command)
+		const activationCommands = manifest.activationEvents
+			.filter((event) => event.startsWith('onCommand:'))
+			.map((event) => event.replace('onCommand:', ''))
+		const missing = commands.filter((command) => !activationCommands.includes(command))
+		assert.deepStrictEqual(missing, [], 'every contributed command must appear in activationEvents')
+	},
+
+
 	async 'extension activates without throwing and registers core commands'() {
 		const extension = require('../../out/extension.js')
 		await extension.activate({
