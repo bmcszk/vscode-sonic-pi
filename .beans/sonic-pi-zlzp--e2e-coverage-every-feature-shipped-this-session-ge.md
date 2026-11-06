@@ -8,7 +8,14 @@ created_at: 2026-11-05T22:39:23Z
 updated_at: 2026-11-06T00:56:38Z
 ---
 
-/tmp/bean-e2e.md
+# Goal (user directive): every feature shipped this session gets an e2e test.
+
+One integration test per user-visible feature (16 inventoried at open; grew to 18 cases
+with the adopt-keepalive and takeover labels), each named after the behavior it guards.
+Layer per docs/research/testing-strategy.md: real Extension Development Host via
+@vscode/test-electron, fake daemon (test/integration/fake-sonic-pi.js) injected through
+the extension's settings seam; live-daemon e2e stays opt-in (test/e2e/protocol.js).
+Full per-feature table: e2e-report.md (tracked in repo root).
 
 ## Completed (2026-11-06)
 
