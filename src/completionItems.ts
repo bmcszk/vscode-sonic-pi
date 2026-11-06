@@ -6,8 +6,6 @@ export class CommandCompletionItemProvider implements vscode.CompletionItemProvi
 	provideCompletionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken,
-		context: vscode.CompletionContext,
 	): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem>> {
 		if (document.lineAt(position.line).firstNonWhitespaceCharacterIndex < position.character) {
 			return []
@@ -24,8 +22,6 @@ export class SampleCompletionItemProvider implements vscode.CompletionItemProvid
 	provideCompletionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken,
-		context: vscode.CompletionContext,
 	): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem>> {
 		if (!document.lineAt(position.line).text.includes('sample')) {
 			return []
@@ -49,8 +45,6 @@ export class SynthCompletionItemProvider implements vscode.CompletionItemProvide
 	provideCompletionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken,
-		context: vscode.CompletionContext,
 	): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem>> {
 		if (!document.lineAt(position.line).text.includes('synth')) {
 			return []
@@ -74,8 +68,6 @@ export class FxCompletionItemProvider implements vscode.CompletionItemProvider {
 	provideCompletionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken,
-		context: vscode.CompletionContext,
 	): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem>> {
 		if (!document.lineAt(position.line).text.includes('with_fx')) {
 			return []
@@ -101,8 +93,6 @@ export class ArgumentsCompletionItemProvider implements vscode.CompletionItemPro
 	provideCompletionItems(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken,
-		context: vscode.CompletionContext,
 	): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList<vscode.CompletionItem>> {
 		return getValidArgumentsAtPosition(document, position).map((item) => ({
 			...item,

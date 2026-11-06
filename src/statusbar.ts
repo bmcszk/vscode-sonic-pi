@@ -10,7 +10,7 @@ export const formatStatusLabel = (state: ServerState, version?: string): string 
 	return '$(circle-slash) Sonic Pi: stopped'
 }
 
-export const parseVersionReply = (args: any[]): string | undefined => {
+export const parseVersionReply = (args: unknown[]): string | undefined => {
 	const version = args[0]
 	return typeof version === 'string' && version.length > 0 ? version : undefined
 }

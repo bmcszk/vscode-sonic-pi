@@ -21,20 +21,22 @@
 // SOFTWARE.
 
 import * as vscode from 'vscode'
-import { TextDecoder } from 'util'
-const fs = require('fs')
-const os = require('os')
-const path = require('path')
-const child_process = require('child_process')
+import * as child_process from 'child_process'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+import OSC from 'osc-js'
+import * as utf8 from 'utf8'
 import { OscSender } from './oscsender'
 import { parseDaemonStdout } from './daemonstdout'
-const OSC = require('osc-js')
-const utf8 = require('utf8')
-const { v4: uuidv4 } = require('uuid')
 import { Config } from './config'
 import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } from '../attach'
 import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
+
+// OSC payloads from the Sonic Pi daemon: integer fields and text fields.
+type OscArg = number | string
+type OscMessage = { args: OscArg[] }
 
 export class Main {
 	private receiving = true
@@ -86,7 +88,7 @@ export class Main {
 
 	serverStarted: boolean
 	midiAutoStartSent: boolean = false
-	daemonProcess: any
+	daemonProcess: child_process.ChildProcess | undefined
 	restartInProgress = false
 	// One-shot: the next startServer must skip the attach scanner. A restart just killed the
 	// old daemon; while it dies the scanner still sees it, and attaching to a dying server
@@ -98,8 +100,8 @@ export class Main {
 	lastAudioLossNotifiedAt = 0
 
 	platform: string
-	guiUuid: any
-	config: any
+	guiUuid: number
+	config: Config
 	spiderServerScanner: () => SpiderPorts | undefined = findRunningSpiderServer
 
 	errorHighlightDecorationType = vscode.window.createTextEditorDecorationType({
@@ -186,7 +188,7 @@ export class Main {
 
 		// watch to see if the user opens a ruby or custom file and we need to start the server
 		vscode.window.onDidChangeVisibleTextEditors((editors) => {
-			let launchAuto = this.config.launchSonicPiServerAutomatically()
+			const launchAuto = this.config.launchSonicPiServerAutomatically()
 			for (let i = 0; i < editors.length; i++) {
 				if (
 					launchAuto === 'ruby' &&
@@ -197,7 +199,7 @@ export class Main {
 					break
 				}
 				if (launchAuto === 'custom') {
-					let customExtension = this.config.launchSonicPiServerCustomExtension()
+					const customExtension = this.config.launchSonicPiServerCustomExtension()
 					if (!customExtension) {
 						void vscode.window
 							.showErrorMessage(
@@ -276,9 +278,10 @@ export class Main {
 
 		try {
 			await this.connectToServer()
-		} catch (error: any) {
-			this.logOutput.appendLine(`Server start aborted: ${error.message}`)
-			void vscode.window.showErrorMessage(error.message)
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error)
+			this.logOutput.appendLine(`Server start aborted: ${message}`)
+			void vscode.window.showErrorMessage(message)
 			return
 		}
 		this.logOutput.append('Done starting server!')
@@ -350,11 +353,11 @@ export class Main {
 		// exclusive: true -> a second window's bind fails with EADDRINUSE instead of
 		// (SO_REUSEADDR) both binding and Linux flipping packet delivery between
 		// binders mid-session. Ownership becomes deterministic and detectable.
-		let osc = new OSC({
-			plugin: new OSC.DatagramPlugin({
-				open: { port: this.guiListenToServerPort, host: '127.0.0.1', exclusive: true },
-			}),
-		})
+		const pluginOptions = {
+			type: 'udp4',
+			open: { port: this.guiListenToServerPort, host: '127.0.0.1', exclusive: true },
+		}
+		const osc = new OSC({ plugin: new OSC.DatagramPlugin(pluginOptions) })
 		osc.on('open', () => {
 			// A fresh receiver that bound owns the reply port again: a later takeover or restart
 			// must clear the deafness an earlier window's bind failure left behind, or every
@@ -379,25 +382,26 @@ export class Main {
 			this.onReceiverFailed.fire()
 		})
 
-		osc.on('/version', (message: { args: any }) => {
+		osc.on('/version', (message: OscMessage) => {
 			const version = message.args[0]
 			if (typeof version === 'string' && version) {
 				this.onVersion.fire(version)
 			}
 		})
 
-		osc.on('/log/info', (message: { args: any }) => {
+		osc.on('/log/info', (message: OscMessage) => {
 			// this.logOutput.appendLine('Got /log/info' + ' -> ' + message.args[0] + ', ' + message.args[1])
-			const parse = /(Completed|Starting) run (\d+)/.exec(message.args[1])
+			const line = String(message.args[1])
+			const parse = /(Completed|Starting) run (\d+)/.exec(line)
 			if (parse) {
 				const num = +parse[2]
 				if (parse[1] === 'Completed') this.onRunEnded.fire(num)
 				else if (parse[1] === 'Starting') this.onRunStarted.fire(num)
 			}
-			this.log(message.args[1])
+			this.log(line)
 		})
 
-		osc.on('/incoming/osc', (message: { args: any }) => {
+		osc.on('/incoming/osc', (message: OscMessage) => {
 			// console.log(
 			//  	'Got /incoming/osc' +
 			//  		' -> ' +
@@ -412,12 +416,12 @@ export class Main {
 			this.cueLog(message.args[2] + ': ' + message.args[3])
 		})
 
-		osc.on('/log/multi_message', (message: any) => {
+		osc.on('/log/multi_message', (message: OscMessage) => {
 			// console.log('Got /log/multi_message')
 			this.processMultiMessage(message)
 		})
 
-		osc.on('/syntax_error', (message: { args: any }) => {
+		osc.on('/syntax_error', (message: OscMessage) => {
 			// console.log(
 			// 	'Got /syntax_error' +
 			// 		message.args[0] +
@@ -433,30 +437,35 @@ export class Main {
 			this.processSyntaxError(message)
 		})
 
-		osc.on('/error', (message: any) => {
+		osc.on('/error', (message: OscMessage) => {
 			// console.log('Got /error')
 			this.processError(message)
 		})
 
-		osc.on('/flash', (message: { args: any }) => {
-			this.onFlash.fire({ workspace: message.args[1], line: message.args[2] })
+		osc.on('/flash', (message: OscMessage) => {
+			const workspace = message.args[1]
+			const line = message.args[2]
+			if (typeof workspace !== 'string' || typeof line !== 'number') return
+			this.onFlash.fire({ workspace, line })
 		})
 
 		// Reply to /buffer-beautify: the daemon drains its message queue and answers with
 		// gui.send("/buffer/replace", buf_id, content, line, index, first_line) — same
 		// address the Qt GUI consumes for buffer replacements (spider-server.rb:1035).
-		osc.on('/buffer/replace', (message: { args: any }) => {
+		osc.on('/buffer/replace', (message: OscMessage) => {
 			const bufferId = message.args[0]
 			const pending = this.pendingBeautify
 			if (!pending || bufferId !== pending.bufferId) {
 				return
 			}
+			const content = message.args[1]
+			const line = message.args[2]
+			const index = message.args[3]
+			if (typeof content !== 'string' || typeof line !== 'number' || typeof index !== 'number') {
+				return
+			}
 			this.pendingBeautify = undefined
-			pending.resolve({
-				content: message.args[1],
-				line: message.args[2],
-				index: message.args[3],
-			})
+			pending.resolve({ content, line, index })
 		})
 
 		//osc.on('*', (message: {address: string}) => {
@@ -465,11 +474,11 @@ export class Main {
 	}
 
 	// Show information about the syntax error to the user
-	processSyntaxError(message: { args: any }) {
-		let job_id = message.args[0]
-		let desc = message.args[1]
-		let error_line = message.args[2]
-		let line = message.args[3]
+	processSyntaxError(message: OscMessage) {
+		const job_id = message.args[0]
+		const desc = message.args[1]
+		const error_line = message.args[2]
+		const line = Number(message.args[3])
 
 		void vscode.window
 			.showErrorMessage(
@@ -478,9 +487,9 @@ export class Main {
 			)
 			.then((item) => {
 				if (item) {
-					let errorHighlight: vscode.DecorationOptions[] = []
-					let editor = vscode.window.activeTextEditor!
-					let range = editor.document.lineAt(line - 1).range
+					const errorHighlight: vscode.DecorationOptions[] = []
+					const editor = vscode.window.activeTextEditor!
+					const range = editor.document.lineAt(line - 1).range
 					editor.selection = new vscode.Selection(range.start, range.end)
 					editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport)
 					errorHighlight.push({ range })
@@ -490,11 +499,11 @@ export class Main {
 	}
 
 	// Show information about the error to the user
-	processError(message: { args: any }) {
-		let job_id = message.args[0]
-		let desc = message.args[1]
-		let backtrace = message.args[2]
-		let line = message.args[3]
+	processError(message: OscMessage) {
+		const job_id = message.args[0]
+		const desc = message.args[1]
+		const backtrace = message.args[2]
+		const line = Number(message.args[3])
 
 		this.logOutput.appendLine(
 			'Error on job ' + job_id + ': ' + desc + '\nLine ' + line + ': ' + backtrace,
@@ -506,9 +515,9 @@ export class Main {
 		//	)
 		//	.then((item) => {
 		//		if (item) {
-		let errorHighlight: vscode.DecorationOptions[] = []
-		let editor = vscode.window.activeTextEditor!
-		let range = editor.document.lineAt(line - 1).range
+		const errorHighlight: vscode.DecorationOptions[] = []
+		const editor = vscode.window.activeTextEditor!
+		const range = editor.document.lineAt(line - 1).range
 		editor.selection = new vscode.Selection(range.start, range.end)
 		editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport)
 		errorHighlight.push({ range })
@@ -518,11 +527,11 @@ export class Main {
 	}
 
 	// Process an incoming multi-message
-	processMultiMessage(message: { args: any }) {
-		let job_id = message.args[0]
-		let thread_name = message.args[1]
-		let runtime = message.args[2]
-		let count = message.args[3]
+	processMultiMessage(message: OscMessage) {
+		const job_id = message.args[0]
+		const thread_name = message.args[1]
+		const runtime = message.args[2]
+		const count = Number(message.args[3])
 
 		let toShow = '{run: ' + job_id + ', time: ' + runtime
 		if (thread_name) {
@@ -531,11 +540,10 @@ export class Main {
 		toShow += '}'
 		this.logOutput.appendLine(toShow)
 
-		toShow = ''
 		for (let i = 0; i < count; i++) {
 			//let type = message.args[4 + (2*i)];
-			let str = message.args[4 + 1 + 2 * i]
-			let lines = str.split(/\r?\n/)
+			const str = String(message.args[4 + 1 + 2 * i])
+			const lines = str.split(/\r?\n/)
 			if (!str) {
 				toShow = ' |'
 			} else if (i === count - 1) {
@@ -556,7 +564,7 @@ export class Main {
 		const daemonSender = new OscSender(this.daemonPort)
 		this.log(`Keep-alive started: pinging daemon port ${this.daemonPort} with /daemon/keep-alive`)
 		this.keepAliveTimer = setInterval(() => {
-			let message = new OSC.Message('/daemon/keep-alive', parseInt(this.guiUuid))
+			const message = new OSC.Message('/daemon/keep-alive', this.guiUuid)
 			daemonSender.send(message)
 		}, 1000)
 	}
@@ -572,19 +580,19 @@ export class Main {
 
 	// This is the main part of launching Sonic Pi's backend
 	async startRubyServer(): Promise<void> {
-		let args: String[] = [this.daemonLauncherPath] // No need for launch args on the new daemon script
+		const args: string[] = [this.daemonLauncherPath] // No need for launch args on the new daemon script
 
 		return new Promise<void>((resolve, reject) => {
 			// detached + unref: the daemon outlives window reloads. A reloading window
 			// stops pinging keep-alive, but a re-activating host adopts the still-running
 			// server through the attach path instead of booting a competing generation.
-			let ruby_server = child_process.spawn(this.rubyPath, args, {
+			const ruby_server = child_process.spawn(this.rubyPath, args, {
 				detached: true,
 				stdio: ['ignore', 'pipe', 'pipe'],
 			})
 			ruby_server.unref?.()
 			this.daemonProcess = ruby_server
-			ruby_server.stdout.on('data', (data: any) => {
+			ruby_server.stdout.on('data', (data: Buffer) => {
 				// console.log(`stdout: ${data}`)
 				this.logOutput.appendLine(`Daemon Out: ${data}`)
 				const ports = parseDaemonStdout(data.toString())
@@ -607,7 +615,7 @@ export class Main {
 				//}
 			})
 
-			ruby_server.stderr.on('data', (data: any) => {
+			ruby_server.stderr.on('data', (data: Buffer) => {
 				// console.log(`stdserr: ${data}`)
 				this.onDaemonStderr(data.toString())
 			})
@@ -642,7 +650,7 @@ export class Main {
 			this.onServerRestart.fire()
 			if (this.daemonProcess) {
 				this.daemonProcess.kill()
-				this.daemonProcess = null
+				this.daemonProcess = undefined
 			}
 			this.serverStarted = false
 			// The old daemon's ports die with it. Re-arm the send queue: a resolved send queue
@@ -666,7 +674,7 @@ export class Main {
 		this.stopAllJobs()
 		if (this.daemonProcess) {
 			this.daemonProcess.kill()
-			this.daemonProcess = null
+			this.daemonProcess = undefined
 		}
 		this.serverStarted = false
 		// The stopped daemon's ports are dead. Re-arm the send queue like a restart does, or
@@ -678,8 +686,8 @@ export class Main {
 	}
 
 	updateMixerSettings() {
-		let invert_stereo = this.config.invertStereo()
-		let force_mono = this.config.forceMono()
+		const invert_stereo = this.config.invertStereo()
+		const force_mono = this.config.forceMono()
 		if (invert_stereo) {
 			this.mixerInvertStereo()
 		} else {
@@ -693,7 +701,7 @@ export class Main {
 		}
 	}
 
-	sendOsc(message: any) {
+	sendOsc(message: OSC.Message) {
 		void this.portsInitalized.then((sender) => {
 			sender.send(message)
 		})
@@ -734,9 +742,8 @@ export class Main {
 	// (Selected ports => "daemon" => n, then Token: t - the same token spider validates).
 	private daemonExitRoute(): DaemonExitRoute | undefined {
 		if (this.daemonPort !== -1 && this.guiUuid !== -1) {
-			return { daemonPort: this.daemonPort, token: parseInt(this.guiUuid, 10) }
+			return { daemonPort: this.daemonPort, token: this.guiUuid }
 		}
-		const logPath = this.spUserTmpPath ? this.daemonLogPath() : this.daemonLogPath()
 		try {
 			const bootLog = fs.readFileSync(this.daemonLogPath(), 'utf8')
 			const route = takeOverRoute(bootLog)
@@ -778,11 +785,11 @@ export class Main {
 		}
 		code = utf8.encode(code)
 		if (this.config.autoMidiStart() && shouldAutoStartMidi(code, this.midiAutoStartSent)) {
-			this.sendOsc(new OSC.Message('/midi-start', parseInt(this.guiUuid)))
+			this.sendOsc(new OSC.Message('/midi-start', this.guiUuid))
 			this.midiAutoStartSent = true
 		}
 		this.clearErrorHighlight()
-		let message = new OSC.Message('/run-code', parseInt(this.guiUuid), code)
+		const message = new OSC.Message('/run-code', this.guiUuid, code)
 		this.sendOsc(message)
 	}
 
@@ -810,11 +817,11 @@ export class Main {
 				clearTimeout(timeout)
 				resolve(reply)
 			}
-			this.sendOsc(new OSC.Message('/save-buffer', parseInt(this.guiUuid), bufferId, utf8.encode(code)))
+			this.sendOsc(new OSC.Message('/save-buffer', this.guiUuid, bufferId, utf8.encode(code)))
 			this.sendOsc(
 				new OSC.Message(
 					'/buffer-beautify',
-					parseInt(this.guiUuid),
+					this.guiUuid,
 					bufferId,
 					utf8.encode(code),
 					line,
@@ -838,8 +845,8 @@ export class Main {
 	}
 
 	private getWholeRange(editor: TextEditor): Range {
-		let startPos = editor.document.positionAt(0)
-		let endPos = editor.document.positionAt(editor.document.getText().length - 1)
+		const startPos = editor.document.positionAt(0)
+		const endPos = editor.document.positionAt(editor.document.getText().length - 1)
 		return new Range(startPos, endPos)
 	}
 
@@ -848,58 +855,58 @@ export class Main {
 	}
 
 	stopAllJobs() {
-		let message = new OSC.Message('/stop-all-jobs', this.guiUuid)
+		const message = new OSC.Message('/stop-all-jobs', this.guiUuid)
 		this.sendOsc(message)
 	}
 
 	startRecording() {
-		let message = new OSC.Message('/start-recording', this.guiUuid)
+		const message = new OSC.Message('/start-recording', this.guiUuid)
 		this.sendOsc(message)
 	}
 
 	stopRecording() {
-		let message = new OSC.Message('/stop-recording', this.guiUuid)
+		const message = new OSC.Message('/stop-recording', this.guiUuid)
 		this.sendOsc(message)
 	}
 
 	saveRecording(path: string) {
-		let message = new OSC.Message('/save-recording', this.guiUuid, path)
+		const message = new OSC.Message('/save-recording', this.guiUuid, path)
 		this.sendOsc(message)
 	}
 
 	deleteRecording() {
-		let message = new OSC.Message('/delete-recording', this.guiUuid)
+		const message = new OSC.Message('/delete-recording', this.guiUuid)
 		this.sendOsc(message)
 	}
 
 	mixerInvertStereo() {
-		let message = new OSC.Message('/mixer-invert-stereo', this.guiUuid)
+		const message = new OSC.Message('/mixer-invert-stereo', this.guiUuid)
 		this.sendOsc(message)
 	}
 
 	mixerStandardStereo() {
-		let message = new OSC.Message('/mixer-standard-stereo', this.guiUuid)
+		const message = new OSC.Message('/mixer-standard-stereo', this.guiUuid)
 		this.sendOsc(message)
 	}
 
 	mixerMonoMode() {
-		let message = new OSC.Message('/mixer-mono-mode', this.guiUuid)
+		const message = new OSC.Message('/mixer-mono-mode', this.guiUuid)
 		this.sendOsc(message)
 	}
 
 	mixerStereoMode() {
-		let message = new OSC.Message('/mixer-stereo-mode', this.guiUuid)
+		const message = new OSC.Message('/mixer-stereo-mode', this.guiUuid)
 		this.sendOsc(message)
 	}
 
 	// Master fader after the limiter; the server clamps the passed amp to 0..1.
 	setMasterVolume(volumePercent: number) {
-		let message = new OSC.Message('/mixer-output-volume', parseInt(this.guiUuid), volumePercent / 100)
+		const message = new OSC.Message('/mixer-output-volume', this.guiUuid, volumePercent / 100)
 		this.sendOsc(message)
 	}
 
 	requestVersion() {
-		let message = new OSC.Message('/version', parseInt(this.guiUuid))
+		const message = new OSC.Message('/version', this.guiUuid)
 		this.sendOsc(message)
 	}
 

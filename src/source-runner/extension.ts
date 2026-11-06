@@ -101,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	main.checkSonicPiPath()
 
-	let playingLines = new PlayingLineHighlighter({
+	const playingLines = new PlayingLineHighlighter({
 		config,
 		editor: () => vscode.window.activeTextEditor,
 		flashTarget: (workspace, line) =>
@@ -195,29 +195,33 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Register the editor commands. For now, run, stop and recording. Those should be enough for
 	// some initial fun...
-	let disposable = vscode.commands.registerCommand('vscode-sonic-pi.startserver', () => {
-		main.startServerReported()
-	})
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.startserver', () => {
+			main.startServerReported()
+		}),
+	)
 
-	disposable = vscode.commands.registerTextEditorCommand('vscode-sonic-pi.run', (textEditor) => {
-		let doc = textEditor.document
-		// If the focus is on something that is not ruby (i.e. something on the output pane),
-		// run the first found open ruby editor instead
-		if (doc.languageId !== 'sonic-pi') {
-			let textEditors = vscode.window.visibleTextEditors
-			let rubyEditors = textEditors.filter((editor) => {
-				return editor.document.languageId === 'sonic-pi'
-			})
+	context.subscriptions.push(
+		vscode.commands.registerTextEditorCommand('vscode-sonic-pi.run', (textEditor) => {
+			let doc = textEditor.document
+			// If the focus is on something that is not ruby (i.e. something on the output pane),
+			// run the first found open ruby editor instead
+			if (doc.languageId !== 'sonic-pi') {
+				const textEditors = vscode.window.visibleTextEditors
+				const rubyEditors = textEditors.filter((editor) => {
+					return editor.document.languageId === 'sonic-pi'
+				})
 
-			// TODO: if no ruby editors, show a warning to indicate that this will not have effect
-			if (!rubyEditors.length) {
-				return
+				// TODO: if no ruby editors, show a warning to indicate that this will not have effect
+				if (!rubyEditors.length) {
+					return
+				}
+				doc = rubyEditors[0].document
 			}
-			doc = rubyEditors[0].document
-		}
-		let code = doc.getText()
-		void scriptRunEnsuresServer(code).then(() => main.flashCode(textEditor, true))
-	})
+			const code = doc.getText()
+			void scriptRunEnsuresServer(code).then(() => main.flashCode(textEditor, true))
+		}),
+	)
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.runWithText', (code: string, blockLine?: number) => {
@@ -228,137 +232,145 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	disposable = vscode.commands.registerTextEditorCommand('vscode-sonic-pi.runselected', (textEditor) => {
-		let doc = textEditor.document
-		// If the focus is on something that is not ruby (i.e. something on the output pane),
-		// run the first found open ruby editor instead
-		if (doc.languageId !== 'sonic-pi') {
-			let textEditors = vscode.window.visibleTextEditors
-			let rubyEditors = textEditors.filter((editor) => {
-				return editor.document.languageId === 'sonic-pi'
-			})
+	context.subscriptions.push(
+		vscode.commands.registerTextEditorCommand('vscode-sonic-pi.runselected', (textEditor) => {
+			let doc = textEditor.document
+			// If the focus is on something that is not ruby (i.e. something on the output pane),
+			// run the first found open ruby editor instead
+			if (doc.languageId !== 'sonic-pi') {
+				const textEditors = vscode.window.visibleTextEditors
+				const rubyEditors = textEditors.filter((editor) => {
+					return editor.document.languageId === 'sonic-pi'
+				})
 
-			// TODO: if no ruby editors, show a warning to indicate that this will not have effect
-			if (!rubyEditors.length) {
-				return
-			}
-			doc = rubyEditors[0].document
-		}
-		let code = doc.getText(textEditor.selection)
-		if (!code) {
-			let runFileWhenRunSelectedIsEmpty = config.runFileWhenRunSelectedIsEmpty()
-			if (!runFileWhenRunSelectedIsEmpty) {
-				void vscode.window
-					.showWarningMessage(
-						'You tried to Run selected code with no code selected.' +
-							'Do you want to run the whole file when this happens?',
-						'Yes, once',
-						'Yes, always',
-						'No, never',
-					)
-					.then((item) => {
-						if (item === 'Yes, once') {
-							code = doc.getText()
-							main.flashCode(textEditor, true)
-							runFileCode(code)
-						} else if (item === 'Yes, always') {
-							config.updateRunFileWhenRunSelectedIsEmpty('always')
-							code = doc.getText()
-							main.flashCode(textEditor, true)
-							runFileCode(code)
-						} else if (item === 'No, never') {
-							config.updateRunFileWhenRunSelectedIsEmpty('never')
-						}
-					})
-				return
-			} else if (runFileWhenRunSelectedIsEmpty === 'never') {
-				return
-			} else if (runFileWhenRunSelectedIsEmpty === 'always') {
-				code = doc.getText()
-				main.flashCode(textEditor, true)
-				runFileCode(code)
-			}
-		}
-		main.flashCode(textEditor, false)
-		runFileCode(code, textEditor.selection.start.line)
-	})
-
-	disposable = vscode.commands.registerCommand('vscode-sonic-pi.stop', () => {
-		main.stopAllJobs()
-		clearPlaying()
-	})
-
-	disposable = vscode.commands.registerCommand('vscode-sonic-pi.restartserver', () => {
-		void main.restartServer()
-	})
-
-	disposable = vscode.commands.registerCommand('vscode-sonic-pi.togglerecording', () => {
-		isRecording = !isRecording
-		if (isRecording) {
-			main.startRecording()
-		} else {
-			main.stopRecording()
-			void vscode.window.showSaveDialog({ filters: { 'Wave file': ['wav'] } }).then((uri) => {
-				if (uri) {
-					main.saveRecording(uri.fsPath)
-				} else {
-					main.deleteRecording()
+				// TODO: if no ruby editors, show a warning to indicate that this will not have effect
+				if (!rubyEditors.length) {
+					return
 				}
-			})
-		}
-	})
+				doc = rubyEditors[0].document
+			}
+			let code = doc.getText(textEditor.selection)
+			if (!code) {
+				const runFileWhenRunSelectedIsEmpty = config.runFileWhenRunSelectedIsEmpty()
+				if (!runFileWhenRunSelectedIsEmpty) {
+					void vscode.window
+						.showWarningMessage(
+							'You tried to Run selected code with no code selected.' +
+								'Do you want to run the whole file when this happens?',
+							'Yes, once',
+							'Yes, always',
+							'No, never',
+						)
+						.then((item) => {
+							if (item === 'Yes, once') {
+								code = doc.getText()
+								main.flashCode(textEditor, true)
+								runFileCode(code)
+							} else if (item === 'Yes, always') {
+								config.updateRunFileWhenRunSelectedIsEmpty('always')
+								code = doc.getText()
+								main.flashCode(textEditor, true)
+								runFileCode(code)
+							} else if (item === 'No, never') {
+								config.updateRunFileWhenRunSelectedIsEmpty('never')
+							}
+						})
+					return
+				} else if (runFileWhenRunSelectedIsEmpty === 'never') {
+					return
+				} else if (runFileWhenRunSelectedIsEmpty === 'always') {
+					code = doc.getText()
+					main.flashCode(textEditor, true)
+					runFileCode(code)
+				}
+			}
+			main.flashCode(textEditor, false)
+			runFileCode(code, textEditor.selection.start.line)
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.stop', () => {
+			main.stopAllJobs()
+			clearPlaying()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.restartserver', () => {
+			void main.restartServer()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.togglerecording', () => {
+			isRecording = !isRecording
+			if (isRecording) {
+				main.startRecording()
+			} else {
+				main.stopRecording()
+				void vscode.window.showSaveDialog({ filters: { 'Wave file': ['wav'] } }).then((uri) => {
+					if (uri) {
+						main.saveRecording(uri.fsPath)
+					} else {
+						main.deleteRecording()
+					}
+				})
+			}
+		}),
+	)
 
 	// Beautify: send the active Sonic Pi document to the daemon's /buffer-beautify and
 	// apply the returned aligned text as a whole-document edit, cursor best-effort.
-	disposable = vscode.commands.registerTextEditorCommand('vscode-sonic-pi.beautify', (textEditor) => {
-		const doc = textEditor.document
-		if (doc.languageId !== 'sonic-pi') {
-			return
-		}
-		const bufferId = doc.uri.toString()
-		const cursor = textEditor.selection.active
-		main.beautify(bufferId, doc.getText(), cursor.line, cursor.character)
-			.then((reply) => {
-				const result = computeBeautifyEdit(
-					doc.getText(),
-					reply.content,
-					{ line: cursor.line, character: cursor.character },
-					{ line: reply.line, index: reply.index },
-				)
-				if (result.newText === undefined) {
-					return
-				}
-				void textEditor
-					.edit((editBuilder) => {
-						const whole = new vscode.Range(
-							doc.positionAt(0),
-							doc.positionAt(doc.getText().length),
-						)
-						editBuilder.replace(whole, result.newText!)
-					})
-					.then((applied) => {
-						if (applied) {
-							const lastLine = doc.lineCount - 1
-							const line = Math.min(result.cursor.line, lastLine)
-							const character = Math.min(
-								result.cursor.character,
-								doc.lineAt(line).range.end.character,
+	context.subscriptions.push(
+		vscode.commands.registerTextEditorCommand('vscode-sonic-pi.beautify', (textEditor) => {
+			const doc = textEditor.document
+			if (doc.languageId !== 'sonic-pi') {
+				return
+			}
+			const bufferId = doc.uri.toString()
+			const cursor = textEditor.selection.active
+			main.beautify(bufferId, doc.getText(), cursor.line, cursor.character)
+				.then((reply) => {
+					const result = computeBeautifyEdit(
+						doc.getText(),
+						reply.content,
+						{ line: cursor.line, character: cursor.character },
+						{ line: reply.line, index: reply.index },
+					)
+					if (result.newText === undefined) {
+						return
+					}
+					void textEditor
+						.edit((editBuilder) => {
+							const whole = new vscode.Range(
+								doc.positionAt(0),
+								doc.positionAt(doc.getText().length),
 							)
-							const pos = new vscode.Position(line, character)
-							textEditor.selection = new vscode.Selection(pos, pos)
-						}
-					})
-			})
-			.catch((error: Error) => {
-				void vscode.window.showErrorMessage('Beautify failed: ' + error.message)
-			})
-	})
+							editBuilder.replace(whole, result.newText!)
+						})
+						.then((applied) => {
+							if (applied) {
+								const lastLine = doc.lineCount - 1
+								const line = Math.min(result.cursor.line, lastLine)
+								const character = Math.min(
+									result.cursor.character,
+									doc.lineAt(line).range.end.character,
+								)
+								const pos = new vscode.Position(line, character)
+								textEditor.selection = new vscode.Selection(pos, pos)
+							}
+						})
+				})
+				.catch((error: Error) => {
+					void vscode.window.showErrorMessage('Beautify failed: ' + error.message)
+				})
+		}),
+	)
 
 	context.subscriptions.push(
 		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, new SonicPiCodeLensProvider()),
 	)
-
-	context.subscriptions.push(disposable)
 }
 
 // this method is called when your extension is deactivated

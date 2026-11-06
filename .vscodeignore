@@ -8,6 +8,9 @@ skills-lock.json
 src/**
 test/**
 docs/**
+eslint.config.mjs
+.prettierrc
+.prettierignore
 .github/**
 .vscode/**
 tsconfig.json
