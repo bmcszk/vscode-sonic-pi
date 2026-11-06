@@ -371,13 +371,16 @@ export class Main {
 			if (error.code !== 'EADDRINUSE') return
 			this.receiving = false
 			this.logOutput.appendLine(
-				'Cannot receive Sonic Pi responses on port ' +
-					this.guiListenToServerPort +
-					' - another VS Code window is already connected to this server.',
+				'Another VS Code window is connected to this Sonic Pi server, so IT will show the run ' +
+					"logs and this window won't. Your window's Play will still sound - the server takes " +
+					'every run it is sent.',
 			)
 			this.logOutput.appendLine(
-				'Runs sent from this window still start on the server, but this window will not show log output. ' +
-					'Close the other window and press Restart Server to take over the connection.',
+				'To move the logs to THIS window: close the other window (or its Sonic Pi tab), ' +
+					'then press Play to take over the connection.',
+			)
+			this.logOutput.appendLine(
+				'(technical detail: reply port ' + this.guiListenToServerPort + ' was already bound)',
 			)
 			this.onReceiverFailed.fire()
 		})

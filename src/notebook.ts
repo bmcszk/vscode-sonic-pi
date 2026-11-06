@@ -323,8 +323,8 @@ export class NotebookController {
 			this.takeoverNoticeShown = true
 			if (!(await takeOverConnection())) {
 				void vscode.window.showErrorMessage(
-					'Sonic Pi: another VS Code window owns the Sonic Pi server and this window could not take it over.' +
-						' Close the other window and try again.',
+					'Sonic Pi: another VS Code window owns the Sonic Pi server, and this window could not take it over. ' +
+						'Close that window and play again here.',
 				)
 				return false
 			}
