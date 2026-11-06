@@ -342,3 +342,24 @@ Takeover-between-hosts: **unit layer only** (inject `spiderServerScanner` with t
    command IDs, and `NotebookController.execute(cells)` on engine 1.144.
 3. Spike suite #1 (cold-window run) first — it targets today's exact regression and forces the
    fake-daemon + settings-injection plumbing into existence.
+
+## Artifact-level gate
+
+Every suite above runs inside the checkout, where the repo's `node_modules` is on the module
+resolution path of `out/`. That masks a broken *artifact*: `vsce package --no-dependencies` ships a
+vsix with no `node_modules`, and `code --install-extension` does **not** run dependency resolution
+(only the Marketplace does), so such a vsix installs happily and then dies at load with
+`Cannot find module 'osc-js'` / `'utf8'`. Unit + integration gates stay green throughout.
+
+Rules:
+
+- **Local/dev installs must be packaged WITH dependencies**: `npx @vscode/vsce package -o ext.vsix`
+  (no flag). `npm test` ends with `test/vsix-smoke.test.js`, which packages that way into a temp
+  dir, extracts the vsix, asserts `node_modules/{osc-js,utf8,uuid}` are present, and requires the
+  extracted `out/extension.js` in a child process under a minimal `vscode` stub — no repo
+  `node_modules` in the resolution chain. It skips (with a console note) only when vsce cannot be
+  fetched at all.
+- `--no-dependencies` stays for **marketplace publish** (`.github/workflows/publish.yml`), because
+  the Marketplace resolves `dependencies` at install time; `publish.yml` first packages the vsix,
+  unpacks it and asserts the same three deps resolve, *before* `vsce publish --oidc
+  --no-dependencies`. Fail the gate, not the users' first activation.
