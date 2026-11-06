@@ -1,10 +1,11 @@
 ---
 # sonic-pi-xow5
 title: 'Test reliability: real integration tests for extension wiring + research-backed strategy'
-status: in-progress
+status: completed
 type: task
+priority: normal
 created_at: 2026-11-05T22:17:45Z
-updated_at: 2026-11-05T22:17:45Z
+updated_at: 2026-11-06T13:04:53Z
 ---
 
 # Test reliability (user: "are you even testing your code? unit? integration? research how to do both reasonably - I want it reliable!")
@@ -25,3 +26,10 @@ xvfb on CI.
 Integration harness + 18 tests covering every session feature; wired as npm run
 test:integration; found and fixed 9 real product bugs (see zlzp ledger + e2e-report.md).
 
+## Completed (2026-11-06)
+
+Delivered via bean sonic-pi-zlzp:
+- Research: docs/research/testing-strategy.md (committed, pushed)
+- Implementation: integration harness + 18 e2e tests, npm run test:integration, wired in CI order
+- Outcome: 9 real product bugs found and fixed (see zlzp ledger + e2e-report.md)
+- Gates: integration 18/18, unit green, lint clean

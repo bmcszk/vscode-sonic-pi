@@ -88,6 +88,10 @@ export class Main {
 	midiAutoStartSent: boolean = false
 	daemonProcess: any
 	restartInProgress = false
+	// One-shot: the next startServer must skip the attach scanner. A restart just killed the
+	// old daemon; while it dies the scanner still sees it, and attaching to a dying server
+	// makes every play after Restart Server land on a corpse.
+	forceManagedBootOnce = false
 
 	// Timestamp of the last 'connection lost' notification, to debounce
 	// the burst of reconnect lines the daemon prints per audio outage.
@@ -287,7 +291,9 @@ export class Main {
 
 	// Business order: attach to a user-run Sonic Pi when allowed, otherwise boot our own daemon
 	async connectToServer(): Promise<void> {
-		const mode = this.config.connectionMode()
+		const forceManaged = this.forceManagedBootOnce
+		this.forceManagedBootOnce = false
+		const mode = forceManaged ? 'managed' : this.config.connectionMode()
 		if (mode !== 'managed') {
 			const ports = this.spiderServerScanner()
 			if (ports) {
@@ -643,6 +649,9 @@ export class Main {
 			// would keep shipping runs to the previous generation's dead port (cells then spin
 			// forever with no /run-code on the wire).
 			this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
+			// While the killed daemon dies, the scanner still sees its spider process: attaching
+			// to it would route plays to a corpse. Force the fresh managed boot.
+			this.forceManagedBootOnce = true
 			this.onServerState.fire('stopped')
 			this.midiAutoStartSent = false
 			await this.startServer()
