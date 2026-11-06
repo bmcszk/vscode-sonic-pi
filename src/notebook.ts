@@ -47,7 +47,7 @@ end`,
 			])
 		}
 
-		let cells: vscode.NotebookCellData[] = []
+		const cells: vscode.NotebookCellData[] = []
 
 		let bufferKind: vscode.NotebookCellKind = vscode.NotebookCellKind.Markup
 		let bufferContents: string[] = []
@@ -187,10 +187,7 @@ export class NotebookController {
 		// and its play buttons would do nothing until the user chose one by hand.
 		const preferKernel = (notebook: vscode.NotebookDocument) => {
 			if (notebook.notebookType === notebookType) {
-				this.controller.updateNotebookAffinity(
-					notebook,
-					vscode.NotebookControllerAffinity.Preferred,
-				)
+				this.controller.updateNotebookAffinity(notebook, vscode.NotebookControllerAffinity.Preferred)
 			}
 		}
 		vscode.workspace.notebookDocuments.forEach(preferKernel)
@@ -224,7 +221,7 @@ export class NotebookController {
 		// the user sees 'stopped' while audio continues (user report: stopped a section,
 		// sound + highlights persisted). Daemon semantics have no per-cell stop: stopping
 		// one cell stops the whole session's jobs (same as the Sonic Pi app's Stop).
-		this.controller.interruptHandler = (notebook: vscode.NotebookDocument) => {
+		this.controller.interruptHandler = () => {
 			for (const notebookWorkingCopy of this.workingCopies.values()) {
 				for (const entry of notebookWorkingCopy.executionHistory.values()) {
 					endExecution(entry, 'cell interrupt')
@@ -431,9 +428,7 @@ export class NotebookController {
 		)
 	}
 
-	private runID = 0
 	private async runScript(script: string, isCancellation = false, cells: string[] = []): Promise<void> {
-		const id = this.runID++
 		if (!isCancellation) await Promise.all(this.pendingCancellations.values())
 		return new Promise((c) => {
 			const resolve = () => {

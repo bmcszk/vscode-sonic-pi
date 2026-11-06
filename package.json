@@ -18,11 +18,13 @@
 		"url": "https://github.com/bmcszk/vscode-sonic-pi"
 	},
 	"scripts": {
-		"build":"tsc",
-		"lint":"eslint src/**/*.ts",
-		"test":"npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/receiver-recovery.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js",
-		"test:integration":"npm run build && vscode-test",
-		"test:e2e":"npm run build && node test/e2e/protocol.js"
+		"build": "tsc",
+		"lint": "eslint src",
+		"format:check": "prettier --check src",
+		"format": "prettier --write src",
+		"test": "npm run lint && npm run format:check && npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/receiver-recovery.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js",
+		"test:integration": "npm run build && vscode-test",
+		"test:e2e": "npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",
 	"engines": {
@@ -316,13 +318,11 @@
 					"default": true,
 					"description": "Synth argument checking functions.\nIf disabled, certain synth opt values may\ncreate unexpectedly loud or uncomfortable sounds."
 				},
-
 				"vscode-sonic-pi.runReplacesSession": {
 					"type": "boolean",
 					"default": true,
 					"description": "A play stops the previous jobs first (per-cell replace, matching the Sonic Pi app's Run). Turn off to layer runs on top of each other."
 				},
-
 				"vscode-sonic-pi.notebookRunsWholeSong": {
 					"type": "boolean",
 					"default": false,
@@ -379,17 +379,18 @@
 		]
 	},
 	"devDependencies": {
+		"@eslint/js": "^10.0.1",
 		"@types/node": "^22",
+		"@types/utf8": "^3.0.3",
 		"@types/vscode": "^1.144.0",
-		"@typescript-eslint/eslint-plugin": "^4.19.0",
-		"@typescript-eslint/parser": "^4.19.0",
 		"@vscode/test-cli": "^0.0.15",
 		"@vscode/test-electron": "^2.5.2",
-		"eslint": "^7.23.0",
-		"eslint-config-prettier": "^8.1.0",
-		"eslint-plugin-prettier": "^3.3.1",
-		"prettier": "^2.2.1",
-		"typescript": "~6.0.3"
+		"eslint": "^10.14.0",
+		"eslint-config-prettier": "^10.1.8",
+		"globals": "^6.4.1",
+		"prettier": "^3.9.10",
+		"typescript": "~6.0.3",
+		"typescript-eslint": "^8.72.1"
 	},
 	"overrides": {
 		"minimatch": "^11.0.4"

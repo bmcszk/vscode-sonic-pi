@@ -1,3 +1,5 @@
+import * as fs from 'fs'
+
 export type SpiderPorts = {
 	// server-listen-to-gui (spider argv[1]): the port we send /run-code etc. to
 	sendToServerPort: number
@@ -81,8 +83,6 @@ export function takeOverRoute(booterLog: string): DaemonExitRoute | undefined {
 	}
 	return { daemonPort: Number(lastPort[1]), token: Number(lastToken[1]) }
 }
-
-const fs = require('fs')
 
 // Scans the real /proc for a running spider-server.rb
 export function findRunningSpiderServer(): SpiderPorts | undefined {

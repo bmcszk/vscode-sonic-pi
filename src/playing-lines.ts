@@ -112,11 +112,14 @@ export class PlayingLineHighlighter {
 			return
 		}
 		const nextExpiry = Math.min(...[...this.activeLines.values()].map((active) => active.expiresAt))
-		this.sweepTimer = this.schedule(() => {
-			this.sweepTimer = undefined
-			this.sweep()
-			this.scheduleSweep()
-		}, Math.max(0, nextExpiry - this.now()))
+		this.sweepTimer = this.schedule(
+			() => {
+				this.sweepTimer = undefined
+				this.sweep()
+				this.scheduleSweep()
+			},
+			Math.max(0, nextExpiry - this.now()),
+		)
 	}
 
 	private sweep(): void {
