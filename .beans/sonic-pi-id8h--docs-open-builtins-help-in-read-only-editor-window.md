@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-06T12:57:05Z
-updated_at: 2026-11-06T13:23:24Z
+updated_at: 2026-11-06T14:38:38Z
 ---
 
 # Feature request (user, 2026-11-06): docs in an editor window, not the log channel
@@ -34,3 +34,13 @@ Today the Docs quick-pick (P3, docs-browser.ts) shows builtin help text in the '
 - TDD: unit red->green + integration assertion (docs tab opens with builtin detail).
 - Deferred (needs separate decision): markdown webview rendering, auto-follow cursor symbol.
 - Gates on dev: lint clean, prettier clean, unit green, integration 16 passing (attach/takeover skip documented - live session running), live-daemon e2e green.
+
+## Follow-up (user: 'command vscode-sonic-pi.docs not found' - honest root cause)
+
+The docs editor-tab feature itself was tested (unit + integration green). The user's failure
+was an ACTIVATION MANIFEST GAP: 6 contributed commands (incl. docs) lacked onCommand
+activationEvents, so in a fresh window with no sonic-pi file open the palette showed
+'command not found'. Fix: all 6 added + a permanent unit gate asserting every contributed
+command activates. Lesson: e2e drove activation via the API directly (activateExtension()),
+which masked manifest-level activation gaps; product surface tests must include
+cold-window command dispatch.
