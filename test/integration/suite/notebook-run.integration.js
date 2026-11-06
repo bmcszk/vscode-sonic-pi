@@ -143,7 +143,9 @@ suite('Notebook run', () => {
 
 		// The restarted daemon numbers runs from zero again; a play must still start and end.
 		const afterMark = host.mark()
-		await runCell(notebook, second)
+		// Not awaited: the command settles when this run ends, and the assertions below need the
+		// run still in flight.
+		void runCell(notebook, second)
 		await host.waitForMessage('/run-code', afterMark, (message) => message.args[1].includes('play :d4'))
 		await host.waitUntil(() => isPlaying(second), 'the play after the restart to run')
 		await host.waitUntil(() => !isPlaying(second), 'the completed run to clear its mark')

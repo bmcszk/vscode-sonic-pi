@@ -42,7 +42,7 @@ function createEnvironment(label) {
 		'ruby.interpreter.commandPath': process.execPath,
 		'vscode-sonic-pi.launchSonicPiServerAutomatically': 'never',
 		'vscode-sonic-pi.connectionMode': 'managed',
-		'vscode-sonic-pi.stopServerOnLastEditorClose': true,
+		'vscode-sonic-pi.stopServerOnLastEditorClose': false,
 		'vscode-sonic-pi.autoMidiStart': true,
 		'vscode-sonic-pi.runReplacesSession': true,
 		'vscode-sonic-pi.notebookRunsWholeSong': false,
@@ -59,6 +59,9 @@ function createEnvironment(label) {
 			SONIC_PI_FAKE_DIR: controlDir,
 			SONIC_PI_IT_WORKSPACE: workspace,
 			SONIC_PI_IT_REPO: repoRoot,
+			// The test runner's node: the extension host's own process.execPath is the Code
+			// binary, which cannot run the plain-node stand-in processes a suite spawns.
+			SONIC_PI_IT_NODE: process.execPath,
 		},
 	}
 }

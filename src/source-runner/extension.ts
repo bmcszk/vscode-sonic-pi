@@ -140,34 +140,42 @@ export function activate(context: vscode.ExtensionContext) {
 	// editor tabs, not every document the extension host still holds open (a document can
 	// outlive its tab) and not a notebook's Sonic Pi cell documents, which have no tab of
 	// their own - closing a notebook tab closes the notebook, never its cells one by one.
-	context.subscriptions.push(
-		vscode.workspace.onDidCloseTextDocument((closed) => {
-			if (closed.languageId !== 'sonic-pi') {
-				return
-			}
-			const openEditorUris = new Set(
-				vscode.window.tabGroups.all
-					.flatMap((group) => group.tabs)
-					.map((tab) => tab.input)
-					.filter((input): input is vscode.TabInputText => input instanceof vscode.TabInputText)
-					.map((input) => input.uri.toString()),
+	// Tab events, not document events: a closed tab's document can linger in the host, so
+	// onDidCloseTextDocument either fires late or never for the last editor.
+	// The decision is debounced: while tabs switch, VS Code can transiently report zero
+	// open Sonic Pi tabs even though another one is about to activate, and stopping the
+	// daemon on that transient would kill a session mid-play.
+	let lastEditorCloseTimer: ReturnType<typeof setTimeout> | undefined
+	const lastEditorCloseDecision = () => {
+		if (lastEditorCloseTimer) {
+			clearTimeout(lastEditorCloseTimer)
+		}
+		lastEditorCloseTimer = setTimeout(stopServerIfLastEditorClosed, 500)
+	}
+	const stopServerIfLastEditorClosed = () => {
+		lastEditorCloseTimer = undefined
+		const openSonicPiTabs = vscode.window.tabGroups.all
+			.flatMap((group) => group.tabs)
+			.filter(
+				(tab): tab is vscode.Tab & { input: vscode.TabInputText } =>
+					tab.input instanceof vscode.TabInputText,
 			)
-			const sonicPiEditorsRemaining = vscode.workspace.textDocuments.filter(
-				(document) =>
-					document.languageId === 'sonic-pi' && openEditorUris.has(document.uri.toString()),
-			).length
-			const decision = shouldStopServerOnLastEditorClose({
-				settingEnabled: config.stopServerOnLastEditorClose(),
-				serverRunning: main.serverStarted,
-				restartInProgress: main.restartInProgress,
-				sonicPiEditorsRemaining,
-			})
-			if (decision) {
-				main.stopServer()
-				clearPlaying()
-			}
-		}),
-	)
+			.filter((tab) => tab.input.uri.scheme === 'file')
+			.filter((tab) => tab.input.uri.path.endsWith('.pi'))
+		const decision = shouldStopServerOnLastEditorClose({
+			settingEnabled: config.stopServerOnLastEditorClose(),
+			serverRunning: main.serverStarted,
+			restartInProgress: main.restartInProgress,
+			sonicPiEditorsRemaining: openSonicPiTabs.length,
+		})
+		if (decision) {
+			main.stopServer()
+			clearPlaying()
+		}
+	}
+	context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(lastEditorCloseDecision), {
+		dispose: () => lastEditorCloseTimer && clearTimeout(lastEditorCloseTimer),
+	})
 	context.subscriptions.push(
 		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),
 		{ dispose: () => playingLines.dispose() },

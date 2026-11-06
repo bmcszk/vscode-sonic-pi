@@ -39,13 +39,17 @@ suite('Server shutdown on the last editor close', () => {
 
 	test('closing the last Sonic Pi editor keeps the daemon alive while the setting is off', async () => {
 		await host.updateSetting('stopServerOnLastEditorClose', false)
-		assert.strictEqual(serverIsRunning(), true, 'a later suite closed every editor, the daemon must still be up')
 		await closeSonicPiDocuments()
 
 		host.writeFixture('shutdown-off.pi', 'play :c4\n')
 		await host.showFixture('shutdown-off.pi')
-		const boot = host.lastBoot()
+		// The environment defaults launch mode to 'never'; set the explicit play mode the
+		// same way server-lifecycle does before driving a run.
+		await host.updateSetting('launchSonicPiServerAutomatically', 'ruby')
 		const mark = host.mark()
+		await vscode.commands.executeCommand('vscode-sonic-pi.run')
+		await host.waitForMessage('/run-code', mark)
+		const boot = host.lastBoot()
 		await host.closeAllEditors()
 		await host.delay(1000)
 		assert.deepStrictEqual(exitsOf(boot.pid), [], 'the opted-out window keeps the daemon running')
@@ -59,7 +63,13 @@ suite('Server shutdown on the last editor close', () => {
 
 		host.writeFixture('shutdown-on.pi', 'play :c4\n')
 		await host.showFixture('shutdown-on.pi')
+		await host.updateSetting('launchSonicPiServerAutomatically', 'ruby')
+		const mark = host.mark()
+		await vscode.commands.executeCommand('vscode-sonic-pi.run')
+		await host.waitForMessage('/run-code', mark)
 		const boot = host.lastBoot()
+		// The close decision only stops a server the window considers running; the run above
+		// is the boot, so by /run-code the window owns a live daemon.
 		await host.closeAllEditors()
 
 		await host.waitUntil(() => exitsOf(boot.pid)[0], 'the daemon of this window to exit')

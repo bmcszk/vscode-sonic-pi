@@ -46,6 +46,9 @@ suite('Server lifecycle', () => {
 		await host.delay(500)
 		await vscode.commands.executeCommand('quickInput.accept')
 		await prompted
+		// A closing quick input restores focus asynchronously; a suite that opens an editor before
+		// that settles loses the activation to whatever had focus (the panel, not the editor).
+		await host.delay(200)
 		await host.waitForMessage(
 			'/mixer-output-volume',
 			volumeMark,

@@ -38,6 +38,7 @@ const vscodeStub = {
 		showErrorMessage: async () => undefined,
 		showInformationMessage: async () => undefined,
 		onDidChangeVisibleTextEditors: () => ({ dispose() {} }),
+		tabGroups: { onDidChangeTabs: () => ({ dispose() {} }), all: [] },
 		showTextDocument: async () => ({}),
 		activeTextEditor: undefined,
 	},

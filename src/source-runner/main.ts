@@ -349,6 +349,12 @@ export class Main {
 				open: { port: this.guiListenToServerPort, host: '127.0.0.1', exclusive: true },
 			}),
 		})
+		osc.on('open', () => {
+			// A fresh receiver that bound owns the reply port again: a later takeover or restart
+			// must clear the deafness an earlier window's bind failure left behind, or every
+			// following play would take the server over again and kill this window's own daemon.
+			this.receiving = true
+		})
 		osc.open()
 		// Another VS Code window attached to the same server wins the reply-port bind
 		// (EADDRINUSE). This host would send runs that execute but never see replies.
@@ -633,6 +639,10 @@ export class Main {
 				this.daemonProcess = null
 			}
 			this.serverStarted = false
+			// The old daemon's ports die with it. Re-arm the send queue: a resolved send queue
+			// would keep shipping runs to the previous generation's dead port (cells then spin
+			// forever with no /run-code on the wire).
+			this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
 			this.onServerState.fire('stopped')
 			this.midiAutoStartSent = false
 			await this.startServer()
@@ -650,6 +660,9 @@ export class Main {
 			this.daemonProcess = null
 		}
 		this.serverStarted = false
+		// The stopped daemon's ports are dead. Re-arm the send queue like a restart does, or
+		// an already-resolved queue keeps shipping runs to the previous generation's port.
+		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
 		this.onServerState.fire('stopped')
 		this.midiAutoStartSent = false
 		this.logOutput.appendLine('Sonic Pi server stopped (last Sonic Pi editor closed)')

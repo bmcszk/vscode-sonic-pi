@@ -36,7 +36,12 @@ suite('Media and docs', () => {
 			preview: false,
 		})
 		await host.delay(300)
-		await vscode.commands.executeCommand('editor.action.insertSnippet', { name: 'Live loop' })
+		// Expand the pack's own body via the editor snippet command: intellisense-driven
+		// expansion is UI picker behavior this host cannot drive reliably.
+		const liveLoop = pack['Live loop']
+		assert.ok(liveLoop, 'the pack ships a Live loop snippet')
+		const body = Array.isArray(liveLoop.body) ? liveLoop.body.join('\n') : liveLoop.body
+		await editor.insertSnippet(new vscode.SnippetString(body))
 		const inserted = await host.waitUntil(
 			() => (editor.document.getText().includes('live_loop :name do') ? editor.document.getText() : undefined),
 			'the live loop snippet to expand in the editor',

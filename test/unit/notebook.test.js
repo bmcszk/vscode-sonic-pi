@@ -49,6 +49,7 @@ const vscodeStub = {
 		activeTextEditor: undefined,
 		visibleTextEditors: [],
 		onDidChangeVisibleTextEditors: () => ({ dispose() {} }),
+		tabGroups: { onDidChangeTabs: () => ({ dispose() {} }), all: [] },
 	},
 	workspace: {
 		getConfiguration: () => settings,

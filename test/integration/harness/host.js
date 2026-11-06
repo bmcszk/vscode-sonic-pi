@@ -40,6 +40,27 @@ function activateExtension() {
 	return extension.activate()
 }
 
+// The output channels are the user-visible half of the contract ("Sonic Pi Log" says what the
+// window did), and the API has no readback. This wraps the factory before the extension
+// activates and keeps every appended line, transparently to the extension.
+const channelLines = new Map()
+const createOutputChannel = vscode.window.createOutputChannel
+vscode.window.createOutputChannel = function (name, options) {
+	const channel = createOutputChannel.call(vscode.window, name, options)
+	const lines = []
+	channelLines.set(name, lines)
+	const appendLine = channel.appendLine.bind(channel)
+	channel.appendLine = (value) => {
+		lines.push(value)
+		appendLine(value)
+	}
+	return channel
+}
+
+function logLines(name) {
+	return channelLines.get(name) ?? []
+}
+
 // The compiled extension module graph, shared through the host's module cache: requiring e.g.
 // 'cell-flash-map.js' returns the very instance the activated extension is using.
 function extensionModule(relativePath) {
@@ -196,18 +217,41 @@ function openOscReceiver(port = 0) {
 	})
 }
 
-const spiderScriptPath = path.join(path.dirname(workspacePath), 'probe-spider-server.rb')
+// The real script's name: the extension's scanner only recognizes a cmdline whose script arg
+// ends in /spider-server.rb (a probe- prefix would make the stand-in invisible to it).
+const spiderScriptPath = path.join(path.dirname(workspacePath), 'spider-server.rb')
 
 // A live process whose /proc cmdline is the spider-server shape the attach scanner parses:
 // `... <script>/spider-server.rb -u <send> <listen> <scsynth> <scsynth-send> <cues> <token>`.
+// It must be a plain node process: the extension host's process.execPath is the Code binary,
+// which does not understand -e and would leave /proc before the scan runs.
 function spawnFakeSpider({ sendPort, listenPort, token }) {
 	fs.writeFileSync(spiderScriptPath, '# stands in for a user-run Sonic Pi server in /proc\n')
 	const child = child_process.spawn(
-		process.execPath,
+		process.env.SONIC_PI_IT_NODE,
 		['-e', 'setInterval(() => {}, 1 << 30)', spiderScriptPath, '-u', sendPort, listenPort, 4560, 4561, 4562, token],
 		{ stdio: 'ignore' },
 	)
 	return child
+}
+
+// The booter log a Sonic Pi daemon leaves under the user's home. An adopting window reads it as
+// the only source of the running daemon's keep-alive port and token, so the attach suite's
+// stand-in app publishes the same line the fake daemon writes when it boots managed.
+function writeDaemonLog({ daemonPort, sendPort, guiListenPort, token }) {
+	const file = path.join(process.env.HOME, '.sonic-pi/log/daemon.log')
+	fs.mkdirSync(path.dirname(file), { recursive: true })
+	fs.appendFileSync(
+		file,
+		[
+			'Selected ports: ',
+			'{',
+			`"spider-listen-to-gui" => ${sendPort}, "spider-send-to-gui" => ${guiListenPort}, `,
+			`"scsynth" => 4560, "scsynth-send" => 4561, "osc-cues" => 4562, "daemon" => ${daemonPort}`,
+			'}',
+			`\nToken: ${token}\n`,
+		].join(''),
+	)
 }
 
 // The extension's attach scan takes the first spider-server.rb it finds in /proc, so the attach
@@ -253,6 +297,7 @@ module.exports = {
 	freePort,
 	killPid,
 	lastBoot,
+	logLines,
 	mark,
 	messages,
 	openFixture,
@@ -270,5 +315,6 @@ module.exports = {
 	waitUntil,
 	workspacePath,
 	writeFixture,
+	writeDaemonLog,
 	writeSpec,
 }

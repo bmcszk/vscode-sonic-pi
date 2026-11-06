@@ -32,17 +32,17 @@ Status is the last full `extension` label run recorded in this session.
 | 5 | Cold-window boot and warm-window reuse of the daemon | `server-lifecycle` | pass |
 | 6 | `runReplacesSession` (new run stops the previous jobs) | `editor-controls` | pass |
 | 7 | MIDI auto-start (`/midi-start` once, before the run) | `editor-controls` | pass |
-| 8 | Notebook: per-cell play sends only the played cell | `notebook-run` | **fail** (no `/run-code` reaches the daemon) |
-| 9 | Notebook: playing-cell mark lasts the whole run | `notebook-run` | **fail** (same cause) |
-| 10 | Notebook: cell Stop interrupts and stops every job | `notebook-run` | **fail** (same cause) |
-| 11 | Notebook: whole-song mode replays the executed cells | `notebook-run` | **fail** (same cause) |
-| 12 | Notebook: a server restart abandons in-flight runs (stale job ids) | `notebook-run` | **fail** (same cause) |
+| 8 | Notebook: per-cell play sends only the played cell | `notebook-run` | pass |
+| 9 | Notebook: playing-cell mark lasts the whole run | `notebook-run` | pass |
+| 10 | Notebook: cell Stop interrupts and stops every job | `notebook-run` | pass |
+| 11 | Notebook: whole-song mode replays the executed cells | `notebook-run` | pass |
+| 12 | Notebook: a server restart abandons in-flight runs (stale job ids) | `notebook-run` | pass |
 | 13 | Notebook fixture deserializes into markdown + code cells | `notebook-run` | pass |
 | 14 | Snippet pack ships and expands in a Sonic Pi editor | `media-docs` | pass (flaky, see risks) |
 | 15 | Docs command: searchable pick, picked builtin detail | `media-docs` | pass (see limitation) |
 | 16 | Stop server when the last Sonic Pi editor closes (opt-in) | `server-shutdown` | pass |
-| 17 | Adopt-keepalive: attaching to a user-run app keeps `/daemon/keep-alive` flowing, logged to the Sonic Pi Log channel | `attach` | **fail** (`attach`: no `/version` on the adopted app's port) |
-| 18 | Takeover-on-play: a playing window takes the daemon over cleanly | `takeover` | **fail** (`before all`: the second window could hear the reply port) |
+| 17 | Adopt-keepalive: attaching to a user-run app keeps `/daemon/keep-alive` flowing, logged to the Sonic Pi Log channel | `attach` | pass |
+| 18 | Takeover-on-play: a playing window takes the daemon over cleanly | `takeover` | pass |
 
 ## Failures fixed in this change
 
@@ -106,3 +106,19 @@ Status is the last full `extension` label run recorded in this session.
 | `npm run lint` (eslint, zero findings) | pass |
 | `npm test` (build + 16 unit suites) | pass |
 | `npm run test:integration` | **not green**: `extension` 10 passing / 6 failing (5 notebook + server-shutdown second test); `attach` 0 passing / 1 failing; `takeover` 0 passing / 1 failing (`before all`) |
+
+
+## Final pass (parent-local finish, after 3 worker timeouts)
+
+All 18 integration tests green; lint + unit gates green; zero suppressions.
+
+Two additional product bugs found and fixed during local finish:
+1. Stop-on-last-close fired on TRANSIENT zero-tab states during tab switches
+   (VS Code briefly reports no tabs while switching), killing the server mid-play.
+   Fixed with a 500ms debounce in the tab-change handler (src/source-runner/extension.ts).
+2. stopServer left the OSC send queue pointing at the dead daemon's resolved ports,
+   so plays after a stop+boot vanished (queue re-armed, matching the restart path).
+
+Harness fix: the shared environment no longer forces stopServerOnLastEditorClose=true
+globally (it leaked into suites that expect the default off); the shutdown suite sets
+it explicitly.

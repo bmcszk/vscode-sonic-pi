@@ -5,24 +5,26 @@ const path = require('path')
 const vscode = require('vscode')
 const host = require('../harness/host')
 
-const APP_TOKEN = 700456
-const OLD_DAEMON_TOKEN = -713811861
+// Sonic Pi hands the daemon and its spider-server the same token, and the booter log records
+// that one value: the token a /daemon/exit must carry is the app's, not a second secret.
+const APP_TOKEN = -713811861
 const NOTEBOOK = 'takeover.pibook'
-const BOOK = ['```', 'play :c4', '```', ''].join('\n')
+const BOOK = ['# Takeover', '', '```', 'play :c4', '```'].join('\n')
 
 function runner() {
 	return host.extensionModule('source-runner/extension.js')
 }
 
-// What daemon.rb leaves in the booter log: the daemon's keep-alive port and the token it verifies
-// /daemon/exit against. A window that never booted a daemon itself has no other route to them.
-function writeBooterLog(daemonPort, token) {
+// What daemon.rb leaves in the booter log: the app's selected ports and the token the daemon
+// verifies /daemon/exit against. A window that never booted a daemon itself has no other route
+// to the daemon port.
+function writeBooterLog({ daemonPort, sendPort, listenPort, token }) {
 	const logPath = path.join(os.homedir(), '.sonic-pi', 'log', 'daemon.log')
 	fs.mkdirSync(path.dirname(logPath), { recursive: true })
 	fs.writeFileSync(
 		logPath,
 		[
-			`Selected ports: {"spider-listen-to-gui" => 45605, "spider-send-to-gui" => 45604, "daemon" => ${daemonPort}}`,
+			`Selected ports: {"spider-listen-to-gui" => ${sendPort}, "spider-send-to-gui" => ${listenPort}, "daemon" => ${daemonPort}}`,
 			`Token: ${token}`,
 			'',
 		].join('\n'),
@@ -52,7 +54,12 @@ suite('Takeover on play', () => {
 		// it can hear nothing and must take the daemon over before it can play.
 		replyPortOfOtherWindow = await host.openOscReceiver()
 		oldDaemon = await host.openOscReceiver()
-		writeBooterLog(oldDaemon.port, OLD_DAEMON_TOKEN)
+		writeBooterLog({
+			daemonPort: oldDaemon.port,
+			sendPort: appCommands.port,
+			listenPort: replyPortOfOtherWindow.port,
+			token: APP_TOKEN,
+		})
 		spider = host.spawnFakeSpider({
 			sendPort: appCommands.port,
 			listenPort: replyPortOfOtherWindow.port,
@@ -64,7 +71,11 @@ suite('Takeover on play', () => {
 		)
 		await vscode.commands.executeCommand('vscode-sonic-pi.startserver')
 		await host.waitUntil(() => runner().serverIsRunning(), 'the window to attach to the app')
-		assert.strictEqual(runner().isReceiving(), false, 'the other window owns the app reply port')
+		// The bind failure arrives asynchronously: the window is only deaf once EADDRINUSE landed.
+		await host.waitUntil(
+			() => runner().isReceiving() === false,
+			'the other window to keep the app reply port',
+		)
 	})
 
 	suiteTeardown(() => {
@@ -79,24 +90,28 @@ suite('Takeover on play', () => {
 		host.killPid(spider.pid)
 		host.writeFixture(NOTEBOOK, BOOK)
 		const notebook = await host.openNotebook(NOTEBOOK)
+		const codeIndex = notebook.getCells().findIndex((cell) => cell.kind === vscode.NotebookCellKind.Code)
 
 		const mark = host.mark()
 		await vscode.commands.executeCommand('notebook.cell.execute', {
-			ranges: [{ start: 0, end: 1 }],
+			ranges: [{ start: codeIndex, end: codeIndex + 1 }],
 			document: notebook.uri,
 		})
 
 		const exitRequest = await oldDaemon.waitFor(
 			'/daemon/exit',
-			(message) => message.args[0] === OLD_DAEMON_TOKEN,
+			(message) => message.args[0] === APP_TOKEN,
 		)
-		assert.deepStrictEqual(exitRequest.args, [OLD_DAEMON_TOKEN], 'the old daemon is asked to exit by token')
+		assert.deepStrictEqual(exitRequest.args, [APP_TOKEN], 'the old daemon is asked to exit by token')
 
 		const boot = await host.waitUntil(() => host.boots(mark)[0], 'this window to boot its own daemon')
 		const run = await host.waitForMessage('/run-code', mark, (message) =>
 			message.args[1].includes('play :c4'),
 		)
 		assert.strictEqual(run.args[0], boot.token, 'the play goes to the daemon this window booted')
-		assert.strictEqual(runner().isReceiving(), true, 'the taking-over window now owns the connection')
+		await host.waitUntil(
+			() => runner().isReceiving(),
+			'the taking-over window to own the connection again',
+		)
 	})
 })
