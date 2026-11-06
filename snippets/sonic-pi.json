@@ -1,0 +1,77 @@
+{
+	"Live loop": {
+		"prefix": "ll",
+		"body": [
+			"live_loop :${1:name} do",
+			"\t${2:# play something}",
+			"\tsleep ${3:1}",
+			"end"
+		],
+		"description": "Basic live loop with a name and sleep"
+	},
+	"Live loop with synth": {
+		"prefix": "lls",
+		"body": [
+			"live_loop :${1:name} do",
+			"\tuse_synth :${2|beep,blade,dsaw,fm,piano,prophet,saw,sine,triangle|}",
+			"\tplay ${3:60}, release: ${4:1}",
+			"\tsleep ${5:1}",
+			"end"
+		],
+		"description": "Live loop playing a chosen synth note"
+	},
+	"Live loop with sample": {
+		"prefix": "llb",
+		"body": [
+			"live_loop :${1:name} do",
+			"\tsample :${2|bd_haus,loop_amen,drum_cymbal_closed,sn_dolf|}",
+			"\tsleep ${3:1}",
+			"end"
+		],
+		"description": "Live loop triggering a sample beat"
+	},
+	"Define function": {
+		"prefix": "def",
+		"body": [
+			"define :${1:name} do",
+			"\t${2:# do something}",
+			"end"
+		],
+		"description": "Define a reusable Sonic Pi function"
+	},
+	"With FX": {
+		"prefix": "with_fx",
+		"body": [
+			"with_fx :${1|reverb,echo,distortion,slicer,wobble,flanger|} do",
+			"\t${2:play 60}",
+			"end"
+		],
+		"description": "Wrap code in an effects block"
+	},
+	"Use BPM": {
+		"prefix": "use_bpm",
+		"body": ["use_bpm ${1:60}"],
+		"description": "Set the tempo in beats per minute"
+	},
+	"In thread": {
+		"prefix": "in_thread",
+		"body": [
+			"in_thread do",
+			"\t${1:# run alongside the current thread}",
+			"end"
+		],
+		"description": "Run code in a new thread alongside the current one"
+	},
+	"Chord": {
+		"prefix": "chord",
+		"body": ["play chord(:${1:e3}, :${2|major,minor,minor7,major7,dom7,dim,aug|})"],
+		"description": "Play a chord"
+	},
+	"Scale": {
+		"prefix": "scale",
+		"body": [
+			"play_pattern_timed scale(:${1:c3}, :${2|major,minor,minor_pentatonic,major_pentatonic,blues_major,blues_minor|}), ${3:0.25}"
+		],
+		"description": "Play a scale pattern"
+	}
+}

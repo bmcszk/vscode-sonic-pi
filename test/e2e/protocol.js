@@ -74,7 +74,9 @@ function readDaemonPorts(daemon) {
 			clearTimeout(timeout)
 			resolve(ports)
 		})
-		daemon.on('exit', (code) => reject(new Error(`daemon exited with ${code} before reporting its ports`)))
+		daemon.on('exit', (code) =>
+			reject(new Error(`daemon exited with ${code} before reporting its ports`)),
+		)
 	})
 }
 
@@ -171,10 +173,7 @@ function spiderLogSince(offset) {
 }
 
 function assertNoRejection(spiderLog) {
-	assert.ok(
-		!spiderLog.includes('Invalid token'),
-		`the daemon rejected the parsed token:\n${spiderLog}`,
-	)
+	assert.ok(!spiderLog.includes('Invalid token'), `the daemon rejected the parsed token:\n${spiderLog}`)
 	assert.ok(
 		!spiderLog.includes('Spider - Exception'),
 		`the spider raised while serving the run:\n${spiderLog}`,

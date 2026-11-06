@@ -44,7 +44,7 @@ export const getValidArgumentsAtPosition = (
 				can_slide?: boolean | undefined
 		  }[]
 		| undefined = undefined
-	let command = line.replace(/^.*=/, '')
+	const command = line.replace(/^.*=/, '')
 	switch (command.match(/\s*(\w+)\s/)?.[1]) {
 		case 'play': {
 			const synthID = lookUp(synths.map((synth) => synth.id))

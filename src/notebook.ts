@@ -1,5 +1,18 @@
 import * as vscode from 'vscode'
-import { onRunEnded, onRunStarted, runScript, stopAllScripts } from './source-runner/extension'
+import { CellFlashMap, ExecutedCell } from './cell-flash-map'
+import {
+	launchServerAutomatically,
+	onRunEnded,
+	onRunStarted,
+	onServerRestart,
+	runScript,
+	serverIsRunning,
+	isReceiving,
+	notebookRunsWholeSong,
+	takeOverConnection,
+	startServer,
+	stopAllScripts,
+} from './source-runner/extension'
 
 const header = `> Play this document as a notebook with the [Sonic Pi Extension for VS Code](https://marketplace.visualstudio.com/items?itemName=jakearl.vscode-sonic-pi\n`
 
@@ -34,7 +47,7 @@ end`,
 			])
 		}
 
-		let cells: vscode.NotebookCellData[] = []
+		const cells: vscode.NotebookCellData[] = []
 
 		let bufferKind: vscode.NotebookCellKind = vscode.NotebookCellKind.Markup
 		let bufferContents: string[] = []
@@ -99,18 +112,67 @@ type NotebookWorkingCopy = {
 const getKey = (thing: vscode.NotebookCell | vscode.NotebookDocument) =>
 	((thing as vscode.NotebookDocument).uri ?? (thing as vscode.NotebookCell).document.uri).toString()
 
+// Maps the daemon's job ids to the resolver that settles one of our run promises. The daemon
+// numbers jobs from 0 in every daemon generation, so an id only means something within the
+// generation that reported it: entries are dropped as they resolve and the whole map is cleared
+// when the server restarts.
+export class RunResolvers {
+	private pending: { resolve: () => void; cells?: string[] }[] = []
+	private sent = new Map<number, { resolve: () => void; cells?: string[] }>()
+
+	addPending(resolve: () => void, cells?: string[]) {
+		this.pending.push({ resolve, cells })
+	}
+
+	// Starts arrive in dispatch order for the scripts we send, so the oldest pending run takes the id.
+	startRun(num: number) {
+		const started = this.pending.shift()
+		if (started) this.sent.set(num, started)
+	}
+
+	// The just-sent entry: the controller needs the run's cells to light them by id.
+	sentFor(num: number): { resolve?: () => void; cells?: string[] } {
+		return this.sent.get(num) ?? {}
+	}
+
+	endRun(num: number): { resolve?: () => void; cells?: string[] } {
+		const sent = this.sent.get(num)
+		if (!sent) return {}
+		this.sent.delete(num)
+		sent.resolve()
+		return sent
+	}
+
+	// Returns the resolvers of the runs that were in flight, which the caller must settle.
+	clear(): { resolve: () => void }[] {
+		const abandoned = [...this.pending, ...this.sent.values()]
+		this.pending = []
+		this.sent.clear()
+		return abandoned
+	}
+}
+
 export class NotebookController {
 	private workingCopies = new Map<string, NotebookWorkingCopy>()
 	private controller: vscode.NotebookController
 
 	private pendingCancellations = new Set<Promise<void>>()
 
-	private pendingExecutions: (() => void)[] = []
-	private sentExecutions: Map<number, () => void> = new Map()
+	private executions = new RunResolvers()
 
 	private disposables = new Set<{ dispose: () => void }>()
 
-	constructor(id: string, notebookType: string, label: string) {
+	private notRunningNoticeShown = false
+
+	private readonly cellFlashes: CellFlashMap
+
+	constructor(
+		id: string,
+		notebookType: string,
+		label: string,
+		cellFlashes: CellFlashMap = new CellFlashMap(),
+	) {
+		this.cellFlashes = cellFlashes
 		this.controller = vscode.notebooks.createNotebookController(
 			id,
 			notebookType,
@@ -120,22 +182,53 @@ export class NotebookController {
 
 		this.disposables.add(this.controller)
 
+		// A notebook executes only through a kernel picked for it, and a controller that never asks
+		// for a notebook is not picked automatically: a freshly opened book would offer no kernel
+		// and its play buttons would do nothing until the user chose one by hand.
+		const preferKernel = (notebook: vscode.NotebookDocument) => {
+			if (notebook.notebookType === notebookType) {
+				this.controller.updateNotebookAffinity(notebook, vscode.NotebookControllerAffinity.Preferred)
+			}
+		}
+		vscode.workspace.notebookDocuments.forEach(preferKernel)
+		this.disposables.add(vscode.workspace.onDidOpenNotebookDocument(preferKernel))
+
 		this.disposables.add(
 			onRunStarted((num) => {
-				if (this.pendingExecutions.length) {
-					const started = this.pendingExecutions.shift()!
-					this.sentExecutions.set(num, started)
+				this.executions.startRun(num)
+				const sent = this.executions.sentFor(num)
+				if (sent.cells) {
+					this.cellFlashes.markPlaying(sent.cells)
 				}
 			}),
 		)
 
 		this.disposables.add(
 			onRunEnded((num) => {
-				this.sentExecutions.get(num)?.()
+				const ended = this.executions.endRun(num)
+				if (ended.cells) {
+					this.cellFlashes.endPlaying(ended.cells)
+				}
 			}),
 		)
 
+		this.disposables.add(onServerRestart(() => this.abandonRuns()))
+
 		this.controller.supportedLanguages = ['sonic-pi']
+
+		// The notebook UI's cell Stop button sends a kernel interrupt, not a command to
+		// the daemon. Without this handler the sound of a stopped cell keeps playing and
+		// the user sees 'stopped' while audio continues (user report: stopped a section,
+		// sound + highlights persisted). Daemon semantics have no per-cell stop: stopping
+		// one cell stops the whole session's jobs (same as the Sonic Pi app's Stop).
+		this.controller.interruptHandler = () => {
+			for (const notebookWorkingCopy of this.workingCopies.values()) {
+				for (const entry of notebookWorkingCopy.executionHistory.values()) {
+					endExecution(entry, 'cell interrupt')
+				}
+			}
+			stopAllScripts()
+		}
 	}
 
 	dispose() {
@@ -176,8 +269,26 @@ export class NotebookController {
 		}
 
 		const executed = this.queueCell(notebook, cell)
-		await this.triggerPlay(notebook)
+		if (!(await this.ensureServerReady())) {
+			endExecution(executed, 'not connected from this window')
+			return
+		}
+		await this.triggerPlay(notebook, [cell])
 		endExecution(executed, 'playcellFromURI')
+	}
+
+	// A server restart kills every run in flight. Settle their promises and end their executions,
+	// otherwise the cells keep spinning and later runs queue behind a run that never finishes.
+	private abandonRuns() {
+		const abandoned = this.executions.clear()
+		this.cellFlashes.clear()
+		for (const notebookWorkingCopy of this.workingCopies.values()) {
+			for (const entry of notebookWorkingCopy.executionHistory.values()) {
+				endExecution(entry, 'server restart')
+			}
+			notebookWorkingCopy.executionHistory.clear()
+		}
+		for (const entry of abandoned) entry.resolve()
 	}
 
 	private async handler(cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument): Promise<void> {
@@ -189,8 +300,47 @@ export class NotebookController {
 		this.workingCopies.set(notebook.uri.toString(), workingCopy)
 
 		const cellWorkingCopies = cells.map((cell) => this.queueCell(notebook, cell))
-		await this.triggerPlay(notebook)
+		if (!(await this.ensureServerReady())) {
+			cellWorkingCopies.forEach((e) => endExecution(e, 'not connected from this window'))
+			return
+		}
+		await this.triggerPlay(notebook, cells)
 		cellWorkingCopies.forEach((e) => endExecution(e, 'handler'))
+	}
+
+	// A notebook editor is not a sonic-pi text editor, so no visible-editor change ever matches and
+	// the 'ruby' launch mode never boots a server for a notebook. A run sent before the boot lands
+	// on unbound ports and the cell spins forever, so every notebook play boots first and waits.
+	// Launch mode never is left alone: the user starts the server themselves, and one notice tells
+	// them why nothing is playing.
+	private takeoverNoticeShown = false
+
+	private async ensureServerReady(): Promise<boolean> {
+		if (!isReceiving()) {
+			// Another window owns the daemon's reply port: runs sent from here would execute
+			// but this window could never see Starts/Completions, so cells would spin forever.
+			// Take ownership instead: daemon exits cleanly, fresh daemon boots (this window binds).
+			this.takeoverNoticeShown = true
+			if (!(await takeOverConnection())) {
+				void vscode.window.showErrorMessage(
+					'Sonic Pi: another VS Code window owns the Sonic Pi server, and this window could not take it over. ' +
+						'Close that window and play again here.',
+				)
+				return false
+			}
+		}
+		if (serverIsRunning()) return true
+		if (launchServerAutomatically() === 'never') {
+			if (!this.notRunningNoticeShown) {
+				this.notRunningNoticeShown = true
+				void vscode.window.showInformationMessage(
+					'Sonic Pi server not running - launch mode is set to never',
+				)
+			}
+			return false
+		}
+		await startServer()
+		return true
 	}
 
 	private queueCell(notebook: vscode.NotebookDocument, cell: vscode.NotebookCell): CellWorkingCopy {
@@ -230,7 +380,10 @@ export class NotebookController {
 		return cellWorkingCopy
 	}
 
-	private async triggerPlay(notebook: vscode.NotebookDocument): Promise<void> {
+	private async triggerPlay(
+		notebook: vscode.NotebookDocument,
+		playedCells?: vscode.NotebookCell[],
+	): Promise<void> {
 		const workingCopy: NotebookWorkingCopy = this.workingCopies.get(getKey(notebook)) ?? {
 			executionHistory: new Map<string, CellWorkingCopy>(),
 			notebook,
@@ -238,26 +391,50 @@ export class NotebookController {
 
 		const cells = notebook.getCells()
 
-		const scriptToPlay = cells
-			.map((cell) => workingCopy.executionHistory.get(getKey(cell))?.content)
-			.filter((x): x is string => x !== undefined)
-			.join('\n')
+		let playable = cells
+		if (playedCells && !notebookRunsWholeSong()) {
+			// Per-cell semantics: the played cell runs alone. Its define'd functions live on
+			// in the daemon across runs, so earlier setup cells don't need replaying. The
+			// whole-song join stays available as a setting for notebook-as-one-instrument.
+			const playedKeys = new Set(playedCells.map((cell) => getKey(cell)))
+			playable = cells.filter((cell) => playedKeys.has(getKey(cell)))
+		}
 
-		await this.runScript(scriptToPlay)
+		if (process.env.NB_DEBUG)
+			console.error(
+				'DEBUG playable',
+				playable.length,
+				'cells:',
+				cells.map((c) => getKey(c)),
+				'played:',
+				playedCells && [...new Set(playedCells.map((c) => getKey(c)))],
+				'whole:',
+				notebookRunsWholeSong(),
+			)
+		const scriptToPlay: ExecutedCell[] = playable
+			.map((cell) => ({
+				cellKey: getKey(cell),
+				content: workingCopy.executionHistory.get(getKey(cell))?.content,
+			}))
+			.filter((cell): cell is ExecutedCell => cell.content !== undefined)
+
+		// The daemon flashes lines of the joined script, so remember which cell owns which lines.
+		this.cellFlashes.recordScript(scriptToPlay)
+
+		await this.runScript(
+			scriptToPlay.map((cell) => cell.content).join('\n'),
+			false,
+			scriptToPlay.map((cell) => cell.cellKey),
+		)
 	}
 
-	private runID = 0
-	private async runScript(script: string, isCancellation = false): Promise<void> {
-		const id = this.runID++
+	private async runScript(script: string, isCancellation = false, cells: string[] = []): Promise<void> {
 		if (!isCancellation) await Promise.all(this.pendingCancellations.values())
 		return new Promise((c) => {
-			console.log('Running script', id, ':', script)
-
 			const resolve = () => {
 				c()
-				console.log('Finished running script', id)
 			}
-			this.pendingExecutions.push(resolve)
+			this.executions.addPending(resolve, cells)
 			runScript(script)
 		})
 	}

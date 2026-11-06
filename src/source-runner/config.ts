@@ -33,8 +33,17 @@ export class Config {
 	public flashTextColor(): string {
 		return this.getConfiguration(this.section).flashTextColor
 	}
+	public notebookRunsWholeSong(): boolean {
+		return this.getConfiguration(this.section).notebookRunsWholeSong === true
+	}
+	public runReplacesSession(): boolean {
+		return this.getConfiguration(this.section).runReplacesSession !== false
+	}
 	public showPlayingLineHighlight(): boolean {
 		return this.getConfiguration(this.section).showPlayingLineHighlight === true
+	}
+	public autoMidiStart(): boolean {
+		return this.getConfiguration(this.section).autoMidiStart === true
 	}
 	public launchSonicPiServerAutomatically(): string {
 		return this.getConfiguration(this.section).launchSonicPiServerAutomatically
@@ -59,6 +68,12 @@ export class Config {
 	}
 	public safeMode(): boolean {
 		return this.getConfiguration(this.section).safeMode
+	}
+	public connectionMode(): string {
+		return this.getConfiguration(this.section).connectionMode || 'auto'
+	}
+	public stopServerOnLastEditorClose(): boolean {
+		return this.getConfiguration(this.section).stopServerOnLastEditorClose === true
 	}
 	public updateRunFileWhenRunSelectedIsEmpty(value: string) {
 		void this.getConfiguration(this.section).update('runFileWhenRunSelectedIsEmpty', value, true)

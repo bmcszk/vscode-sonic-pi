@@ -1,0 +1,4 @@
+*.md
+out/
+docs/
+src/builtins/*.json

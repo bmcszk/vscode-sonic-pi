@@ -46,5 +46,18 @@ jobs:
       - name: Package VSIX
         run: npx --yes @vscode/vsce@4.1.0 package --out "sonic-pi-5-extension-${GITHUB_REF_NAME}.vsix"
 
+      # Artifact-level gate: the vsix must carry its runtime deps. `vsce` packages with
+      # dependencies here (no --no-dependencies), and only the Marketplace resolves deps at
+      # install time - a locally installed vsix that omitted them dies on `Cannot find module`.
+      # The same check runs locally as test/vsix-smoke.test.js.
+      - name: Verify VSIX bundles runtime dependencies
+        run: |
+          set -euo pipefail
+          vsix="sonic-pi-5-extension-${GITHUB_REF_NAME}.vsix"
+          extract="$(mktemp -d)"
+          unzip -q "$vsix" -d "$extract"
+          node -e "for (const dep of ['osc-js', 'utf8', 'uuid']) require.resolve(dep, { paths: ['$extract/extension'] })"
+          rm -rf "$extract"
+
       - name: Publish to Marketplace (OIDC)
         run: npx --yes @vscode/vsce@4.1.0 publish --oidc --no-dependencies

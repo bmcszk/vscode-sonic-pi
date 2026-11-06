@@ -1,11 +1,11 @@
 ---
 # sonic-pi-rtvk
 title: 'Run cell lens: identify playable blocks (define / assignment / with_fx semantics)'
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-04T12:55:01Z
-updated_at: 2026-11-04T20:43:54Z
+updated_at: 2026-11-05T21:20:45Z
 ---
 
 # Run cell lens: which blocks are actually playable? (user-reported refinement of sonic-pi-qlkd)
@@ -66,3 +66,5 @@ AC: [ ] red observed then green; [ ] npm test 7 suites green; [ ] e2e green; [ ]
 ## Skills for coder
 
 - /home/blaze/.agents/skills/coding-rules/SKILL.md — TypeScript source edits; package.json only via surgical text edits (a JSON round-trip reformats the file: established repo incident)
+
+## Final note (2026-11-05): option b (Load def) shipped and user-tested; assignment-only/define semantics verified in the field; the research doc's rule continues as shipped behavior.

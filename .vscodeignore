@@ -8,8 +8,14 @@ skills-lock.json
 src/**
 test/**
 docs/**
+eslint.config.mjs
+.prettierrc
+.prettierignore
 .github/**
 .vscode/**
+.vscode-test/**
+# The test-harness cache is a symlink into the main checkout in worktrees: ignore the link too.
+.vscode-test
 tsconfig.json
 **/*.map
 **/.DS_Store

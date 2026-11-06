@@ -18,9 +18,13 @@
 		"url": "https://github.com/bmcszk/vscode-sonic-pi"
 	},
 	"scripts": {
-		"build":"tsc",
-		"test":"npm run build && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/audio-recovery.test.js && node test/unit/codelenses.test.js && node test/unit/playing-lines.test.js && node test/unit/activation.test.js",
-		"test:e2e":"npm run build && node test/e2e/protocol.js"
+		"build": "tsc",
+		"lint": "eslint src",
+		"format:check": "prettier --check src",
+		"format": "prettier --write src",
+		"test": "npm run lint && npm run format:check && npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/receiver-recovery.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js && node test/vsix-smoke.test.js",
+		"test:integration": "npm run build && vscode-test",
+		"test:e2e": "npm run build && node test/e2e/protocol.js"
 	},
 	"icon": "img/icon.png",
 	"engines": {
@@ -35,6 +39,12 @@
 		"onCommand:vscode-sonic-pi.openTutorial",
 		"onCommand:vscode-sonic-pi.startserver",
 		"onCommand:vscode-sonic-pi.run",
+		"onCommand:vscode-sonic-pi.beautify",
+		"onCommand:vscode-sonic-pi.togglerecording",
+		"onCommand:vscode-sonic-pi.docs",
+		"onCommand:vscode-sonic-pi.stopNotebook",
+		"onCommand:vscode-sonic-pi.stop",
+		"onCommand:vscode-sonic-pi.restartserver",
 		"onCommand:vscode-sonic-pi.checkInstall",
 		"onCommand:vscode-sonic-pi.runCell",
 		"onCommand:vscode-sonic-pi.runselected",
@@ -121,6 +131,12 @@
 				"configuration": "./language-configuration.json"
 			}
 		],
+		"snippets": [
+			{
+				"language": "sonic-pi",
+				"path": "./snippets/sonic-pi.json"
+			}
+		],
 		"commands": [
 			{
 				"command": "vscode-sonic-pi.startserver",
@@ -180,8 +196,18 @@
 				"category": "Sonic Pi"
 			},
 			{
+				"command": "vscode-sonic-pi.docs",
+				"title": "Docs",
+				"category": "Sonic Pi"
+			},
+			{
 				"command": "vscode-sonic-pi.togglerecording",
 				"title": "Toggle recording",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.beautify",
+				"title": "Beautify",
 				"category": "Sonic Pi"
 			}
 		],
@@ -225,6 +251,11 @@
 				"command": "vscode-sonic-pi.togglerecording",
 				"key": "shift+alt+r",
 				"when": "editorLangId=='sonic-pi'"
+			},
+			{
+				"command": "vscode-sonic-pi.beautify",
+				"key": "shift+alt+b",
+				"when": "editorLangId=='sonic-pi'"
 			}
 		],
 		"configuration": {
@@ -233,6 +264,21 @@
 				"vscode-sonic-pi.sonicPiRootDirectory": {
 					"type": "string",
 					"description": "Set Sonic Pi installation directory.\nOnly use this if the default does not work for you."
+				},
+				"vscode-sonic-pi.connectionMode": {
+					"type": "string",
+					"enum": [
+						"auto",
+						"managed",
+						"attach"
+					],
+					"enumDescriptions": [
+						"Attach to a running Sonic Pi app if one is found, otherwise boot our own server",
+						"Always boot our own server daemon (previous behavior)",
+						"Only attach to a running Sonic Pi app; never boot a server"
+					],
+					"default": "auto",
+					"description": "How to get a Sonic Pi server: attach to the app you run yourself, or manage a daemon."
 				},
 				"vscode-sonic-pi.launchSonicPiServerAutomatically": {
 					"type": "string",
@@ -278,6 +324,21 @@
 					"default": true,
 					"description": "Synth argument checking functions.\nIf disabled, certain synth opt values may\ncreate unexpectedly loud or uncomfortable sounds."
 				},
+				"vscode-sonic-pi.runReplacesSession": {
+					"type": "boolean",
+					"default": true,
+					"description": "A play stops the previous jobs first (per-cell replace, matching the Sonic Pi app's Run). Turn off to layer runs on top of each other."
+				},
+				"vscode-sonic-pi.notebookRunsWholeSong": {
+					"type": "boolean",
+					"default": false,
+					"description": "Replay every executed cell of the notebook on each play (the notebook as one instrument). Default off: the played cell runs alone."
+				},
+				"vscode-sonic-pi.stopServerOnLastEditorClose": {
+					"type": "boolean",
+					"default": false,
+					"description": "Stop the Sonic Pi server when the last Sonic Pi editor is closed. Off by default: a running server survives your editing session."
+				},
 				"vscode-sonic-pi.logAutoscroll": {
 					"type": "boolean",
 					"default": true,
@@ -303,6 +364,11 @@
 					"default": true,
 					"description": "Highlight the line that is currently playing, like the Sonic Pi app"
 				},
+				"vscode-sonic-pi.autoMidiStart": {
+					"type": "boolean",
+					"default": true,
+					"description": "Send /midi-start once per session before running code that uses midi_* functions, so MIDI is not silent"
+				},
 				"vscode-sonic-pi.showEditorControls": {
 					"type": "boolean",
 					"default": true,
@@ -319,15 +385,18 @@
 		]
 	},
 	"devDependencies": {
+		"@eslint/js": "^10.0.1",
 		"@types/node": "^22",
+		"@types/utf8": "^3.0.3",
 		"@types/vscode": "^1.144.0",
-		"@typescript-eslint/eslint-plugin": "^4.19.0",
-		"@typescript-eslint/parser": "^4.19.0",
-		"eslint": "^7.23.0",
-		"eslint-config-prettier": "^8.1.0",
-		"eslint-plugin-prettier": "^3.3.1",
-		"prettier": "^2.2.1",
-		"typescript": "~6.0.3"
+		"@vscode/test-cli": "^0.0.15",
+		"@vscode/test-electron": "^2.5.2",
+		"eslint": "^10.14.0",
+		"eslint-config-prettier": "^10.1.8",
+		"globals": "^6.4.1",
+		"prettier": "^3.9.10",
+		"typescript": "~6.0.3",
+		"typescript-eslint": "^8.72.1"
 	},
 	"overrides": {
 		"minimatch": "^11.0.4"

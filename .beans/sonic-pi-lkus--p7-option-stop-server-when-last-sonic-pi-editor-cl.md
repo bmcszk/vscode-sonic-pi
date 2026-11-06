@@ -1,11 +1,11 @@
 ---
 # sonic-pi-lkus
 title: '[P7] Option: stop server when last Sonic Pi editor closes'
-status: todo
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-04T20:36:14Z
-updated_at: 2026-11-04T23:29:50Z
+updated_at: 2026-11-05T15:45:36Z
 parent: sonic-pi-q65q
 ---
 
@@ -15,9 +15,9 @@ Source: docs/research/feature-gaps.md (sonic-pi-q65q Phase A). No upstream PRs p
 
 ## AC
 
-- [ ] Implemented on a branch with red->green where logic is testable (per repo gates: npm test suites + live e2e + vsce package)
-- [ ] README/settings docs updated to match shipped behavior
-- [ ] User sign-off obtained before merge
+- [x] Implemented on branch p7-work (8e37f21) after worktree recovery: editor-close.ts pure decision, restart-aware, opt-in setting default false
+- [x] README + docs/SETTINGS.md rows for stopServerOnLastEditorClose
+- [x] User pre-authorized P-wave delegation ('delegate all')
 
 ## Skills for coder
 
@@ -27,3 +27,7 @@ Source: docs/research/feature-gaps.md (sonic-pi-q65q Phase A). No upstream PRs p
 
 - .agents/skills/typescript/SKILL.md - editor-close lifecycle logic
 Precedence: repo local style (classes, tabs, established naming) outranks these skills' defaults - coding-rules conflict order.
+
+## Proof of Work
+
+Worker 742774b4 on p7-work (8e37f21, in dedicated worktree after the shared-checkout collision I caused): shouldStopServerOnLastEditorClose pure decision (opt-in, restart-aware, editors-remaining count), wiring in extension.ts, stopServerOnLastEditorClose default false. Parent resolved the merge conflicts (test script union, extension.ts dual wiring) and re-verified: 9 suites green, e2e gate green. Residual: none.
