@@ -30,7 +30,11 @@ const takeoverEnvironment = createEnvironment('takeover')
 export default defineConfig([
 	{
 		label: 'extension',
+		// Order matters: the activation suite needs the window cold (it never calls
+		// activateExtension) and restores the window state the feature suites expect, so it
+		// must stay first.
 		files: [
+			'test/integration/suite/activation.integration.js',
 			'test/integration/suite/server-lifecycle.integration.js',
 			'test/integration/suite/editor-controls.integration.js',
 			'test/integration/suite/notebook-run.integration.js',
