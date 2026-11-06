@@ -1,11 +1,11 @@
 ---
 # sonic-pi-oow6
 title: 'Lint hardening: eslint+prettier into npm test and GHA CI (bulletproof gate, zero findings)'
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-05T22:19:20Z
-updated_at: 2026-11-05T22:26:14Z
+updated_at: 2026-11-06T13:23:31Z
 ---
 
 sonic-pi-oow6  in-progress   task  [normal]                                               
@@ -46,3 +46,13 @@ Lint hardening: eslint+prettier into npm test and GHA CI (bulletproof gate, zero
 - Cold-window Run/runWithText now route through scriptRunEnsuresServer (kills the 'no logs no feedback' class at its source).
 - Gates: eslint src exits 0; NO suppression markers in repo (grep gate); 16 suites green; live e2e green.
 Remaining under researcher: flat-config migration proposal (oow6 research lane in flight), then Phase B config + CI wiring.
+
+## Completed (2026-11-06)
+
+Flat-config migration done (worker + verified by parent):
+- eslint.config.mjs (eslint 10, typescript-eslint v8, typed no-floating-promises), .eslintrc deleted, prettier 3 separate (format:check), .prettierignore protects hand-formatted md/docs/builtins json.
+- 53 findings fixed honestly: 9 require->import, 21 real types, 16 dead vars removed, 7 useless assignments (bonus: fixed 6 leaked command disposables).
+- Gates: 'npm run lint && npm run format:check' wired into npm test FIRST and into ci.yml fail-fast.
+- Zero suppressions (grep-verified). Zero exceptions to rule loosening.
+- Research doc: docs/research/lint-hardening.md.
+Left as follow-up: linting test/unit/*.js (research doc's optional step 5).

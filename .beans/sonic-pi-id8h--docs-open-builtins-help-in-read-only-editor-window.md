@@ -1,11 +1,11 @@
 ---
 # sonic-pi-id8h
 title: 'Docs: open builtins help in read-only editor window instead of log channel'
-status: draft
+status: completed
 type: feature
 priority: normal
 created_at: 2026-11-06T12:57:05Z
-updated_at: 2026-11-06T13:00:13Z
+updated_at: 2026-11-06T13:23:24Z
 ---
 
 # Feature request (user, 2026-11-06): docs in an editor window, not the log channel
@@ -26,3 +26,11 @@ Today the Docs quick-pick (P3, docs-browser.ts) shows builtin help text in the '
 - [ ] Content identical to today's channel output
 - [ ] Log channel no longer carries docs dumps
 - [ ] e2e: pick -> doc opens read-only with expected content
+
+## Completed (2026-11-06, plain-text-first scope)
+
+- Docs pick results open as read-only preview editor tabs on the 'sonicpi-docs:' scheme (TextDocumentContentProvider).
+- 'Sonic Pi Docs' output channel removed from the dump path; log channels keep run output/cues.
+- TDD: unit red->green + integration assertion (docs tab opens with builtin detail).
+- Deferred (needs separate decision): markdown webview rendering, auto-follow cursor symbol.
+- Gates on dev: lint clean, prettier clean, unit green, integration 16 passing (attach/takeover skip documented - live session running), live-daemon e2e green.
