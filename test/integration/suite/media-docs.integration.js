@@ -62,8 +62,24 @@ suite('Media and docs', () => {
 		assert.match(detail, /^\(fx\) reverb/m, 'the picked builtin is shown with its kind and name')
 
 		const running = vscode.commands.executeCommand('vscode-sonic-pi.docs')
-		await host.delay(500)
-		await vscode.commands.executeCommand('quickInput.accept')
-		await running
+		await host.waitUntil(async () => {
+			await host.delay(400)
+			await vscode.commands.executeCommand('quickInput.accept')
+			await Promise.race([running, host.delay(1000)])
+			return vscode.window.tabGroups.all
+				.flatMap((group) => group.tabs)
+				.filter((tab) => tab.input instanceof vscode.TabInputText)
+				.some((tab) => tab.input.uri.scheme === 'sonicpi-docs')
+		}, 'the picked builtin to open in a docs editor tab')
+
+		// The picked builtin lands in a read-only editor document, not the log channel.
+		const docsTabs = vscode.window.tabGroups.all
+			.flatMap((group) => group.tabs)
+			.filter((tab) => tab.input instanceof vscode.TabInputText)
+			.filter((tab) => tab.input.uri.scheme === 'sonicpi-docs')
+		const doc = await vscode.workspace.openTextDocument(docsTabs[0].input.uri)
+		// quickInput.accept picks the default-focused entry, which is what the provider renders,
+		// so the tab must carry SOME builtin detail in the pick's exact format.
+		assert.match(doc.getText(), /^\([a-z]+\) \S+$/m, 'the tab carries a builtin detail header')
 	})
 })

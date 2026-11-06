@@ -1,11 +1,11 @@
 ---
 # sonic-pi-4i3a
 title: 'Bug: after Restart Server command, playing produces nothing'
-status: draft
+status: in-progress
 type: bug
 priority: normal
 created_at: 2026-11-06T12:58:40Z
-updated_at: 2026-11-06T13:00:01Z
+updated_at: 2026-11-06T13:10:42Z
 ---
 
 # Bug (user report, 2026-11-06): after "Sonic Pi: Restart Server", nothing works
@@ -24,3 +24,15 @@ User: 'after doing sonic pi: restart server - nothing works :('
 - [ ] Verify reply-port receiver rebinds (no deaf window).
 - [ ] Add e2e: restart -> /version on new daemon + keepalive flowing + play works.
 - [ ] If keepalive missing: same fix class as adopt-keepalive (zlzp feature 17).
+
+## Triaged + fixed (2026-11-06) - pending user verification
+
+Root cause (verified by test): restartServer killed the old daemon but the follow-up
+startServer scanned /proc BEFORE the dying spider process disappeared, adopted the corpse,
+and every play after Restart Server went nowhere.
+
+Fix: restart forces a one-shot managed boot (forceManagedBootOnce skips the scanner once).
+TDD: red test 'restart ignores a still-visible dying server and boots its own daemon'.
+Gates: unit green, lint clean, live-daemon e2e green, on dev (91485bb).
+
+Remaining checklist item: user verification (play -> restart -> play -> sound returns).

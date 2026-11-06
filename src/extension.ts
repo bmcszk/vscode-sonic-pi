@@ -6,7 +6,7 @@ import {
 	SampleCompletionItemProvider,
 	SynthCompletionItemProvider,
 } from './completionItems'
-import { showDocsBrowser } from './docs-browser'
+import { registerDocsView, showDocsBrowser } from './docs-browser'
 import { HoverProvider } from './HoverProvider'
 import { flashedCellKey, notebookFlashMap } from './cell-flash-map'
 import { CellFlashStatusBarProvider } from './cell-flash-provider'
@@ -18,6 +18,7 @@ const selector = { language: 'sonic-pi' }
 export function activate(context: vscode.ExtensionContext) {
 	activate_runner(context)
 
+	registerDocsView(context)
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.checkInstall', () => {
 			void vscode.commands.executeCommand('setContext', 'sonicPiInstalled', true)

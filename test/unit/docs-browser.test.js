@@ -9,6 +9,22 @@ const vscodeCalls = { outputChannels: [], shown: [] }
 
 const vscodeStub = {
 	EventEmitter,
+	Uri: { parse: (value) => value },
+	workspace: {
+		registerTextDocumentContentProvider: (scheme, provider) => {
+			vscodeCalls.providers = vscodeCalls.providers || []
+			vscodeCalls.providers.push({ scheme, provider })
+			return { dispose() {} }
+		},
+		openTextDocument: async (uri) => {
+			const provider = (vscodeCalls.providers || []).find((p) => uri.startsWith(p.scheme + ':'))
+			const text = provider ? provider.provider.provideTextDocumentContent(uri) : ''
+			const doc = { uri, text }
+			vscodeCalls.openedDocs = vscodeCalls.openedDocs || []
+			vscodeCalls.openedDocs.push(doc)
+			return doc
+		},
+	},
 	window: {
 		createOutputChannel: (name) => {
 			const channel = {
@@ -29,6 +45,10 @@ const vscodeStub = {
 		},
 		showInputBox: async () => 'slice',
 		showQuickPick: async (items) => items.find((item) => item.label === SLICER),
+		showTextDocument: async (doc, opts) => {
+			doc.preview = !!(opts && opts.preview)
+			return doc
+		},
 		showInformationMessage: (message) => {
 			vscodeCalls.infoMessages = vscodeCalls.infoMessages || []
 			vscodeCalls.infoMessages.push(message)
@@ -48,6 +68,9 @@ const {
 	formatDocsDetail,
 	showDocsBrowser,
 } = require('../../out/docs-browser.js')
+
+const { registerDocsView } = require('../../out/docs-browser.js')
+registerDocsView({ subscriptions: [] })
 
 const SLICER = 'slicer'
 
@@ -131,13 +154,18 @@ const tests = {
 		assert.ok(formatDocsDetail(entry).includes('amp: volume (default: 1)'))
 	},
 
-	'showDocsBrowser shows the picked entry in a docs output channel'() {
+	'showDocsBrowser opens the picked entry as a read-only editor document'() {
 		return showDocsBrowser().then(() => {
-			const channel = vscodeCalls.outputChannels[0]
-			assert.strictEqual(channel.name, 'Sonic Pi Docs')
-			assert.strictEqual(vscodeCalls.shown.length, 1)
-			const text = channel.lines.join('')
-			assert.ok(text.includes('(fx) slicer'))
+			const doc = vscodeCalls.openedDocs[0]
+			assert.ok(doc, 'a docs document was opened')
+			assert.match(doc.uri, /^sonicpi-docs:\//, 'the doc lives on the read-only docs scheme')
+			assert.ok(doc.text.includes('(fx) slicer'), 'the doc carries the entry detail')
+			assert.strictEqual(doc.preview, true, 'opens as a preview tab')
+			assert.strictEqual(
+				vscodeCalls.outputChannels.filter((c) => c.name === 'Sonic Pi Docs').length,
+				0,
+				'the log channel no longer carries docs dumps',
+			)
 		})
 	},
 }

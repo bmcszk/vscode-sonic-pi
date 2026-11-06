@@ -23,6 +23,9 @@ const vscodeStub = {
 	StatusBarAlignment: { Left: 1, Right: 2 },
 	TextEditorRevealType: { InCenterIfOutsideViewport: 0 },
 	Uri: { joinPath: (...parts) => ({ fsPath: parts.join('/') }) },
+	workspace: {
+		registerTextDocumentContentProvider: () => ({ dispose() {} }),
+	},
 	window: {
 		createOutputChannel: () => ({
 			append() {},
@@ -47,6 +50,7 @@ const vscodeStub = {
 		onDidChangeConfiguration: () => ({ dispose() {} }),
 		onDidChangeTextDocument: () => ({ dispose() {} }),
 		onDidCloseTextDocument: () => ({ dispose() {} }),
+		registerTextDocumentContentProvider: () => ({ dispose() {} }),
 		registerNotebookSerializer: (..._a) => ({ dispose() {} }),
 		// A controller asks for the notebooks of its type as they open, so the kernel is picked
 		// for a book without the user choosing one.

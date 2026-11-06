@@ -57,6 +57,21 @@ export function formatDocsDetail(entry: DocsEntry): string {
 	return lines.join('\n')
 }
 
+// Docs render as read-only editor documents on this scheme instead of log-channel dumps.
+const DOCS_SCHEME = 'sonicpi-docs'
+
+export function registerDocsView(context: vscode.ExtensionContext): void {
+	const provider = vscode.workspace.registerTextDocumentContentProvider(DOCS_SCHEME, {
+		provideTextDocumentContent(uri: vscode.Uri): string {
+			const path = typeof uri === 'string' ? uri : uri.path
+			const name = decodeURIComponent(path.split('/').pop() || '')
+			const entry = allDocsEntries.find((candidate) => candidate.name === name)
+			return entry ? formatDocsDetail(entry) : `No docs entry for "${name}".`
+		},
+	})
+	context.subscriptions.push(provider)
+}
+
 export async function showDocsBrowser(): Promise<void> {
 	// Open with everything; the QuickPick's own filter box does the searching. An
 	// input-box-first design dead-ends on category words like "synths" that are
@@ -74,8 +89,7 @@ export async function showDocsBrowser(): Promise<void> {
 	)
 	if (!picked) return
 
-	const outputChannel = vscode.window.createOutputChannel('Sonic Pi Docs')
-	outputChannel.clear()
-	outputChannel.append(formatDocsDetail(picked.entry))
-	outputChannel.show(true)
+	const uri = vscode.Uri.parse(`${DOCS_SCHEME}:/${encodeURIComponent(picked.entry.name)}`)
+	const doc = await vscode.workspace.openTextDocument(uri)
+	await vscode.window.showTextDocument(doc, { preview: true })
 }
