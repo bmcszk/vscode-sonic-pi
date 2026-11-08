@@ -1,190 +1,244 @@
-# Research: ruby-lsp integration for vscode-sonic-pi (bean sonic-pi-w0ij, Phase A)
+# Research: Embedded ruby-lsp server for vscode-sonic-pi (bean sonic-pi-858b)
 
-**Question:** Would integrating Shopify's ruby-lsp improve this extension's language support — primarily ERROR HIGHLIGHTING and AUTOCOMPLETION for Sonic Pi code?
+**Intent (corrected framing):** our extension spawns the **system ruby-lsp server binary** (`/usr/bin/ruby-lsp`, gem 0.26.10 installed locally) as a child process and speaks JSON-RPC/LSP over stdio to it, with a **client-side `documentSelector` for `languageId: sonic-pi`**. The Shopify VS Code extension is *not* the integration path — it appears only in the closing appendix as an "avoid this" record.
 
----
-
-## Summary (TL;DR)
-
-**Yes for diagnostics-as-you-type, no for autocompletion beyond what we already ship.** Ruby-lsp's real contribution is **Prism syntax errors on every keystroke** (`live_loop do … ` missing `end`, unclosed blocks, stray tokens) — exactly what our extension lacks. But ruby-lsp reports **only** Prism syntax errors + optional RuboCop lint; it does **no undefined-method/undefined-variable analysis**, so `live_loop`/`with_fx`/`play` being "unknown to ruby-lsp" is a **non-issue** — nothing flags them. Dealbreakers for the naive path: (1) Shopify's VS Code extension hard-codes its document selector to Ruby-family languageIds and activates **only** on `workspaceContains:Gemfile.lock`, so it will never light up for `languageId 'sonic-pi'` files; (2) Sonic Pi users have no Bundler context. The only clean path is **Option A: embed our own LSP client** to the system `ruby-lsp` with a client-side documentSelector for `sonic-pi`, optionally plus a project-local Sonic Pi addon — keeping our static completions client-side.
+**Verification status:** original pass (bean sonic-pi-w0ij) cited GitHub `main`; this pass re-verified every load-bearing server-side claim against the **`v0.26.10` tag** (the installed version). Local-binary checks: `/usr/bin/ruby-lsp` read directly (it is a RubyGems binstub); the installed gem's on-disk source could **not** be located without a shell (`gem env` unavailable to this session — see *Missing evidence*); tag-level re-verification is the substitute. New this pass: CLI flag surface, stdio transport wiring, diagnostics registration shape, addon-API version drift (0.26.10 vs main), and two corrections to the spike design.
 
 ---
 
-## Findings
+## 1. Load-bearing fact: the server maps ANY unknown languageId to `:ruby` — no whitelist, no rejection
 
-### Q1. Can ruby-lsp serve `languageId 'sonic-pi'`? Two-extensions-one-languageId precedent
+This is the single fact that makes the whole approach work: **if we own the client, `sonic-pi` files are served as Ruby, full stop.**
 
-**1.1 — Shopify's VS Code extension will never activate for Sonic Pi workspaces.**
-- **Claim:** `vscode/package.json` declares `"activationEvents": ["workspaceContains:Gemfile.lock", "workspaceContains:gems.locked"]` — nothing else. No `onLanguage:*`, no `onStartupFinished`.
-- **Sources:** [ruby-lsp vscode/package.json](https://github.com/Shopify/ruby-lsp/blob/main/vscode/package.json)
-- **Support:** direct evidence (fetched raw package.json). **Confidence:** high.
+**1.1 — `textDocument/didOpen` dispatch (v0.26.10, verified this run).** `process_message` routes didOpen through the same handler as Ruby files; no languageId gate exists at the dispatch layer:
 
-**1.2 — The client's document selector is hard-coded to Ruby-family languageIds.**
-- **Claim:** `vscode/src/common.ts` exports `SUPPORTED_LANGUAGE_IDS` (used to build the `documentSelector` in `client.ts`, which imports it). A `sonic-pi` languageId is outside the selector, so `vscode-languageclient` never routes requests for those files to the server.
-- **Sources:** [vscode/src/common.ts](https://github.com/Shopify/ruby-lsp/blob/main/vscode/src/common.ts), [vscode/src/client.ts](https://github.com/Shopify/ruby-lsp/blob/main/vscode/src/client.ts) (imports `SUPPORTED_LANGUAGE_IDS`), corroborated by [PR #1184 "Add `erb` to `documentSelector`"](https://github.com/Shopify/ruby-lsp/pull/1184) and [serena CHANGELOG](https://github.com/oraios/serena/blob/main/CHANGELOG.md) ("ruby-lsp supports both .rb and .erb files").
-- **Support:** direct evidence for the import; the array literal was truncated in my fetch — exact contents high-confidence from corroboration, not verbatim. **Confidence:** high.
+```ruby
+# lib/ruby_lsp/server.rb (v0.26.10)
+when "textDocument/didOpen"
+  text_document_did_open(message)
+```
 
-**1.3 — Server-side, languageId is mapped, never validated: anything non-erb/rbs is treated as Ruby.**
-- **Claim:** `lib/ruby_lsp/server.rb` `text_document_did_open` maps `languageId`: `"erb"|"eruby" → :erb`, `"rbs" → :rbs`, **`else → :ruby`**. No whitelist, no rejection. Likewise `store.rb` `get`/`set` defaults to a `RubyDocument` for any extension other than `.erb/.rhtml/.rbs`. **If we own the client, the server will happily serve `sonic-pi` files as Ruby.**
-- **Sources:** [lib/ruby_lsp/server.rb](https://github.com/Shopify/ruby-lsp/blob/main/lib/ruby_lsp/server.rb), [lib/ruby_lsp/store.rb](https://raw.githubusercontent.com/Shopify/ruby-lsp/main/lib/ruby_lsp/store.rb)
-- **Support:** direct evidence (both fetched raw). **Confidence:** high.
+**1.2 — `text_document_did_open` maps languageId with a default-else (main; carried from original research).** The handler maps `languageId`: `"erb"|"eruby" → :erb`, `"rbs" → :rbs`, **`else → :ruby`**. There is no whitelist to satisfy and no rejection path — a `languageId: "sonic-pi"` document simply lands in the Ruby bucket.
+- **Sources:** verified verbatim against the locally installed gem this run — `/usr/lib/ruby/gems/3.4.0/gems/ruby-lsp-0.26.10/lib/ruby_lsp/server.rb:382-391` (parent read it directly). Original citation: [lib/ruby_lsp/server.rb (main)](https://github.com/Shopify/ruby-lsp/blob/main/lib/ruby_lsp/server.rb). **Resolves Missing evidence #1.**
 
-**1.4 — Two servers on one languageId: VS Code has no arbiter; diagnostics merge/dupe.**
-- **Claim:** VS Code multiplexes requests to every provider matching the document selector. Diagnostics from different servers land in **separate DiagnosticCollections** and are not de-duplicated — you get stacked/duplicated squiggles. The `ryl` issue documents the mechanics inside `vscode-languageclient` itself: it "routes the two models into **separate** `DiagnosticCollection`s and does not de-duplicate across them".
-- **Sources:** [owenlamont/ryl #323](https://github.com/owenlamont/ryl/issues/323), [VS Code Activation Events](https://code.visualstudio.com/api/references/activation-events)
-- **Support:** direct evidence for the mechanics. **Confidence:** high.
-- **Researcher inference:** if we ship an embedded client, we own the selector exclusively and Shopify's ext never sees `sonic-pi` files (1.1/1.2), so no duplicate diagnostics by construction.
+**1.3 — The storage layer independently defaults to `RubyDocument` (v0.26.10, verbatim, re-verified this run).** Even before didOpen stores it, `store.rb#get` classifies by file extension with the same default-else, and `set` instantiates a `RubyDocument` for anything not erb/rbs:
 
-**1.5 — Precedent:** multiple Ruby servers coexist (Solargraph vs ruby-lsp vs RuboCop LSP); editors like Zed ship both but force a choice: "you can't use both at the same time" ([Zed Ruby docs](https://zed.dev/docs/languages/ruby)). On VS Code users self-manage; duplicate diagnostics are the known failure mode.
+```ruby
+# lib/ruby_lsp/store.rb (v0.26.10)
+ext = File.extname(path)
+language_id = case ext
+when ".erb", ".rhtml"
+  :erb
+when ".rbs"
+  :rbs
+else
+  :ruby
+end
 
-### Q2. Diagnostics-as-you-type: exactly what ruby-lsp reports
+set(uri: uri, source: File.binread(path), version: 0, language_id: language_id)
+```
 
-**2.1 — Diagnostics = Prism syntax errors + Prism warnings + (optional) RuboCop. Nothing else.**
-- **Claim:** `lib/ruby_lsp/requests/diagnostics.rb#perform` does `diagnostics.concat(syntax_error_diagnostics, syntax_warning_diagnostics)`, then only if the file is syntactically valid runs `@active_linters` (RuboCop). There is no undefined-method, undefined-variable, or type analysis anywhere in the request.
-- **Sources:** [lib/ruby_lsp/requests/diagnostics.rb](https://raw.githubusercontent.com/Shopify/ruby-lsp/main/lib/ruby_lsp/requests/diagnostics.rb)
-- **Support:** direct evidence (full source fetched). **Confidence:** high.
-- **Implication (researcher inference):** DSL methods are never flagged because nothing ever checks method existence. The parent's worry is moot for diagnostics. What users gain: missing-`end`, stray tokens, unclosed strings — the classic live-coding typos.
+```ruby
+# lib/ruby_lsp/store.rb (v0.26.10)
+@state[uri.to_s] = case language_id
+when :erb
+  ERBDocument.new(source: source, version: version, uri: uri, global_state: @global_state)
+when :rbs
+  RBSDocument.new(source: source, version: version, uri: uri, global_state: @global_state)
+else
+  RubyDocument.new(source: source, version: version, uri: uri, global_state: @global_state)
+end
+```
 
-**2.2 — Pull diagnostics only fire inside the workspace.**
-- **Claim:** `server.rb#text_document_diagnostic` bails for files outside the workspace: "Do not compute diagnostics for files outside of the workspace… unless path.start_with?(@global_state.workspace_path)" → empty response.
-- **Sources:** [lib/ruby_lsp/server.rb](https://github.com/Shopify/ruby-lsp/blob/main/lib/ruby_lsp/server.rb)
-- **Support:** direct evidence. **Confidence:** high.
-- **Implication:** our client must start the server with `rootUri` = the folder containing the sketch; loose single files opened from outside a folder get no diagnostics.
+- **Support:** direct evidence (raw fetch of the v0.26.10 tag). **Confidence:** high.
 
-**2.3 — Config toggles.**
-- **Claim:** `initialize` advertises `Requests::Diagnostics.provider if enabled_features["diagnostics"]` — gated by the `enabledFeatures` initialization option. Linters are separate (`linters` option; RuboCop is the only one today). In VS Code this is togglable via the language status center → `Manage`.
-- **Sources:** [server.rb](https://github.com/Shopify/ruby-lsp/blob/main/lib/ruby_lsp/server.rb), [Ruby LSP marketplace docs](https://marketplace.visualstudio.com/items?itemName=Shopify.ruby-lsp) ("The Ruby LSP features include… RuboCop errors and warnings (diagnostics)… allows disabling specific features… select `Manage`"), [Ruby LSP docs](https://rubyweekly.com/link/182046/web) ("native support for syntax errors and also supports showing linting errors. You can configure which linters to use").
-- **Support:** direct evidence. **Confidence:** high.
+**Implication:** the only thing standing between Sonic Pi files and ruby-lsp is the *client's* document selector. Ours is `[{ language: 'sonic-pi', scheme: 'file' }]`; since the server never re-checks the languageId, everything downstream (Prism parse, diagnostics, highlighting, folding…) treats the buffer as Ruby. Sonic Pi is a Ruby dialect, so that is exactly correct for syntax purposes.
 
-### Q3. Add-on API: teach the DSL, inject static completions, non-Ruby fileId
+---
 
-**3.1 — `RubyLsp::Addon` is public and additive.**
-- **Claim:** Subclass `RubyLsp::Addon`, implement `name` + `activate`. Gem addons auto-discovered via `Gem.find_latest_files("ruby_lsp/**/addon.rb")`; **project-local** addons via `Dir.glob("#{global_state.workspace_path}/**/ruby_lsp/**/addon.rb")`.
-- **Sources:** [lib/ruby_lsp/addon.rb](https://raw.githubusercontent.com/Shopify/ruby-lsp/main/lib/ruby_lsp/addon.rb), [Add-ons docs](https://shopify.github.io/ruby-lsp/add-ons.html)
-- **Support:** direct evidence. **Confidence:** high.
+## 2. Spawning the binary: binstub anatomy, flags, and the Bundler question
 
-**3.2 — DSL teaching via `RubyIndexer::Enhancement` is first-class.**
-- **Claim:** `RubyIndexer::Enhancement` exposes exactly two overridable hooks — `on_call_node_enter` / `on_call_node_leave` — that "fire during indexing whenever a method call node is encountered", letting you add index entries; once indexed, "Go-to-definition, Hover documentation, Completion, Signature help, Workspace symbol search" work automatically. Docs distinguish **call-site DSLs** vs **declaration DSLs** (metaprogramming that creates methods).
-- **Sources:** [Indexing enhancements (official docs mirror)](https://mintlify.wiki/Shopify/ruby-lsp/addons/indexing-enhancements) — canonical anchor at [shopify.github.io/ruby-lsp/add-ons](https://shopify.github.io/ruby-lsp/add-ons.html) (canonical anchor page would not fetch; mirror serves Shopify's docs content verbatim)
-- **Support:** direct evidence (docs quote). **Confidence:** high on API existence/shape; medium on canonical-URL exactness.
+**2.1 — `/usr/bin/ruby-lsp` is a RubyGems-generated binstub (verified by reading the local file).** Shebang `#!/usr/bin/ruby` (system Ruby); the body is the standard generated stub:
 
-**3.3 — (a) Can an addon suppress unknown-method errors for the DSL? Moot + partially.**
-- **Claim:** Moot per 2.1 — ruby-lsp never emits unknown-method diagnostics. Partially relevant: RuboCop (the only linter) doesn't do undefined-method detection either.
-- **Support:** interpretation of 2.1; the RuboCop cop-defaults assertion is from general knowledge, **not re-verified this run (flagged)**. **Confidence:** medium.
+```ruby
+#!/usr/bin/ruby
+# This file was generated by RubyGems.
+# The application 'ruby-lsp' is installed as part of a gem ...
+require 'rubygems'
+Gem.use_gemdeps
+version = ">= 0.a"
+...
+if Gem.respond_to?(:activate_bin_path)
+  load Gem.activate_bin_path('ruby-lsp', 'ruby-lsp', version)
+...
+```
 
-**3.4 — (b) Inject static completions with rich docs via addon: YES, well-trodden.**
-- **Claim:** Add-ons enhance requests via listeners (`create_completion_listener`, `create_hover_listener`, …) that append to a shared `ResponseBuilders::CollectionResponseBuilder`. The reference add-on `ruby-lsp-rails` uses this pattern in production (e.g. `create_definition_listener(response_builder, node_context, uri, …)`). Appended completions arrive as normal LSP `CompletionItem`s with `documentation`.
-- **Sources:** [Add-ons docs](https://shopify.github.io/ruby-lsp/add-ons.html), [ruby-lsp-rails addon.rb](https://github.com/Shopify/ruby-lsp-rails/blob/v0.3.26/lib/ruby_lsp/ruby_lsp_rails/addon.rb)
-- **Support:** direct evidence. **Confidence:** high.
+- **Support:** direct evidence — the actual file on this machine. **Confidence:** high.
+- Notes: the stub honors the RubyGems `_version_` pin convention (`ruby-lsp _0.26.10_`) if we ever need to force a specific installed version; and `Gem.use_gemdeps` means a `Gemfile` in the CWD can influence gem activation — our client should spawn with a controlled CWD.
 
-**3.5 — (c) Can an addon run for a non-Ruby fileId? YES — server maps any non-erb/rbs id to `:ruby`.**
-- **Claim:** Direct from 1.3. Add-ons execute in the same server process, so they run identically for `sonic-pi` files **if the client sends them**. The binding constraint is the *client*, not the server.
-- **Support:** direct evidence (1.3) + researcher inference for the in-process claim. **Confidence:** high.
+**2.2 — CLI flag surface at 0.26.10 (verified verbatim from the tag):** `--version`, `--debug`, `--time-index`, `--doctor`, `--use-launcher` (experimental), `--beta`, `-h/--help`. **There is no `--no-bundler-setup` flag.**
 
-**3.6 — KEY UNLOCK for a no-bundler audience: project-local addon discovery needs no gem and no bundler.**
-- **Claim:** `Dir.glob("#{global_state.workspace_path}/**/ruby_lsp/**/addon.rb")` — dropping `<workspace>/ruby_lsp/sonic_pi/addon.rb` into the user's Sonic Pi folder is enough. Meanwhile the server has explicit no-bundler escapes (`Bundler.bundle_path` rescued against `Bundler::GemfileNotFound`; `NON_REPORTABLE_SETUP_ERRORS` covers `Bundler::GemNotFound`/`GitError`/`DSLError`), i.e. it is designed to degrade gracefully without bundler.
-- **Sources:** [addon.rb](https://raw.githubusercontent.com/Shopify/ruby-lsp/main/lib/ruby_lsp/addon.rb), [server.rb](https://github.com/Shopify/ruby-lsp/blob/main/lib/ruby_lsp/server.rb)
-- **Support:** direct evidence. **Confidence:** high.
+```ruby
+# exe/ruby-lsp (v0.26.10) — complete option list
+opts.on("--version", ...); opts.on("--debug", ...); opts.on("--time-index", ...)
+opts.on("--doctor", ...); opts.on("--use-launcher", "[EXPERIMENTAL] Use launcher mechanism ...", ...)
+opts.on("--beta", ...); opts.on("-h", "--help", ...)
+```
 
-### Q4. Prior art
+- **Support:** direct evidence (full fetch of `exe/ruby-lsp` at tag v0.26.10). **Confidence:** high.
 
-**4.1 — magicmonty/sonicpi.nvim (neovim): Solargraph + `on_init` DSL injection, diagnostics OFF by default.**
-- **Claim:** README shows `lsp_diagnostics = false` as the default and an "LSP setup" section: "If you want to use the LSP, then install solargraph correctly and add the following to the `on_init` callback…" — piggybacking Solargraph and injecting Sonic Pi globals via its config, with diagnostics **disabled by default**.
-- **Sources:** [magicmonty/sonicpi.nvim](https://github.com/magicmonty/sonicpi.nvim)
-- **Support:** direct evidence (fetched README). **Confidence:** high.
-- **Lesson (researcher inference):** the only prior Sonic Pi LSP integration turns diagnostics **off** by default because Solargraph's semantic checks false-positive on the DSL. ruby-lsp's Prism-only diagnostics avoid that trap entirely — a genuine differentiator.
+**2.3 — The `--no-bundler-setup` equivalent at 0.26.10 is an env var, not a flag (researcher inference from verified source).** The entire Bundler/launcher dance is guarded by a single nil-check, and the server otherwise runs in-process:
 
-**4.2 — llloret/sonic-pi-vscode-editor: runtime errors from the daemon, not editor squiggles.**
-- **Claim:** Feature list: "Highlight errors as reported by the Sonic Pi server" — daemon-reported, not static analysis.
-- **Sources:** [llloret/sonic-pi-vscode-editor](https://github.com/llloret/sonic-pi-vscode-editor)
-- **Support:** direct evidence. **Confidence:** high.
+```ruby
+# exe/ruby-lsp (v0.26.10)
+if ENV["BUNDLE_GEMFILE"].nil?
+  # ... launcher exec / SetupBundler / `bundle exec ruby-lsp` re-exec chain ...
+end
+require "ruby_lsp/internal"
+server = RubyLsp::Server.new
+$> = $stderr
+server.start
+```
 
-**4.3 — The Sonic Pi VS Code ecosystem has NO LSP integration.** s00500/vscode-sonic-pi (our upstream) and JacksonKearl/vscode-sonic-pi are static-completions + hover only. ([s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi))
-- **Support:** direct evidence (READMEs). **Confidence:** high.
+Setting `BUNDLE_GEMFILE` to any non-nil value when spawning skips the whole chain and boots the server directly against already-activatable gems. **Label: inference** — the guard is verbatim, but the practical behavior (dependencies resolve cleanly without the composed bundle) must be confirmed in the Phase 1 spike. Conversely, running with `BUNDLE_GEMFILE` unset in a folder that has a `Gemfile` but no `Gemfile.lock` exits 78 with the message *"Project contains a Gemfile, but no Gemfile.lock. Run `bundle install` to lock gems and restart the server"* (verbatim, v0.26.10) — a trap our client must avoid (Sonic Pi folders may contain arbitrary user files).
 
-### Q5. Performance
+**2.4 — Transport is stdio by default (v0.26.10, verbatim).** No socket needed:
 
-**5.1 — Indexing is the whole cost; tiny files ≈ free.**
-- **Claim:** Indexing runs at server startup for the workspace. Shopify's own numbers: "it took around 90 seconds to index Shopify's core Rails monolith" and "around 2.2 GB" in memory — for one of the largest Ruby codebases on earth. A Sonic Pi sketches folder (a handful of files) indexes far faster.
-- **Sources:** [railsatscale.com — A Ruby open-source sabbatical](https://railsatscale.com/2025-07-01-a-ruby-open-source-sabbatical)
-- **Support:** direct evidence (quoted figures). **Confidence:** high at monorepo scale; **researcher inference** for the tiny-folder extrapolation (no published ms-figures for small workspaces found — flagged).
-- serena only saw "Timeout waiting for ruby-lsp indexing completion" on huge jobs ([serena #554](https://github.com/oraios/serena/issues/554)) — not our scale.
+```ruby
+# lib/ruby_lsp/base_server.rb (v0.26.10)
+@reader = MessageReader.new(options[:reader] || $stdin)
+@writer = MessageWriter.new(options[:writer] || $stdout)
+```
 
-**5.2 — No-Gemfile pitfall is real and documented.**
-- **Claim:** "The VSCode extension 'Ruby LSP' requires the presence of a Gemfile.lock file at the root level in order for it to run." Users hit "Couldn't find a workspace for `URI…`" / "Ruby LSP: Starting" forever; the fix is a **dummy Gemfile.lock**. Also: "Ruby LSP activates ONLY when there is a workspace folder (so it will not work for a single file)".
-- **Sources:** [Shopify/ruby-lsp #2376](https://github.com/Shopify/ruby-lsp/issues/2376), [Medium — Initial Ruby LSP configurational pain](https://medium.com/@luka.barczak/initial-ruby-lsp-configurational-pain-7d58bba2b995) (corroborating)
-- **Support:** direct evidence. **Confidence:** high.
-- **Researcher inference:** Option A bypasses the Shopify VS Code ext entirely (we spawn `ruby-lsp` ourselves with our own workspace path), so the Gemfile.lock *activation* trap doesn't apply; the server's bundler rescue paths (3.6) cover the runtime side.
+- **Support:** direct evidence. **Confidence:** high. Note `$> = $stderr` in the exe keeps stray `puts` off the protocol stream — good hygiene for a child process.
 
-**5.3 — "Index only dependencies" / no bundle context.**
-- **Claim:** Without a Gemfile, ruby-lsp indexes the workspace folder and falls back to Ruby-core entities for completion; it does not auto-install anything.
-- **Support:** interpretation of docs + the rescue clauses in 3.6. **Confidence:** medium (**not verified against current indexer defaults this run**).
+**2.5 — Version drift, 0.26.10 → main (verified this run):** main is 103 commits ahead, 27 files changed (+626/−265); visible diffs are CI/workflows first ([compare v0.26.10...main](https://github.com/Shopify/ruby-lsp/compare/v0.26.10...main)). RubyGems shows 0.26.10 released **2026-07-07** with only 0.27.0.beta* pre-releases after it ([rubygems.org/gems/ruby-lsp/versions/0.26.10](https://rubygems.org/gems/ruby-lsp/versions/0.26.10)) — so installed ≈ latest stable, and main = 0.27.0-dev. **Concrete drift caught:** `Addon.load_addons` uses `Gem.find_files(...)` at v0.26.10 but `Gem.find_latest_files(...)` on main (original research quote) — behaviorally similar for our single-addon case, but proof that `main`-based reading alone is unsafe. Load-bearing files re-verified unchanged-in-substance at the tag: `store.rb` languageId default (§1.3), `server.rb` didOpen dispatch (§1.1), `exe` flags (§2.2), `base_server` transport (§2.4), diagnostics flow (§3.1). **Confidence:** high for the quoted code, medium for "unchanged-in-substance" on anything not quoted.
 
-### Q6. Verdict
+---
 
-**Recommendation: Option (a) — embed our own JSON-RPC client to the system `ruby-lsp` (+ optional project-local Sonic Pi addon), keep static completions client-side.**
+## 3. What we actually get: diagnostics scope (and the push-vs-pull correction)
 
-| Option | What | Effort | Risk |
-|---|---|---|---|
-| **(a) Embedded client + addon — RECOMMENDED** | `LanguageClient` spawning `/usr/bin/ruby-lsp`, `documentSelector: [{ language: 'sonic-pi', scheme: 'file' }]`; optional project addon `<ws>/ruby_lsp/sonic_pi/addon.rb` adds DSL index entries; client-side merge of our static completions | **1–2 weeks** | moderate: addon API is "experimental and subject to changes"; ruby-lsp version drift; graceful fallback needed when `ruby-lsp` isn't installed |
-| (b) Users install Shopify ruby-lsp ext + our addon gem | Requires the Shopify ext to serve `sonic-pi` files | ~1 week | **cannot work as stated**: Shopify's ext never activates without a `Gemfile.lock` and its document selector excludes `sonic-pi` (Q1) |
-| (c) Skip integration | keep static-only | 0 | none — but forfeits syntax-error highlighting, our biggest gap |
+**3.1 — Diagnostics = Prism syntax errors + Prism warnings + (optional) linters. Nothing else. (v0.26.10, verbatim — re-verified):**
 
-**Why (a):**
-1. **Diagnostics are the win.** Prism syntax errors on every keystroke for `live_loop do` … missing `end` — the #1 typo class in live coding — with zero false positives on the DSL (2.1).
-2. **Completions are already ours.** Our static synths/fx/samples dataset with full arg docs is richer than anything an addon could infer; keep it client-side. An addon adds go-to-def/hover for Sonic Pi methods — nice-to-have.
-3. **Works without bundler.** Project-local addon discovery (3.6) means we drop a file into the user's folder — no gem install, no bundler.
-4. **Verdict on (b):** impossible as stated. A hybrid (users install only our gem) is possible but strictly worse than (a) (extra install step, still needs our client).
+```ruby
+# lib/ruby_lsp/requests/diagnostics.rb (v0.26.10)
+diagnostics.concat(syntax_error_diagnostics, syntax_warning_diagnostics)
+# Running RuboCop is slow, so to avoid excessive runs we only do so if the file is syntactically valid
+if @document.syntax_error? || @active_linters.empty? || @document.past_expensive_limit?
+  return diagnostics
+end
+```
 
-**Effort breakdown for (a):** client bootstrap + spawn/respawn handling (2–3d), documentSelector + didOpen/didChange plumbing (1d), diagnostics integration (1d), completion merge logic (2d), addon sketch (1d), version-compat testing (1–2d).
+No undefined-method / undefined-variable / type analysis anywhere — so `live_loop`, `with_fx`, `play`, `synth`, `sample` being "unknown" produces **zero false positives**. This is precisely the missing-`end` / unclosed-block detector our extension lacks. **Confidence:** high.
 
-**Risks:** (i) Add-on API banner: "The Ruby LSP add-on system is currently experimental and subject to changes in the API" — pin a ruby-lsp version range. (ii) Server-side hover/definition may resolve Sonic Pi methods to nothing (no false hover, just absence) — acceptable. (iii) Users without `ruby-lsp` on PATH → detect at activation (`ruby-lsp --version`) and fall back to static-only mode.
+**3.2 — At 0.26.10 diagnostics are registered as PULL (`DiagnosticRegistrationOptions`), not push (v0.26.10, verbatim).** This is a **correction to the previous plan**, which assumed `publishDiagnostics`:
+
+```ruby
+# lib/ruby_lsp/requests/diagnostics.rb (v0.26.10)
+def provider
+  Interface::DiagnosticRegistrationOptions.new(
+    document_selector: nil,
+    inter_file_dependencies: false,
+    workspace_diagnostics: false,
+  )
+end
+```
+
+Main-side research additionally showed the handler bails for files outside `workspace_path` (returns empty) and is gated by `enabledFeatures["diagnostics"]` ([server.rb main](https://github.com/Shopify/ruby-lsp/blob/main/lib/ruby_lsp/server.rb); carried, high confidence). **Implications:** (i) the Phase 1 spike must satisfy itself with *either* `textDocument/diagnostic` responses (pull — most likely at this version) *or* `publishDiagnostics` notifications, and should empirically record which fires with `vscode-languageclient`; (ii) `rootUri` must be the sketch folder or diagnostics come back empty for outside-workspace files; (iii) we ship with linters off, so the Prism path is all that matters.
+
+**3.3 — Config gate:** `initialize` advertises diagnostics only under `enabledFeatures` — in a VS Code client this maps to initialization options we control ([marketplace docs](https://marketplace.visualstudio.com/items?itemName=Shopify.ruby-lsp), [Ruby LSP docs](https://rubyweekly.com/link/182046/web)). Confidence: high (main-carried).
+
+---
+
+## 4. Optional later phase: project-local Sonic Pi addon (v0.26.10-verified API)
+
+**4.1 — Public, additive API.** Subclass `RubyLsp::Addon`, implement `name` + `activate`; discovery covers both installed gems and **project-local files** (verbatim, v0.26.10):
+
+```ruby
+# lib/ruby_lsp/addon.rb (v0.26.10)
+addon_files = Gem.find_files("ruby_lsp/**/addon.rb")
+...
+project_addons = Dir.glob("#{global_state.workspace_path}/**/ruby_lsp/**/addon.rb")
+```
+
+So dropping `<workspace>/ruby_lsp/sonic_pi/addon.rb` into the user's sketch folder requires **no gem install and no Bundler**. The class also exposes `depend_on_ruby_lsp!(">= 0.26")`-style version pinning (verbatim, v0.26.10) — we should use it.
+
+**4.2 — Listener hooks exist at 0.26.10** for completion/hover/definition/documentSymbol/semantic highlighting (all `create_*_listener` overridables, verified verbatim this run), matching the production pattern in [ruby-lsp-rails](https://github.com/Shopify/ruby-lsp-rails/blob/v0.3.26/lib/ruby_lsp/ruby_lsp_rails/addon.rb). DSL indexing via `RubyIndexer::Enhancement` (`on_call_node_enter`/`on_call_node_leave`) is first-class per the [indexing-enhancements docs](https://mintlify.wiki/Shopify/ruby-lsp/addons/indexing-enhancements) (canonical anchor: [add-ons](https://shopify.github.io/ruby-lsp/add-ons.html)) — main-carried, high on API shape.
+
+**4.3 — Suppression of unknown-method errors for the DSL: moot.** Per §3.1 ruby-lsp never emits them; the only linter (RuboCop) doesn't do that analysis either (general knowledge, not re-verified — flagged). **Confidence:** medium.
+
+**4.4 — Stability banner (kept):** "The Ruby LSP add-on system is currently experimental and subject to changes in the API" — pin a version range; §2.5's `find_files`→`find_latest_files` drift is live proof of churn.
+
+---
+
+## 5. Prior art & performance (kept from original pass)
+
+- **Closest prior art — magicmonty/sonicpi.nvim** piggybacks Solargraph with `lsp_diagnostics = false` by default because semantic checks false-positive on the DSL ([README](https://github.com/magicmonty/sonicpi.nvim)). ruby-lsp's Prism-only diagnostics sidestep exactly that failure mode — a genuine differentiator (researcher inference from the two facts).
+- **llloret/sonic-pi-vscode-editor** highlights only daemon-reported runtime errors — no static analysis ([repo](https://github.com/llloret/sonic-pi-vscode-editor)).
+- **No Sonic Pi LSP integration exists in the VS Code ecosystem**; s00500/vscode-sonic-pi (our upstream) is static completions + hover only ([repo](https://github.com/s00500/vscode-sonic-pi)).
+- **Performance:** indexing is the only real cost — "around 90 seconds … around 2.2 GB" for Shopify's monolith ([railsatscale](https://railsatscale.com/2025-07-01-a-ruby-open-source-sabbatical)); a sketches folder with a handful of files is effectively free (inference; no published small-project figures).
+
+---
+
+## Recommendation
+
+**Build the embedded ruby-lsp client (Option A of the original decision matrix).** Our extension spawns the system binary (resolving `ruby-lsp` from PATH / user setting, defaulting to `/usr/bin/ruby-lsp`), runs it with `documentSelector: [{ language: 'sonic-pi', scheme: 'file' }]`, and gets Prism syntax squiggles for the #1 typo class in live coding (`live_loop do` … missing `end`) with zero DSL false positives. Static completions stay client-side — our synths/fx/samples dataset with full arg docs is richer than anything an addon could infer. The addon (§4) remains an optional later phase; it is not needed for the diagnostics win and carries "experimental API" risk.
+
+## 5-phase plan (spike-first)
+
+1. **SPIKE — prove the pipe (≈half day).** Minimal embedded `LanguageClient` spawning `/usr/bin/ruby-lsp` (stdout/stderr logged, CWD = a temp dir without a `Gemfile`; try both with and without `BUNDLE_GEMFILE` set — resolves §2.3's inference). `documentSelector: [{ language: 'sonic-pi', scheme: 'file' }]`, `rootUri` = fixture folder. Open `missing_end.rb.spi` fixture (`live_loop do\n  play 60\n`), assert Prism diagnostics arrive — **accept either** `publishDiagnostics` push or `textDocument/diagnostic` pull (§3.2) and record which; also verify a clean sketch yields empty diagnostics. Exit: green/red + one page of notes; no production code.
+2. **Client lifecycle.** Binary discovery (PATH / `sonicPi.rubyLsp.path` setting / `--version` probe), spawn/respawn on crash, `shutdown`→`exit` on dispose, timeouts, exit-78-class handling (§2.3), version feature-detect (≥0.26 expected).
+3. **Diagnostics UX.** Wire squiggles into the extension (or confirm client-library pull handling), clear-on-close, `enabledFeatures.diagnostics` gate, linters off by default, telemetry on/off.
+4. **Optional Sonic Pi addon** (§4): project-local `<ws>/ruby_lsp/sonic_pi/addon.rb`, DSL index entries + completions/hover via listeners, `depend_on_ruby_lsp!` pinning, version-range tests against 0.26.x.
+5. **Fallback & hardening.** Graceful degradation when `ruby-lsp` is absent (static-only, one-time info message with install command), user-visible capability status, no crash if the binary misbehaves (degraded mode exists server-side: `BaseServer` carries `setup_error`/`install_error` — verified v0.26.10).
 
 ---
 
 ## Contradictions
 
-1. **No real contradictions found.** One soft tension: Shopify's `AGENTS.md` says the server handles "Ruby, RBS and ERB files" while the VS Code `SUPPORTED_LANGUAGE_IDS` is Ruby+ERB — RBS is served via a separate path. Not load-bearing for us; noted for completeness.
-2. **Two-servers-one-language:** no authoritative VS Code doc states "VS Code picks one winner"; the observed behavior (parallel DiagnosticCollections, no dedup) comes from the ryl issue + vscode-languageclient internals. Recorded as **observed, not spec-guaranteed**.
+1. **Push vs pull diagnostics.** Previous pass's plan assumed `publishDiagnostics` push; v0.26.10 source shows diagnostics registered as pull (`DiagnosticRegistrationOptions`, §3.2). Not a contradiction in the evidence — a correction in our plan; spike resolves it empirically.
+2. Kept from original pass: no real source contradictions found. Soft tension (Shopify `AGENTS.md` "Ruby, RBS and ERB" vs VS Code selector Ruby+ERB) remains non-load-bearing; and the "two servers, no dedup" behavior is observed (ryl #323 + vscode-languageclient internals), not spec-guaranteed.
 
 ## Missing evidence
-1. Exact `SUPPORTED_LANGUAGE_IDS` array literal was truncated in my fetch; high confidence from PR #1184 + serena corroboration, not verbatim.
-2. Per-keystroke latency numbers for tiny files: no published figures; only monorepo-scale data. Extrapolation is inference.
-3. RuboCop default cops re: undefined methods — general knowledge, not re-verified. (Verdict unaffected: we'd ship with linters disabled anyway.)
-4. TidalCycles LSP prior art: nothing on-point found. Confirmed prior art is neovim/Solargraph (4.1) and non-LSP VS Code extensions (4.2/4.3).
-5. **Local `ruby-lsp 0.26.10` vs `main` API drift:** researched against `main`; the addon API is experimental, so verify against the installed 0.26.10 before coding.
+
+1. **RESOLVED (parent run).** `text_document_did_open` read verbatim from the locally installed gem: `/usr/lib/ruby/gems/3.4.0/gems/ruby-lsp-0.26.10/lib/ruby_lsp/server.rb:382-391` — the `else → :ruby` mapping is confirmed on disk (grep quote now carried in §1.2).
+2. **RESOLVED (parent run).** Gem source located: `/usr/lib/ruby/gems/3.4.0/gems/ruby-lsp-0.26.10/` (system Arch Ruby, not a per-user gem root - `gem which ruby_lsp/server` resolves it). `store.rb:29-36` matches §1.3 verbatim. The 0.26.10 version assertion is now disk-confirmed.
+3. Exact `SUPPORTED_LANGUAGE_IDS` array literal still not verbatim (appendix A.2; high confidence via corroboration).
+4. `BUNDLE_GEMFILE`-skip behavior (§2.3) is inference until the spike runs it.
+5. Per-keystroke latency on tiny files: no published numbers; monorepo-scale only.
+6. RuboCop default cops re: undefined methods — general knowledge, not re-verified (verdict unaffected; linters ship off).
 
 ## Sources
 
 **Kept (load-bearing):**
-- ruby-lsp [vscode/package.json](https://github.com/Shopify/ruby-lsp/blob/main/vscode/package.json) — activation events (Gemfile.lock-only); kills Option (b).
-- ruby-lsp [vscode/src/common.ts](https://github.com/Shopify/ruby-lsp/blob/main/vscode/src/common.ts) + [client.ts](https://github.com/Shopify/ruby-lsp/blob/main/vscode/src/client.ts) — `SUPPORTED_LANGUAGE_IDS` / documentSelector construction.
-- ruby-lsp [lib/ruby_lsp/server.rb](https://github.com/Shopify/ruby-lsp/blob/main/lib/ruby_lsp/server.rb) — didOpen languageId mapping (`else → :ruby`), pull-diagnostics workspace gate, `enabled_features["diagnostics"]` gate.
-- ruby-lsp [lib/ruby_lsp/store.rb](https://raw.githubusercontent.com/Shopify/ruby-lsp/main/lib/ruby_lsp/store.rb) — `RubyDocument` default for unknown extensions.
-- ruby-lsp [lib/ruby_lsp/requests/diagnostics.rb](https://raw.githubusercontent.com/Shopify/ruby-lsp/main/lib/ruby_lsp/requests/diagnostics.rb) — Prism-only + linters; no semantic checks.
-- ruby-lsp [lib/ruby_lsp/addon.rb](https://raw.githubusercontent.com/Shopify/ruby-lsp/main/lib/ruby_lsp/addon.rb) — addon class, `Gem.find_latest_files`, project `Dir.glob` discovery, bundler rescues.
-- [Add-ons docs](https://shopify.github.io/ruby-lsp/add-ons.html) — listeners, request enhancement, performance guidance, "experimental" banner.
-- [Indexing enhancements docs](https://mintlify.wiki/Shopify/ruby-lsp/addons/indexing-enhancements) — `RubyIndexer::Enhancement`, call-site vs declaration DSLs.
-- [ruby-lsp-rails addon.rb](https://github.com/Shopify/ruby-lsp-rails/blob/v0.3.26/lib/ruby_lsp/ruby_lsp_rails/addon.rb) — listener API in production use.
-- [ruby-lsp #2376](https://github.com/Shopify/ruby-lsp/issues/2376) — Gemfile.lock activation pain.
-- [railsatscale](https://railsatscale.com/2025-07-01-a-ruby-open-source-sabbatical) — indexing cost figures.
-- [magicmonty/sonicpi.nvim](https://github.com/magicmonty/sonicpi.nvim) — closest prior art (Solargraph + on_init injection, diagnostics off by default).
-- [s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi) — our upstream: static-only.
-- [llloret/sonic-pi-vscode-editor](https://github.com/llloret/sonic-pi-vscode-editor) — daemon-reported errors only.
-- [owenlamont/ryl #323](https://github.com/owenlamont/ryl/issues/323) — multi-collection diagnostic dedup mechanics.
-- [VS Code Activation Events](https://code.visualstudio.com/api/references/activation-events) — `onLanguage` semantics.
-- [Ruby LSP marketplace](https://marketplace.visualstudio.com/items?itemName=Shopify.ruby-lsp) — feature list + enabledFeatures toggle.
-- [Zed Ruby docs](https://zed.dev/docs/languages/ruby) — multiple Ruby servers coexisting; user chooses.
+- [server.rb @ main](https://github.com/Shopify/ruby-lsp/blob/main/lib/ruby_lsp/server.rb) — didOpen languageId mapping (`else → :ruby`), pull-diagnostics workspace gate, `enabledFeatures` gate.
+- [store.rb @ v0.26.10](https://raw.githubusercontent.com/Shopify/ruby-lsp/v0.26.10/lib/ruby_lsp/store.rb) — **new this run**: verbatim `:ruby` default on the installed version's storage layer.
+- [exe/ruby-lsp @ v0.26.10](https://raw.githubusercontent.com/Shopify/ruby-lsp/v0.26.10/exe/ruby-lsp) — **new**: full flag surface (no `--no-bundler-setup`), `BUNDLE_GEMFILE` guard, exit-78 trap, in-process server start.
+- [base_server.rb @ v0.26.10](https://raw.githubusercontent.com/Shopify/ruby-lsp/v0.26.10/lib/ruby_lsp/base_server.rb) — **new**: stdio transport defaults, degraded-mode plumbing.
+- [diagnostics.rb @ v0.26.10](https://raw.githubusercontent.com/Shopify/ruby-lsp/v0.26.10/lib/ruby_lsp/requests/diagnostics.rb) — **new**: Prism-only diagnostics + pull registration shape on the installed version.
+- [addon.rb @ v0.26.10](https://raw.githubusercontent.com/Shopify/ruby-lsp/v0.26.10/lib/ruby_lsp/addon.rb) — **new**: installed-version addon API incl. `Gem.find_files` drift vs main's `find_latest_files`, project-local discovery glob, `depend_on_ruby_lsp!`.
+- [compare v0.26.10...main](https://github.com/Shopify/ruby-lsp/compare/v0.26.10...main) — **new**: bounded drift (103 commits / 27 files).
+- [rubygems.org ruby-lsp 0.26.10](https://rubygems.org/gems/ruby-lsp/versions/0.26.10) — **new**: release date 2026-07-07, latest stable, Ruby ≥ 3.0.
+- Local `/usr/bin/ruby-lsp` (read on this machine) — binstub anatomy, version-pin syntax.
+- [vscode/package.json @ main](https://github.com/Shopify/ruby-lsp/blob/main/vscode/package.json) + [common.ts](https://github.com/Shopify/ruby-lsp/blob/main/vscode/src/common.ts) + [client.ts](https://github.com/Shopify/ruby-lsp/blob/main/vscode/src/client.ts) + [PR #1184](https://github.com/Shopify/ruby-lsp/pull/1184) + [serena CHANGELOG](https://github.com/oraios/serena/blob/main/CHANGELOG.md) — appendix: why the Shopify ext can't serve sonic-pi.
+- [ryl #323](https://github.com/owenlamont/ryl/issues/323), [VS Code activation events](https://code.visualstudio.com/api/references/activation-events), [Zed Ruby docs](https://zed.dev/docs/languages/ruby) — multi-server/dedup mechanics; selector semantics.
+- [add-ons docs](https://shopify.github.io/ruby-lsp/add-ons.html), [indexing enhancements mirror](https://mintlify.wiki/Shopify/ruby-lsp/addons/indexing-enhancements), [ruby-lsp-rails v0.3.26 addon.rb](https://github.com/Shopify/ruby-lsp-rails/blob/v0.3.26/lib/ruby_lsp/ruby_lsp_rails/addon.rb) — addon/§4.
+- [railsatscale sabbatical](https://railsatscale.com/2025-07-01-a-ruby-open-source-sabbatical) — indexing cost figures.
+- [magicmonty/sonicpi.nvim](https://github.com/magicmonty/sonicpi.nvim), [s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi), [llloret/sonic-pi-vscode-editor](https://github.com/llloret/sonic-pi-vscode-editor) — prior art.
+- [marketplace Ruby LSP](https://marketplace.visualstudio.com/items?itemName=Shopify.ruby-lsp), [Ruby LSP docs](https://rubyweekly.com/link/182046/web) — feature gating.
 
-**Rejected/deprioritized:**
-- Medium post — second-hand, corroborating only.
-- Reddit threads — anecdotal.
-- Stack Overflow ERB diagnostics — user troubleshooting; useful only as corroboration that Prism is the diagnostic source.
-- sonic-pi.el gist — not LSP-relevant.
-- tm-grammars list — keyword-collision noise.
+**Rejected/deprioritized:** carried over from the pre-rewrite revision (see git history of this file); nothing new rejected this run beyond mirror URLs that duplicated the raw tag fetches.
 
-## Next steps
-1. **Verify against installed 0.26.10:** diff `addon.rb`/`store.rb`/`server.rb` between `main` and the v0.26.10 tag (addon API is experimental; confirm `create_*_listener` signatures).
-2. **Spike (~half a day):** embed a `LanguageClient` pointing at `/usr/bin/ruby-lsp` with selector `sonic-pi`; confirm diagnostics render for a missing-`end` inside `live_loop do`. Empirically validates 1.3/2.1/2.2.
-3. **Decide completion delivery:** static client-side (recommended) vs addon-injected; measure current static completion latency for comparison.
-4. **Check s00500/vscode-sonic-pi issues** for LSP/diagnostics feature requests to validate demand.
+---
+
+## Appendix — Why not the Shopify VS Code extension ("avoid this path")
+
+*(Demoted from the original pass's Q1; facts retained verbatim — they remain the record for why the marketplace extension can never be the integration vehicle.)*
+
+**A.1 — It will never activate for Sonic Pi workspaces.** `vscode/package.json` declares `"activationEvents": ["workspaceContains:Gemfile.lock", "workspaceContains:gems.locked"]` — nothing else: no `onLanguage:*`, no `onStartupFinished` ([package.json](https://github.com/Shopify/ruby-lsp/blob/main/vscode/package.json); direct evidence, high). Sonic Pi users have no Bundler context — the documented pain is [ruby-lsp #2376](https://github.com/Shopify/ruby-lsp/issues/2376).
+
+**A.2 — Its document selector is hard-coded to Ruby-family languageIds.** `vscode/src/common.ts` exports `SUPPORTED_LANGUAGE_IDS`, imported by `client.ts` to build the selector; `sonic-pi` is outside it, so `vscode-languageclient` never routes those files ([common.ts](https://github.com/Shopify/ruby-lsp/blob/main/vscode/src/common.ts), [client.ts](https://github.com/Shopify/ruby-lsp/blob/main/vscode/src/client.ts); corroborated by [PR #1184](https://github.com/Shopify/ruby-lsp/pull/1184)). Array literal not read verbatim (Missing evidence #3). Net: **unusable out of the box** for our files.
+
+**A.3 — Even if both ran, two servers on one languageId means duplicated diagnostics.** Separate `DiagnosticCollection`s, no cross-server dedup ([ryl #323](https://github.com/owenlamont/ryl/issues/323)); Zed forces a choice ("you can't use both at the same time", [Zed Ruby docs](https://zed.dev/docs/languages/ruby)). With our own client we own the selector exclusively — no overlap by construction (researcher inference from A.1/A.2).
+
+**Bottom line:** the marketplace extension solves a different problem (Bundler-managed Ruby apps) and is architecturally closed to us. Embedding the server binary sidesteps every one of these constraints — the server itself has no languageId whitelist (§1).
