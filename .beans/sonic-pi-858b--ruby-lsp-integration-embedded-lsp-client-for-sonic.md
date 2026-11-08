@@ -5,7 +5,7 @@ status: todo
 type: epic
 priority: normal
 created_at: 2026-11-05T21:20:27Z
-updated_at: 2026-11-08T12:20:19Z
+updated_at: 2026-11-08T12:44:52Z
 ---
 
 sonic-pi-858b  todo   epic  [normal]                                                         
@@ -68,3 +68,11 @@ The user clarified the research intent: EMBED the system ruby-lsp SERVER BINARY 
 Actions running:
 - Research doc rewrite in worktree 858b-research-2 (branch off dev): embedded-server framing first (server.rb maps any languageId to :ruby is the load-bearing fact), Shopify demoted to appendix, verification re-run against the INSTALLED 0.26.10 gem (not GitHub main), spike becomes phase 1.
 - NO code changes until user greenlights the epic (their standing state: parked, decision to resume pending).
+
+## Doc reframe delivered (2026-11-07, docs only per user: 'good documentation and beans task, but no code changes for now')
+
+docs/research/ruby-lsp-integration.md rewritten (merged c355b3b):
+- Headline: embedded ruby-lsp SERVER binary (our extension spawns /usr/bin/ruby-lsp, stdio LSP, documentSelector sonic-pi).
+- Load-bearing fact promoted to section 1 and VERIFIED ON DISK against the installed gem: server.rb:382-391 + store.rb:29-36 (ruby-lsp 0.26.10, /usr/lib/ruby/gems/3.4.0) - the else -> :ruby default means sonic-pi files are served as Ruby with zero server-side changes.
+- Shopify VS Code extension demoted to 'avoid this path' appendix.
+- Spike-first 5-phase plan; NO code changes until user greenlights.
