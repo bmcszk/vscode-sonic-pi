@@ -3,8 +3,9 @@
 title: 'Epic: feature research - utilise ALL Sonic Pi surfaces + killer features (no Sonic Pi changes)'
 status: in-progress
 type: epic
+priority: normal
 created_at: 2026-11-14T12:32:51Z
-updated_at: 2026-11-14T12:32:51Z
+updated_at: 2026-11-14T12:33:24Z
 ---
 
 # Epic: feature-research wave - 'use ALL of Sonic Pi, and more'
@@ -23,5 +24,5 @@ Full spider-server OSC route list extracted from the installed daemon (/usr/lib/
 - /check-for-updates-now, /version (about pane)
 
 ## Phases
-- [ ] Phase A: researcher survey of shipped features (beans + code) vs daemon surface -> docs/research/feature-roadmap.md
+- [x] Phase A: researcher dispatched (worktree feats-research): Strudel/Tidal/FoxDot/Gibber survey + killer-feature scan against the verified route list -> docs/research/feature-roadmap.md
 - [ ] Phase B: user reviews roadmap; we promote picks into feature beans
