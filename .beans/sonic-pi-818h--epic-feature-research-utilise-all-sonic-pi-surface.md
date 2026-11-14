@@ -5,7 +5,7 @@ status: in-progress
 type: epic
 priority: normal
 created_at: 2026-11-14T12:32:51Z
-updated_at: 2026-11-14T12:33:24Z
+updated_at: 2026-11-14T12:49:39Z
 ---
 
 # Epic: feature-research wave - 'use ALL of Sonic Pi, and more'
@@ -24,5 +24,12 @@ Full spider-server OSC route list extracted from the installed daemon (/usr/lib/
 - /check-for-updates-now, /version (about pane)
 
 ## Phases
-- [x] Phase A: researcher dispatched (worktree feats-research): Strudel/Tidal/FoxDot/Gibber survey + killer-feature scan against the verified route list -> docs/research/feature-roadmap.md
+- [x] Phase A: docs/research/feature-roadmap.md delivered + parent-verified + merged (170d75c)
 - [ ] Phase B: user reviews roadmap; we promote picks into feature beans
+
+## Phase A delivered (2026-11-14, parent-verified): docs/research/feature-roadmap.md merged (170d75c)
+
+24 features mapped to real daemon surfaces, rated value/effort/risk.
+Top-5 killers: F1 per-run stop + F2 loop mute (/stop-job + /run/* events), F3 mixer popover (/mixer/settings push), F4 Link BPM+peers statusbar (/link-bpm, /link-num-peers pushes), F5 cue inspector + F6 cue test bench (/incoming/osc, /cue-port-*), F7 audio device hot-swap (/daemon/audio/* with the daemon token we hold).
+Single biggest insight: the daemon ALREADY PUSHES telemetry we ignore (/link-bpm, /mixer/settings, /run/started, /live_loop/scope...) - half the roadmap is 'stop ignoring the wire'.
+Phase B pending: user reviews roadmap and picks features -> promote to feature beans.
