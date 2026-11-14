@@ -6,8 +6,15 @@ const assert = require('assert')
 const Module = require('module')
 const { EventEmitter } = require('events')
 
-const CONNECTION_LOST =
-	'Daemon SuperSonic Conn: connection lost (EOFError: connection closed) - reconnecting'
+class FakeVsCodeEventEmitter {
+	constructor() {
+		this.event = (_listener) => ({ dispose() {} })
+	}
+	fire() {}
+	dispose() {}
+}
+
+const CONNECTION_LOST = 'Daemon SuperSonic Conn: connection lost (EOFError: connection closed) - reconnecting'
 
 const loggedLines = []
 const errorsShown = []
@@ -21,7 +28,7 @@ class FakeOscSender {
 }
 
 const vscodeStub = {
-	EventEmitter,
+	EventEmitter: FakeVsCodeEventEmitter,
 	Range: class {},
 	Selection: class {},
 	TextEditorRevealType: { InCenterIfOutsideViewport: 0 },
@@ -33,6 +40,10 @@ const vscodeStub = {
 			dispose() {},
 		}),
 		createTextEditorDecorationType: () => ({}),
+		createStatusBarItem: () => ({
+			show() {},
+			dispose() {},
+		}),
 		showErrorMessage: async (message) => {
 			errorsShown.push(message)
 			return undefined
@@ -68,7 +79,10 @@ const { Main } = require('../../out/source-runner/main.js')
 
 function booted(main, tokenOffset) {
 	const started = main.startServer()
-	spawnedServer.stdout.emit('data', Buffer.from(`3888${tokenOffset % 10} 38877 38876 38878 4560 73422429${tokenOffset % 10}`))
+	spawnedServer.stdout.emit(
+		'data',
+		Buffer.from(`3888${tokenOffset % 10} 38877 38876 38878 4560 73422429${tokenOffset % 10}`),
+	)
 	return started
 }
 
@@ -82,6 +96,7 @@ const tests = {
 	'offers Restart Server when the daemon reports audio connection loss': () => {
 		reset()
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		booted(main, 3)
 		spawnedServer.stderr.emit('data', Buffer.from(CONNECTION_LOST + '\n'))
 		assert.deepStrictEqual(errorsShown, ['Sonic Pi: Audio server connection lost'])
@@ -95,6 +110,7 @@ const tests = {
 	'debounces repeated connection-loss lines within the outage window': () => {
 		reset()
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		booted(main, 3)
 		spawnedServer.stderr.emit('data', Buffer.from(CONNECTION_LOST + '\n'))
 		spawnedServer.stderr.emit('data', Buffer.from('Daemon SuperSonic Conn: reconnected\n'))
@@ -108,6 +124,7 @@ const tests = {
 	'no notification for run-completion pause lines or unrelated stderr': () => {
 		reset()
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		booted(main, 3)
 		spawnedServer.stderr.emit('data', Buffer.from('Pausing SuperSonic Audio Server\n'))
 		spawnedServer.stderr.emit('data', Buffer.from('some noise\n'))
@@ -118,6 +135,7 @@ const tests = {
 	'restarting kills the current daemon process and boots a fresh one': async () => {
 		reset()
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		await Promise.all([
 			booted(main, 3),
 			sleep(0).then(() => {

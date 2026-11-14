@@ -111,7 +111,12 @@ const tests = {
 				arguments: ['live_loop :b do\n  play 62\nend', 4],
 				line: 4,
 			},
-			{ title: '$(play) Run cell', command: 'vscode-sonic-pi.runWithText', arguments: ['play 64', 8], line: 8 },
+			{
+				title: '$(play) Run cell',
+				command: 'vscode-sonic-pi.runWithText',
+				arguments: ['play 64', 8],
+				line: 8,
+			},
 		])
 	},
 
@@ -132,14 +137,25 @@ const tests = {
 	},
 
 	'a comment-only or settings-only block gets no Run cell lens'() {
-		const text = ['# Note: requires a powerful machine to run smoothly.', '', 'use_bpm 120', '', 'play 60'].join('\n')
+		const text = [
+			'# Note: requires a powerful machine to run smoothly.',
+			'',
+			'use_bpm 120',
+			'',
+			'play 60',
+		].join('\n')
 
 		const lenses = lensesFor('sonic-pi', text)
 
 		assert.deepStrictEqual(lenses.map(summary), [
 			{ title: '$(play) Run', command: 'vscode-sonic-pi.run', arguments: [text], line: 0 },
 			{ title: '$(stop) Stop', command: 'vscode-sonic-pi.stop', arguments: undefined, line: 0 },
-			{ title: '$(play) Run cell', command: 'vscode-sonic-pi.runWithText', arguments: ['play 60', 4], line: 4 },
+			{
+				title: '$(play) Run cell',
+				command: 'vscode-sonic-pi.runWithText',
+				arguments: ['play 60', 4],
+				line: 4,
+			},
 		])
 	},
 
@@ -169,7 +185,7 @@ const tests = {
 			'live_loop :a do',
 			'  chord_player',
 			'  sleep 1',
-		'end',
+			'end',
 		].join('\n')
 
 		const lenses = lensesFor('sonic-pi', text)
@@ -246,14 +262,7 @@ const tests = {
 	},
 
 	'comments inside an otherwise playable block do not disqualify its lens'() {
-		const text = [
-			'live_loop :a do',
-			'  # soft',
-			'  play 60',
-			'end',
-			'',
-			'play 62',
-		].join('\n')
+		const text = ['live_loop :a do', '  # soft', '  play 60', 'end', '', 'play 62'].join('\n')
 
 		const lenses = lensesFor('sonic-pi', text)
 

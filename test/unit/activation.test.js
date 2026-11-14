@@ -20,8 +20,12 @@ const vscodeStub = {
 	},
 	Range: class {},
 	Selection: class {},
+	StatusBarAlignment: { Left: 1, Right: 2 },
 	TextEditorRevealType: { InCenterIfOutsideViewport: 0 },
 	Uri: { joinPath: (...parts) => ({ fsPath: parts.join('/') }) },
+	workspace: {
+		registerTextDocumentContentProvider: () => ({ dispose() {} }),
+	},
 	window: {
 		createOutputChannel: () => ({
 			append() {},
@@ -30,9 +34,14 @@ const vscodeStub = {
 			dispose() {},
 		}),
 		createTextEditorDecorationType: () => ({}),
+		createStatusBarItem: () => ({
+			show() {},
+			dispose() {},
+		}),
 		showErrorMessage: async () => undefined,
 		showInformationMessage: async () => undefined,
 		onDidChangeVisibleTextEditors: () => ({ dispose() {} }),
+		tabGroups: { onDidChangeTabs: () => ({ dispose() {} }), all: [] },
 		showTextDocument: async () => ({}),
 		activeTextEditor: undefined,
 	},
@@ -40,7 +49,13 @@ const vscodeStub = {
 		getConfiguration: () => ({ get: (_key, fallback) => fallback }),
 		onDidChangeConfiguration: () => ({ dispose() {} }),
 		onDidChangeTextDocument: () => ({ dispose() {} }),
+		onDidCloseTextDocument: () => ({ dispose() {} }),
+		registerTextDocumentContentProvider: () => ({ dispose() {} }),
 		registerNotebookSerializer: (..._a) => ({ dispose() {} }),
+		// A controller asks for the notebooks of its type as they open, so the kernel is picked
+		// for a book without the user choosing one.
+		notebookDocuments: [],
+		onDidOpenNotebookDocument: () => ({ dispose() {} }),
 	},
 	commands: {
 		registerCommand: (id, _fn) => {
@@ -60,9 +75,11 @@ const vscodeStub = {
 	},
 	notebooks: {
 		registerNotebookSerializer: () => ({ dispose() {} }),
+		registerNotebookCellStatusBarItemProvider: () => ({ dispose() {} }),
 		createNotebookController: (_id, _label, _kind, _handler) => ({
 			dispose() {},
 			onDidChangeActiveNotebookEditor: () => ({ dispose() {} }),
+			updateNotebookAffinity: () => {},
 			createNotebookCellExecution: () => ({}),
 		}),
 	},
@@ -76,6 +93,17 @@ Module._load = function (request, parent, isMain) {
 }
 
 const tests = {
+	'every contributed command activates the extension on invocation'() {
+		const manifest = require('../../package.json')
+		const commands = manifest.contributes.commands.map((entry) => entry.command)
+		const activationCommands = manifest.activationEvents
+			.filter((event) => event.startsWith('onCommand:'))
+			.map((event) => event.replace('onCommand:', ''))
+		const missing = commands.filter((command) => !activationCommands.includes(command))
+		assert.deepStrictEqual(missing, [], 'every contributed command must appear in activationEvents')
+	},
+
+
 	async 'extension activates without throwing and registers core commands'() {
 		const extension = require('../../out/extension.js')
 		await extension.activate({

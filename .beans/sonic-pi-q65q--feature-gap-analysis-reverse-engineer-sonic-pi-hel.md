@@ -1,11 +1,11 @@
 ---
 # sonic-pi-q65q
 title: 'Feature gap analysis: reverse-engineer sonic-pi-helper + Sonic Pi, propose extension features/fixes'
-status: in-progress
+status: completed
 type: epic
 priority: normal
 created_at: 2026-11-04T20:29:46Z
-updated_at: 2026-11-04T23:33:50Z
+updated_at: 2026-11-05T20:31:52Z
 ---
 
 # Feature gap analysis (user directive 2026-11-04)
@@ -42,3 +42,19 @@ Phase A analysis delivered: docs/research/feature-gaps.md (helper reverse-engine
 ## Skills-rules audit of all our commits (2026-11-04, user-ordered)
 
 Scope: every commit on the fork (fork-fixes, maturity, audio-recovery, editor-controls, highlight, codelens, variant B/A, research docs, skills). Verdict per coding-rules: architecture compliant (intent/mechanism split, call-order layout, black-box tests, fake-clock/editor only at boundaries, error-early). Found+fixed 1 residue: dead runOffset field (always 0 since variant A) with both error-path additions + a comment contradicting the code (e2693a4). Earlier audits this session: variant-B jobid residue (ece073f), lying config default. Skill-rules honored in process: no gate bypassed, all tests kept, red->green evidence per feature, minimal diffs.
+
+## Wave 1 complete (2026-11-05)
+
+P1 (lgv0), P2 (ui6r), P5 (knzv), P7 (lkus) implemented, merged, closed with PoW. All parent-re-verified on master: 9 suites green, live e2e gate green, pushed. Coordination incident during wave: shared-checkout collisions (main worktree moved under live workers twice) - fixed with dedicated worktrees + supervisor replies; structural fix owed: dispatch contract must create one worktree per worker. Wave 2 (kmbo P3, dmux P4, h8vo P6) dispatches next with per-worker worktrees.
+
+## Wave 2 complete (2026-11-05) - EPIC GOAL REACHED
+
+P3 (kmbo), P4 (dmux), P6 (h8vo) implemented, merged, closed with PoW. All 7 proposals shipped. Parent re-verified on master 73557b2: 11 suites (87 ok), live e2e gate green, vsce 324 files DONE. Merge-resolution procedure (worker branch pre-merge master merge + union test scripts) worked cleanly for both.
+
+## Proof of Work (epic closure, 2026-11-05)
+
+End-to-end: all 7 proposals (P1-P7) implemented via delegated workers on isolated branches/worktrees, every merge parent-verified with the full gate battery, master 6dd43fb pushed green (11 suites, 87 ok; live-daemon e2e gate green; vsce 324-file package DONE). Store listing already live with v0.2.2; the P-features ride the next release tag (recommended v0.3.0, user call). Epic ACs: all proposals ranked+shipped (P1-P7 = 7/7), helper reverse-engineered, OSC surface documented, user picked all 7. Residual: three pre-epic beans (dgis/rtvk/kpif) remain open pending user's cloud_beat.pi re-test - they predate this epic and are tracked separately.
+
+## Ship mode changed to PR flow (2026-11-05, user directive 'PR flow, stay on dev')
+
+User enabled a master branch ruleset (require 1 PR approval). dev branch created with ALL post-0.2.2 work (36 commits: P1-P7 + fixes), pushed; PR #1 opened (https://github.com/bmcszk/vscode-sonic-pi/pull/1). Session now lives on dev until everything is done; further fixes branch off dev and merge INTO dev.

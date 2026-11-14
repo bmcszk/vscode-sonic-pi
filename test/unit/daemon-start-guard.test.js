@@ -21,7 +21,14 @@ class FakeOscSender {
 }
 
 const vscodeStub = {
-	EventEmitter,
+	EventEmitter: class extends EventEmitter {
+		fire(value) {
+			this.emit('event', value)
+		}
+		event() {
+			return { dispose() {} }
+		}
+	},
 	Range: class {},
 	Selection: class {},
 	TextEditorRevealType: { InCenterIfOutsideViewport: 0 },
@@ -47,7 +54,7 @@ const vscodeStub = {
 
 const childProcessStub = {
 	spawn: () => {
-		spawnedServer = { stdout: new EventEmitter(), stderr: new EventEmitter() }
+		spawnedServer = { stdout: new EventEmitter(), stderr: new EventEmitter(), kill() {} }
 		return spawnedServer
 	},
 }
@@ -87,11 +94,61 @@ const tests = {
 		assert.strictEqual(main.guiUuid, -2000447764)
 	},
 
+	async 'restart ignores a still-visible dying server and boots its own daemon'() {
+		oscSenders.length = 0
+		const main = new Main()
+		// The old daemon is mid-death (SIGTERM grace): the scanner still sees it the whole time.
+		const dying = { sendToServerPort: 37000, listenFromServerPort: 37001, oscCuesPort: 37002, token: 7, daemonPort: 37003 }
+		main.spiderServerScanner = () => dying
+		const started = main.startServer()
+		spawnedServer.stdout.emit('data', Buffer.from('38880 38877 38876 38878 4560 1'))
+		await started
+
+		const restarting = main.restartServer()
+		spawnedServer.stdout.emit('data', Buffer.from('39990 39997 39996 39998 4560 2'))
+		await restarting
+
+		assert.ok(
+			oscSenders.some((sender) => sender.port === 39996),
+			'the restart boots a fresh managed daemon instead of adopting the dying one',
+		)
+		assert.strictEqual(
+			oscSenders.filter((sender) => sender.port === 37000).length,
+			1,
+			'only the initial attach used the dying generation',
+		)
+	},
+
+	async 'sends OSC to the new daemon after a restart, not the dead generation'() {
+		oscSenders.length = 0
+		const main = new Main()
+		main.spiderServerScanner = () => undefined
+		const started = main.startServer()
+		spawnedServer.stdout.emit('data', Buffer.from('38880 38877 38876 38878 4560 1'))
+		await started
+
+		const restarting = main.restartServer()
+		spawnedServer.stdout.emit('data', Buffer.from('39990 39997 39996 39998 4560 2'))
+		await restarting
+
+		main.requestVersion()
+		await Promise.resolve()
+		const fresh = oscSenders.filter((sender) => sender.port === 39996).pop()
+		assert.ok(fresh, 'the restarted daemon gets its own sender')
+		assert.strictEqual(fresh.sent[0].address, '/version', 'the send goes to the fresh generation')
+		assert.strictEqual(
+			oscSenders.filter((sender) => sender.port === 38876).length,
+			1,
+			'the dead generation is not resent to',
+		)
+	},
+
 	async 'logs the raw line, aborts the start and sends no OSC when the line is garbage'() {
 		loggedLines.length = 0
 		errorsShown.length = 0
 		oscSenders.length = 0
 		const main = new Main()
+		main.spiderServerScanner = () => undefined
 		const started = main.startServer()
 		spawnedServer.stdout.emit('data', Buffer.from('1 2 3 4 5 not-a-number'))
 		await started

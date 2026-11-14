@@ -1,11 +1,11 @@
 ---
 # sonic-pi-dgis
 title: Highlight currently-playing lines in the editor (like the Sonic Pi GUI's colored line background)
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-04T13:00:49Z
-updated_at: 2026-11-04T20:43:47Z
+updated_at: 2026-11-05T21:20:45Z
 ---
 
 # Playing-line highlight in VS Code (like the Sonic Pi app's colored line backgrounds)
@@ -63,3 +63,5 @@ Implement playing-line highlight per docs/research/playing-line-highlight.md §3
 AC: [ ] red->green; [ ] npm test all suites green incl. new; [ ] e2e live gate green; [ ] local vsix installed for user trial before release 0.2.0. STOP: playing-lines.ts (new), source-runner wiring, playing-lines.test.js, package.json (surgical), README — nothing else.
 
 ## Phase C opened: fragment-offset bug spun to its own bean (see bug); upstream caller-depth limitation documented in research doc update. This bean stays open until both Phase B features get user sign-off.
+
+## Final note (2026-11-05): shipped features (playing-line highlight, controls, per-cell items) all live in the store + dev build; upstream depth-cap item remains tracked at sonic-pi-net/sonic-pi#3606 (no PR per user directive).

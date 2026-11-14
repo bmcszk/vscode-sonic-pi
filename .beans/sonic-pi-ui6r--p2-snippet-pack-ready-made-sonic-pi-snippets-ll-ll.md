@@ -1,11 +1,11 @@
 ---
 # sonic-pi-ui6r
 title: '[P2] Snippet pack: ready made Sonic Pi snippets (ll, lls, llb, use_bpm...)'
-status: todo
+status: completed
 type: feature
 priority: normal
 created_at: 2026-11-04T20:36:14Z
-updated_at: 2026-11-04T23:29:49Z
+updated_at: 2026-11-05T15:58:15Z
 parent: sonic-pi-q65q
 ---
 

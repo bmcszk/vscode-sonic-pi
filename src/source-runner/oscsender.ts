@@ -23,18 +23,24 @@
 // Very simple OSC send wrapper. At the moment the send port is harcoded, but we already know the
 // port where this is. Use that!
 // The OSC receiving handling is in main.ts.
-const OSC = require('osc-js')
+import OSC from 'osc-js'
 
 export class OscSender {
-	private osc: any
+	private osc: OSC
 	constructor(private port: number) {
-		this.osc = new OSC({
-			plugin: new OSC.DatagramPlugin({ send: { port, host: '127.0.0.1' } }),
-		})
+		// Send-only socket: bind ephemeral. The library default ('localhost':41234) is still
+		// binding when the first send fires, which drops it (the first run after a cold boot
+		// vanished), and 41234 can already belong to another window's sender.
+		const options = {
+			type: 'udp4',
+			open: { port: 0, host: '127.0.0.1' },
+			send: { port, host: '127.0.0.1' },
+		}
+		this.osc = new OSC({ plugin: new OSC.DatagramPlugin(options) })
 		this.osc.open()
 	}
 
-	send(msg: any) {
-		this.osc.send(msg)
+	send(message: OSC.Message) {
+		this.osc.send(message)
 	}
 }

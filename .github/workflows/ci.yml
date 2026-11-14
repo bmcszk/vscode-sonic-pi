@@ -34,4 +34,8 @@ jobs:
       # compile is harmless, so the script stays the single source of truth.
       # `npm run test:e2e` is deliberately absent: it drives a real Sonic Pi 5
       # daemon over OSC and GitHub-hosted runners have no Sonic Pi installed.
+      # Lint gate: zero findings required (honest fixes only - no suppressions in repo).
+      - name: Lint (eslint + prettier, fail-fast)
+        run: npm run lint && npm run format:check
+
       - run: npm test
