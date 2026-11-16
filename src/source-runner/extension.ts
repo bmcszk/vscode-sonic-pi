@@ -133,6 +133,14 @@ export const isReceiving = () => main.isReceiving()
 export const notebookRunsWholeSong = () => config.notebookRunsWholeSong()
 export const takeOverConnection = () => main.takeOverConnection()
 
+export const onLinkBpm = (listener: (bpm: number) => void) => {
+	return main.onLinkBpm.event(listener)
+}
+export const onLinkPeers = (listener: (peers: number) => void) => {
+	return main.onLinkPeers.event(listener)
+}
+export const setLinkBpm = (bpm: number) => main.setLinkBpm(bpm)
+
 export const startServer = () => main.startServer()
 
 export const launchServerAutomatically = () => config.launchSonicPiServerAutomatically()
