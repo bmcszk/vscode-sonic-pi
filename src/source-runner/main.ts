@@ -73,6 +73,7 @@ export class Main {
 		| undefined
 	onVersion = new vscode.EventEmitter<string>()
 	onMixerSettings = new vscode.EventEmitter<{ drive: number; volume: number }>()
+	onSupersonicDevices = new vscode.EventEmitter<{ kind: 'output' | 'input' | 'table'; names: string[] }>()
 
 	guiSendToServerPort: number
 	daemonPort: number
@@ -87,6 +88,11 @@ export class Main {
 	portsInitalizedResolver!: (sender: OscSender) => void
 	keepAliveTimer: ReturnType<typeof setInterval> | undefined
 	private keepAliveFailures = 0
+	// The daemon-audio routes need their own socket: the keepalive sender is a lifecycle
+	// object (errors there declare the daemon dead) and must never carry audio traffic.
+	private daemonSender: OscSender | undefined
+	// Raw /supersonic/device-table args, kept unparsed: the picker task decides the shape.
+	lastDeviceTable: OscArg[] = []
 	// Consecutive keepalive send errors before the daemon is declared dead. One ICMP
 	// hiccup is not death; three in a row means the destination port refuses everything.
 	private static readonly KEEPALIVE_FAILURE_LIMIT = 3
@@ -411,6 +417,15 @@ export class Main {
 				this.onMixerSettings.fire({ drive, volume })
 			}
 		})
+		osc.on('/supersonic/devices', (message: OscMessage) => {
+			this.fireSupersonicDevices('/supersonic/devices', message.args)
+		})
+		osc.on('/supersonic/input-devices', (message: OscMessage) => {
+			this.fireSupersonicDevices('/supersonic/input-devices', message.args)
+		})
+		osc.on('/supersonic/device-table', (message: OscMessage) => {
+			this.fireSupersonicDevices('/supersonic/device-table', message.args)
+		})
 
 		osc.on('/version', (message: OscMessage) => {
 			const version = message.args[0]
@@ -609,6 +624,49 @@ export class Main {
 				this.logOutput.appendLine(line)
 			})
 		}
+	}
+
+	private getDaemonSender() {
+		if (!this.daemonSender) {
+			this.daemonSender = new OscSender(this.daemonPort)
+		}
+		return this.daemonSender
+	}
+
+	private sendDaemonAudio(address: string, ...args: OscArg[]) {
+		this.getDaemonSender().send(new OSC.Message(address, this.guiUuid, ...args))
+	}
+
+	requestAudioDevices() {
+		this.sendDaemonAudio('/daemon/audio/request-devices')
+	}
+
+	switchAudioDevice(key: string) {
+		this.sendDaemonAudio('/daemon/audio/switch-device', key)
+	}
+
+	switchAudioDriver(driver: string) {
+		this.sendDaemonAudio('/daemon/audio/switch-driver', driver)
+	}
+
+	reopenAudioDevice() {
+		this.sendDaemonAudio('/daemon/audio/reopen-device')
+	}
+
+	// The daemon forwards the engine's device pushes to gui-listen (daemon.rb device
+	// forwarding). Payloads are flat arrays; non-strings (a stray leading number in
+	// /supersonic/input-devices) are filtered so consumers only see display names.
+	fireSupersonicDevices(address: string, args: OscArg[]) {
+		if (address === '/supersonic/device-table') {
+			this.lastDeviceTable = args
+		}
+		const kind =
+			address === '/supersonic/devices'
+				? 'output'
+				: address === '/supersonic/input-devices'
+					? 'input'
+					: 'table'
+		this.onSupersonicDevices.fire({ kind, names: args.filter((a) => typeof a === 'string') })
 	}
 
 	startKeepAlive() {
