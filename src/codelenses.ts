@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import { MuteRegistry } from './loop-mute'
 
 const CONFIGURATION_SECTION = 'vscode-sonic-pi'
 const LANGUAGE_ID = 'sonic-pi'
@@ -6,11 +7,17 @@ const NOTEBOOK_CELL_SCHEME = 'vscode-notebook-cell'
 const RUN_COMMAND = 'vscode-sonic-pi.run'
 const RUN_TEXT_COMMAND = 'vscode-sonic-pi.runWithText'
 const STOP_COMMAND = 'vscode-sonic-pi.stop'
+export const MUTE_COMMAND = 'vscode-sonic-pi.muteLoop'
+export const UNMUTE_COMMAND = 'vscode-sonic-pi.unmuteLoop'
 
 interface SonicPiBlock {
 	line: number
 	text: string
 }
+
+// The mute lens registry is module-level so the command handlers in extension.ts flip the
+// same registry the provider renders from.
+const muteRegistry = new MuteRegistry()
 
 export class SonicPiCodeLensProvider implements vscode.CodeLensProvider {
 	private readonly lensesChanged = new vscode.EventEmitter<void>()
@@ -21,13 +28,46 @@ export class SonicPiCodeLensProvider implements vscode.CodeLensProvider {
 		vscode.workspace.onDidChangeTextDocument(() => this.lensesChanged.fire())
 	}
 
+	// The command handlers share this module's registry so a mute flips the lens.
+	mute(cellKey: string, code: string): void {
+		muteRegistry.mute([cellKey], code)
+		this.lensesChanged.fire()
+	}
+
+	unmute(cellKey: string): void {
+		muteRegistry.unmute([cellKey])
+		this.lensesChanged.fire()
+	}
+
 	provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
 		if (!showsControlsFor(document)) {
 			return []
 		}
 		const text = document.getText()
-		return [...fileLenses(text), ...blockLenses(text)]
+		return [...fileLenses(text), ...blockLenses(text), ...muteLenses(text)]
 	}
+}
+
+// A mute lens keys the block by its document line and text, so unmute can find the
+// stored code again and the lens flips with the registry state.
+export const cellKeyFor = (line: number, blockText: string): string => `file://${line}:${blockText}`
+
+function muteLenses(text: string): vscode.CodeLens[] {
+	if (blocksOf(text).length < 2) {
+		return []
+	}
+	return blocksOf(text)
+		.filter((block) => hasPlayableLine(block.text) && !isAssignmentOnly(block.text))
+		.map((block) => {
+			const cellKey = cellKeyFor(block.line, block.text)
+			const muted = muteRegistry.isMuted(cellKey)
+			return codeLens(
+				block.line,
+				muted ? '$(play) Unmute' : '$(debug-pause) Mute',
+				muted ? UNMUTE_COMMAND : MUTE_COMMAND,
+				[cellKey, block.text],
+			)
+		})
 }
 
 function showsControlsFor(document: vscode.TextDocument): boolean {

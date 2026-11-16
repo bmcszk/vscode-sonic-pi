@@ -21,8 +21,14 @@ class FakeCodeLens {
 	}
 }
 
+class FireEmitter extends EventEmitter {
+	fire() {
+		this.emit('change')
+	}
+}
+
 const vscodeStub = {
-	EventEmitter,
+	EventEmitter: FireEmitter,
 	Range: FakeRange,
 	CodeLens: FakeCodeLens,
 	workspace: {
@@ -40,7 +46,7 @@ Module._load = function (request) {
 	return load.apply(this, arguments)
 }
 
-const { SonicPiCodeLensProvider } = require('../../out/codelenses.js')
+const { SonicPiCodeLensProvider, MUTE_COMMAND, UNMUTE_COMMAND } = require('../../out/codelenses.js')
 
 const THREE_BLOCK_TEXT = [
 	'live_loop :a do',
@@ -74,7 +80,7 @@ function summary(lens) {
 }
 
 const tests = {
-	'line 1 carries $(play) Run with the whole document and $(stop) Stop'() {
+		'line 1 carries $(play) Run with the whole document and $(stop) Stop'() {
 		const text = THREE_BLOCK_TEXT
 
 		const lenses = lensesFor('sonic-pi', text)
@@ -96,8 +102,12 @@ const tests = {
 	'each blank-line block gets a $(play) Run cell lens at its first line when a document has several blocks'() {
 		const lenses = lensesFor('sonic-pi', THREE_BLOCK_TEXT)
 
-		assert.deepStrictEqual(lenses.map(summary), [
-			{ title: '$(play) Run', command: 'vscode-sonic-pi.run', arguments: [THREE_BLOCK_TEXT], line: 0 },
+		assert.deepStrictEqual(
+			lenses
+				.filter((lens) => lens.command.command !== MUTE_COMMAND)
+				.map(summary),
+			[
+				{ title: '$(play) Run', command: 'vscode-sonic-pi.run', arguments: [THREE_BLOCK_TEXT], line: 0 },
 			{ title: '$(stop) Stop', command: 'vscode-sonic-pi.stop', arguments: undefined, line: 0 },
 			{
 				title: '$(play) Run cell',
@@ -147,16 +157,21 @@ const tests = {
 
 		const lenses = lensesFor('sonic-pi', text)
 
-		assert.deepStrictEqual(lenses.map(summary), [
-			{ title: '$(play) Run', command: 'vscode-sonic-pi.run', arguments: [text], line: 0 },
-			{ title: '$(stop) Stop', command: 'vscode-sonic-pi.stop', arguments: undefined, line: 0 },
-			{
-				title: '$(play) Run cell',
-				command: 'vscode-sonic-pi.runWithText',
-				arguments: ['play 60', 4],
-				line: 4,
-			},
-		])
+		assert.deepStrictEqual(
+			lenses
+				.filter((lens) => lens.command.command !== MUTE_COMMAND)
+				.map(summary),
+			[
+				{ title: '$(play) Run', command: 'vscode-sonic-pi.run', arguments: [text], line: 0 },
+				{ title: '$(stop) Stop', command: 'vscode-sonic-pi.stop', arguments: undefined, line: 0 },
+				{
+					title: '$(play) Run cell',
+					command: 'vscode-sonic-pi.runWithText',
+					arguments: ['play 60', 4],
+					line: 4,
+				},
+			],
+		)
 	},
 
 	'an assignment-only block gets no Run cell lens because locals do not survive the run'() {
@@ -203,6 +218,21 @@ const tests = {
 				title: '$(play) Run cell',
 				command: 'vscode-sonic-pi.runWithText',
 				arguments: ['live_loop :a do\n  chord_player\n  sleep 1\nend', 4],
+				line: 4,
+			},
+			{
+				title: '$(debug-pause) Mute',
+				command: 'vscode-sonic-pi.muteLoop',
+				arguments: [
+					'file://0:define :chord_player do\n  play chord(:c4, :maj9)\nend',
+					'define :chord_player do\n  play chord(:c4, :maj9)\nend',
+				],
+				line: 0,
+			},
+			{
+				title: '$(debug-pause) Mute',
+				command: 'vscode-sonic-pi.muteLoop',
+				arguments: ['file://4:live_loop :a do\n  chord_player\n  sleep 1\nend', 'live_loop :a do\n  chord_player\n  sleep 1\nend'],
 				line: 4,
 			},
 		])
@@ -257,6 +287,8 @@ const tests = {
 				[0, '$(stop) Stop'],
 				[0, '$(sync) Load def'],
 				[6, '$(play) Run cell'],
+				[0, '$(debug-pause) Mute'],
+				[6, '$(debug-pause) Mute'],
 			],
 		)
 	},
@@ -300,6 +332,45 @@ const tests = {
 
 	'notebook cell documents get no lens because the cell already has its own run button'() {
 		assert.deepStrictEqual(lensesFor('sonic-pi', THREE_BLOCK_TEXT, 'vscode-notebook-cell'), [])
+	},
+
+	'every playable block also gets a mute lens with its cell key and block text'() {
+		const lenses = lensesFor('sonic-pi', THREE_BLOCK_TEXT)
+		const muteLenses = lenses.filter((lens) => lens.command.command === MUTE_COMMAND)
+
+		assert.deepStrictEqual(muteLenses.map(summary), [
+			{
+				title: '$(debug-pause) Mute',
+				command: MUTE_COMMAND,
+				arguments: ['file://0:live_loop :a do\n  play 60\nend', 'live_loop :a do\n  play 60\nend'],
+				line: 0,
+			},
+			{
+				title: '$(debug-pause) Mute',
+				command: MUTE_COMMAND,
+				arguments: ['file://4:live_loop :b do\n  play 62\nend', 'live_loop :b do\n  play 62\nend'],
+				line: 4,
+			},
+			{ title: '$(debug-pause) Mute', command: MUTE_COMMAND, arguments: ['file://8:play 64', 'play 64'], line: 8 },
+		])
+	},
+
+	'the mute lens title flips to Unmute once its cell key is muted in the registry'() {
+		const provider = new SonicPiCodeLensProvider()
+		const text = 'live_loop :a do\n  play 60\nend\n\nplay 64'
+		const cellKey = 'file://0:live_loop :a do\n  play 60\nend'
+		provider.mute(cellKey, text.split('\n\n')[0])
+
+		const muteTitles = provider
+			.provideCodeLenses(document('sonic-pi', text))
+			.filter((lens) => [MUTE_COMMAND, UNMUTE_COMMAND].includes(lens.command.command))
+			.map((lens) => lens.command.title)
+		assert.deepStrictEqual(muteTitles, ['$(play) Unmute', '$(debug-pause) Mute'])
+	},
+
+	'single-block documents get no mute lens'() {
+		const lenses = lensesFor('sonic-pi', SINGLE_BLOCK_TEXT)
+		assert.deepStrictEqual(lenses.filter((lens) => lens.command.command === MUTE_COMMAND), [])
 	},
 }
 

@@ -55,6 +55,8 @@
 		"onCommand:vscode-sonic-pi.cueInsertSync",
 		"onCommand:vscode-sonic-pi.cueSendTest",
 		"onCommand:vscode-sonic-pi.mixer",
+		"onCommand:vscode-sonic-pi.muteLoop",
+		"onCommand:vscode-sonic-pi.unmuteLoop",
 		"onNotebook:sonic-pi-book"
 	],
 	"main": "./out/extension.js",
@@ -194,6 +196,16 @@
 			{
 				"command": "vscode-sonic-pi.stop",
 				"title": "Stop",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.muteLoop",
+				"title": "Mute Loop",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.unmuteLoop",
+				"title": "Unmute Loop",
 				"category": "Sonic Pi"
 			},
 			{
