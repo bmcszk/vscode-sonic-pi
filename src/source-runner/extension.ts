@@ -102,6 +102,14 @@ export const startServer = () => main.startServer()
 
 export const launchServerAutomatically = () => config.launchSonicPiServerAutomatically()
 
+export const onSupersonicDevices = (
+	listener: (devices: { kind: 'output' | 'input' | 'table'; names: string[] }) => void,
+) => main.onSupersonicDevices.event(listener)
+export const requestAudioDevices = () => main.requestAudioDevices()
+export const switchAudioDevice = (key: string) => main.switchAudioDevice(key)
+export const switchAudioDriver = (driver: string) => main.switchAudioDriver(driver)
+export const reopenAudioDevice = () => main.reopenAudioDevice()
+
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Ruby detected. Sonic Pi editor extension active!')
 
