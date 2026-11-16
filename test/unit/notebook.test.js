@@ -121,6 +121,10 @@ class FakeMain {
 		this.onReceiverFailed = new StubEventEmitter()
 		this.onReceiverOpened = new StubEventEmitter()
 		this.onCue = new StubEventEmitter()
+		this.onMixerSettings = new StubEventEmitter()
+		this.onLinkBpm = new StubEventEmitter()
+		this.onLinkPeers = new StubEventEmitter()
+		this.onSupersonicDevices = new StubEventEmitter()
 		this.receiving = true
 		this.serverStarted = false
 		this.restartInProgress = false
@@ -138,6 +142,41 @@ class FakeMain {
 	stopCell(cells) {
 		this.events.push('stopCell:' + cells.join(','))
 	}
+	setDrive(amp) {
+		this.events.push('setDrive:' + amp)
+	}
+	setLpf(freq) {
+		this.events.push('setLpf:' + freq)
+	}
+	setHpf(freq) {
+		this.events.push('setHpf:' + freq)
+	}
+	mixerStereoMode() {
+		this.events.push('stereo')
+	}
+	mixerMonoMode() {
+		this.events.push('mono')
+	}
+	mixerInvertStereo() {
+		this.events.push('invert')
+	}
+	mixerStandardStereo() {
+		this.events.push('standard')
+	}
+	requestAudioDevices() {}
+	switchAudioDevice(key) {}
+	switchAudioDriver(driver) {}
+	reopenAudioDevice() {}
+	setLinkBpm(bpm) {
+		this.events.push('setLinkBpm:' + bpm)
+	}
+	sendTestCue(address, args) {
+		this.events.push('sendTestCue:' + address)
+	}
+	cuePortStart() {}
+	cuePortStop() {}
+	cuePortExternal() {}
+	cuePortInternal() {}
 	stopServer() {}
 	// Boots asynchronously like the real one, which only resolves once the daemon is ready.
 	startServer() {
