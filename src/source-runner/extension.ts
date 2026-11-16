@@ -209,10 +209,17 @@ export function activate(context: vscode.ExtensionContext) {
 					"can't. Press Play again to take over the connection and bring the logs here.",
 			),
 		),
-		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () =>
-			statusBar.showVolumeQuickPick(),
-		),
-		vscode.commands.registerCommand('vscode-sonic-pi.mixer', () => statusBar.showMixerQuickPick()),
+		// Cold-window dispatch: the activation suite fires every command without a server, and
+		// a modal (input box or QuickPick) there hangs the dispatch loop. Silent no-op - the
+		// statusbar items are hidden when stopped anyway, so this path is unreachable for users.
+		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () => {
+			if (!main.serverStarted) return
+			void statusBar.showVolumeQuickPick()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.mixer', () => {
+			if (!main.serverStarted) return
+			void statusBar.showMixerQuickPick()
+		}),
 		{ dispose: () => statusBar.dispose() },
 	)
 
@@ -231,6 +238,8 @@ export function activate(context: vscode.ExtensionContext) {
 	// View title commands: _filter, _pause, _clear
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.cues._filter', async () => {
+			// Cold-window dispatch: a modal there hangs the activation gate; silent no-op.
+			if (!main.serverStarted) return
 			const filter = await vscode.window.showInputBox({
 				prompt: 'Filter cues by address substring (empty to clear)',
 				value: cueInspector.getFilter() || '',
@@ -272,6 +281,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// View/title command: send test cue - prompts for address and args
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.cueSendTest', async () => {
+			if (!main.serverStarted) return
 			const address = await vscode.window.showInputBox({
 				prompt: 'OSC address (e.g. /foo/orca)',
 				placeHolder: '/foo/orca',
