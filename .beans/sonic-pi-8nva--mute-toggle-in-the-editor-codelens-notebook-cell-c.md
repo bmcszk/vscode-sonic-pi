@@ -5,7 +5,7 @@ status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-16T13:29:44Z
-updated_at: 2026-11-16T19:10:51Z
+updated_at: 2026-11-16T19:49:11Z
 parent: sonic-pi-eimm
 blocked_by:
     - sonic-pi-hjng
@@ -96,3 +96,16 @@ The fccp integration worker independently discovered this (no mute references on
 - [ ] integration: muteLoop/unmuteLoop end-to-end (moved from fccp scope)
 
 Skills for coder: /home/blaze/.agents/skills/typescript/SKILL.md, .agents/skills/vscode-ext-commands/SKILL.md
+
+## Proof of Work (2026-11-16, parent-verified)
+
+Worker branch 8nva-mute-ui-redo (committed to dev2), merged:
+- codelenses.ts: Mute lens ' Mute' / ' Unmute' flipping with registry.isMuted
+- notebook.ts: muteCellByKeys/unmuteCellByKeys using CellWorkingCopy.content
+- package.json: muteLoop/unmuteLoop commands + activationEvents
+- activation suite: both new commands dispatch cold (no server) without error
+- codelens test: mute lens flips after registry.mute()
+- integration test: mute stops only that run, unmute re-runs with stored text
+
+Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, integration green, suppression grep 0.
+Residual: none.
