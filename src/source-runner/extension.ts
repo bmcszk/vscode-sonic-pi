@@ -39,6 +39,8 @@ import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
 import { MuteRegistry } from '../loop-mute'
+import { CueStore } from '../cue-store'
+import { CueInspector } from '../cue-inspector'
 
 let main: Main
 let config: Config
@@ -204,6 +206,59 @@ export function activate(context: vscode.ExtensionContext) {
 			statusBar.showVolumeQuickPick(),
 		),
 		{ dispose: () => statusBar.dispose() },
+	)
+
+	// Cue Inspector: TreeView over the cue store
+	const cueStore = new CueStore()
+	const cueInspector = new CueInspector(cueStore)
+	const cueTreeView = vscode.window.createTreeView('sonic-pi.cues', {
+		treeDataProvider: cueInspector,
+		showCollapseAll: true,
+	})
+	cueTreeView.title = 'Cues'
+
+	// Wire the daemon's onCue emitter to the store
+	context.subscriptions.push(main.onCue.event((cue) => cueStore.add(cue)))
+
+	// View title commands: _filter, _pause, _clear
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._filter', async () => {
+			const filter = await vscode.window.showInputBox({
+				prompt: 'Filter cues by address substring (empty to clear)',
+				value: cueInspector.getFilter() || '',
+			})
+			if (filter !== undefined) {
+				cueInspector.setFilter(filter || undefined)
+				cueTreeView.title = filter ? `Cues (filtered: ${filter})` : 'Cues'
+			}
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._pause', () => {
+			const paused = !cueInspector.isPaused()
+			cueInspector.setPaused(paused)
+			cueTreeView.title = paused
+				? 'Cues (paused)'
+				: cueInspector.getFilter()
+					? `Cues (filtered: ${cueInspector.getFilter()})`
+					: 'Cues'
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._clear', () => {
+			cueInspector.clear()
+			cueTreeView.title = 'Cues'
+		}),
+	)
+
+	// Palette command: insert sync :address at cursor
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.cueInsertSync', async () => {
+			const cues = cueInspector.getChildren()
+			if (cues.length === 0) {
+				void vscode.window.showInformationMessage('No cues to insert')
+				return
+			}
+			// Pick the most recent cue (first in the list is newest)
+			const cue = cues[0]
+			await cueInspector.insertSync(cue)
+		}),
 	)
 
 	// When the user opts in, closing the last Sonic Pi editor shuts the server down.

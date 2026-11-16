@@ -49,6 +49,10 @@
 		"onCommand:vscode-sonic-pi.runCell",
 		"onCommand:vscode-sonic-pi.runselected",
 		"onCommand:vscode-sonic-pi.newNotebook",
+		"onCommand:vscode-sonic-pi.cues._clear",
+		"onCommand:vscode-sonic-pi.cues._pause",
+		"onCommand:vscode-sonic-pi.cues._filter",
+		"onCommand:vscode-sonic-pi.cueInsertSync",
 		"onNotebook:sonic-pi-book"
 	],
 	"main": "./out/extension.js",
@@ -208,6 +212,26 @@
 			{
 				"command": "vscode-sonic-pi.beautify",
 				"title": "Beautify",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._filter",
+				"title": "Filter",
+				"icon": "$(filter)"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._pause",
+				"title": "Pause",
+				"icon": "$(debug-pause)"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._clear",
+				"title": "Clear",
+				"icon": "$(clear-all)"
+			},
+			{
+				"command": "vscode-sonic-pi.cueInsertSync",
+				"title": "Cue: Insert Sync",
 				"category": "Sonic Pi"
 			}
 		],
@@ -387,7 +411,24 @@
 				"scopeName": "source.sonic-pi",
 				"path": "./syntaxes/sonic-pi.tmLanguage.json"
 			}
-		]
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "sonic-pi",
+					"title": "Sonic Pi",
+					"icon": "img/sonic-pi.png"
+				}
+			]
+		},
+		"views": {
+			"sonic-pi": [
+				{
+					"id": "sonic-pi.cues",
+					"name": "Cues"
+				}
+			]
+		}
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
