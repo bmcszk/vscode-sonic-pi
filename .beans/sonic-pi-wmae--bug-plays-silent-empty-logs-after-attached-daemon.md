@@ -3,8 +3,10 @@
 title: 'Bug: plays silent + empty logs after attached daemon dies (window never notices)'
 status: in-progress
 type: bug
+priority: normal
 created_at: 2026-11-08T14:05:41Z
-updated_at: 2026-11-08T14:05:41Z
+updated_at: 2026-11-16T11:25:13Z
+parent: sonic-pi-u71o
 ---
 
 # Bug (user, 2026-11-08 15:04): 'any play does not work and NO sonic pi logs'

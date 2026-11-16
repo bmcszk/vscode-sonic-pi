@@ -5,7 +5,8 @@ status: in-progress
 type: epic
 priority: normal
 created_at: 2026-11-14T12:32:51Z
-updated_at: 2026-11-14T12:49:39Z
+updated_at: 2026-11-16T11:27:16Z
+parent: sonic-pi-u71o
 ---
 
 # Epic: feature-research wave - 'use ALL of Sonic Pi, and more'

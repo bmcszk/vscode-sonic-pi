@@ -5,7 +5,8 @@ status: todo
 type: epic
 priority: normal
 created_at: 2026-11-05T21:20:27Z
-updated_at: 2026-11-08T12:44:52Z
+updated_at: 2026-11-16T11:27:16Z
+parent: sonic-pi-u71o
 ---
 
 sonic-pi-858b  todo   epic  [normal]                                                         

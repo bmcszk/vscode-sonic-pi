@@ -5,7 +5,8 @@ status: in-progress
 type: bug
 priority: normal
 created_at: 2026-11-06T12:58:40Z
-updated_at: 2026-11-06T13:43:50Z
+updated_at: 2026-11-16T11:25:13Z
+parent: sonic-pi-u71o
 ---
 
 sonic-pi-4i3a  in-progress   bug  [normal]                 
