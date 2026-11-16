@@ -56,6 +56,32 @@ suite('Server lifecycle', () => {
 		)
 	})
 
+	test('a mixer settings push shows in the item and the popover drive sends /mixer-drive', async () => {
+		const mixerItem = host.statusBarItem(98)
+		assert.ok(mixerItem, 'the mixer statusbar item exists')
+
+		const pushMark = host.mark()
+		await host.sendControl('mixer-settings', ['1.5', '0.6'])
+		await host.waitUntil(
+			() => mixerItem.text.includes('drive 1.5') && mixerItem.text.includes('vol 60%'),
+			'the mixer item to show the pushed drive and volume',
+		)
+
+		const driveMark = host.mark()
+		const picking = vscode.commands.executeCommand('vscode-sonic-pi.mixer')
+		await host.delay(500)
+		await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem')
+		// Picking Drive opens the pre-filled drive input box; Enter accepts the pushed 1.5.
+		await vscode.commands.executeCommand('quickInput.accept')
+		await picking
+		await host.delay(200)
+		await host.waitForMessage('/mixer-drive', driveMark, (message) =>
+			message.args.every((arg, index) =>
+				index === 0 ? typeof arg === 'string' && arg.length > 0 : index === 1 ? Math.abs(arg - 1.5) < 1e-6 : arg === 1,
+			),
+		)
+	})
+
 	test('a play after the daemon dies boots a fresh server instead of dying silently', async () => {
 		// The user-facing failure: the window stayed 'connected' to a dead daemon and every
 		// play went to a dead port with an empty log channel. The keepalive error signal must

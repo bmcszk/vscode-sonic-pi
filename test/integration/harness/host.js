@@ -61,6 +61,21 @@ function logLines(name) {
 	return channelLines.get(name) ?? []
 }
 
+// The statusbar items are the user-visible mixer/Link/version state and the API has no readback
+// (same shape as the channel wrap above); keyed by the priority the extension constructs with
+// (100 volume, 99 deaf, 98 mixer, 97 link).
+const statusBarItems = new Map()
+const createStatusBarItem = vscode.window.createStatusBarItem
+vscode.window.createStatusBarItem = function (alignment, priority) {
+	const item = createStatusBarItem.call(vscode.window, alignment, priority)
+	statusBarItems.set(priority, item)
+	return item
+}
+
+function statusBarItem(priority) {
+	return statusBarItems.get(priority)
+}
+
 // The compiled extension module graph, shared through the host's module cache: requiring e.g.
 // 'cell-flash-map.js' returns the very instance the activated extension is using.
 function extensionModule(relativePath) {
@@ -314,6 +329,7 @@ module.exports = {
 	waitForMessage,
 	waitUntil,
 	workspacePath,
+	statusBarItem,
 	writeFixture,
 	writeDaemonLog,
 	writeSpec,
