@@ -69,12 +69,16 @@ suite('Server lifecycle', () => {
 
 		const driveMark = host.mark()
 		const picking = vscode.commands.executeCommand('vscode-sonic-pi.mixer')
-		await host.delay(500)
-		await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem')
-		// Picking Drive opens the pre-filled drive input box; Enter accepts the pushed 1.5.
-		await vscode.commands.executeCommand('quickInput.accept')
-		await picking
-		await host.delay(200)
+		// quickInput.accept picks the default-focused entry, which is Drive's slot under Volume in
+		// buildMixerQuickPickItems, then opens the pre-filled drive input box; Enter accepts 1.5.
+		await host.waitUntil(async () => {
+			await host.delay(400)
+			await vscode.commands.executeCommand('quickInput.accept')
+			await host.delay(300)
+			await vscode.commands.executeCommand('quickInput.accept')
+			await Promise.race([picking, host.delay(1000)])
+			return host.messages('/mixer-drive', driveMark).length > 0
+		}, 'the drive prompt to accept and land /mixer-drive on the wire')
 		await host.waitForMessage('/mixer-drive', driveMark, (message) =>
 			message.args.every((arg, index) =>
 				index === 0 ? typeof arg === 'string' && arg.length > 0 : index === 1 ? Math.abs(arg - 1.5) < 1e-6 : arg === 1,

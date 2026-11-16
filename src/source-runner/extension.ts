@@ -557,8 +557,12 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// The lens provider owns the mute registry so a mute flips its lens title; the command
+	// handlers below route through it. Cold-window dispatch must stay silent (see the
+	// masterVolume guard above): muting without a server would throw on the uninitialized runner.
+	const codeLensProvider = new SonicPiCodeLensProvider()
 	context.subscriptions.push(
-		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, new SonicPiCodeLensProvider()),
+		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, codeLensProvider),
 	)
 }
 

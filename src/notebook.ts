@@ -13,6 +13,8 @@ import {
 	startServer,
 	stopAllScripts,
 	stopCellByKeys,
+	muteCellByKeys,
+	unmuteCellByKeys,
 } from './source-runner/extension'
 
 const header = `> Play this document as a notebook with the [Sonic Pi Extension for VS Code](https://marketplace.visualstudio.com/items?itemName=jakearl.vscode-sonic-pi\n`
@@ -448,6 +450,20 @@ export class NotebookController {
 			this.executions.addPending(resolve, cells)
 			runScript(script, cells)
 		})
+	}
+
+	// Mute the cell's playing jobs and remember its last-run content; unmute re-runs that
+	// content on the same cell key so the other loops of the notebook keep playing.
+	muteCell(cell: vscode.NotebookCell): void {
+		const cellKey = getKey(cell)
+		const content = this.workingCopies.get(getKey(cell.notebook))?.executionHistory.get(cellKey)?.content
+		if (content !== undefined) {
+			muteCellByKeys([cellKey], content)
+		}
+	}
+
+	unmuteCell(cell: vscode.NotebookCell): void {
+		unmuteCellByKeys([getKey(cell)])
 	}
 }
 

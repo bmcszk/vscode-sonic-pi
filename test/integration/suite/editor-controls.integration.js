@@ -5,6 +5,8 @@ const host = require('../harness/host')
 const RUN = 'vscode-sonic-pi.run'
 const STOP = 'vscode-sonic-pi.stop'
 const RUN_TEXT = 'vscode-sonic-pi.runWithText'
+const MUTE = 'vscode-sonic-pi.muteLoop'
+const UNMUTE = 'vscode-sonic-pi.unmuteLoop'
 
 function messagesBetween(mark, address) {
 	return host.sinceMark(mark).filter((entry) => entry.event === 'message' && entry.address === address)
@@ -230,4 +232,79 @@ suite('Editor controls', () => {
 			host.writeSpec({})
 		}
 	})
-})
+
+	test('muting a playing loop stops only its job and unmute re-runs the stored code', async () => {
+		// Runs stay in flight so the loop is still playing when the mute arrives.
+		const runner = host.extensionModule('source-runner/extension.js')
+		const codeLensModule = host.extensionModule('codelenses.js')
+		try {
+			host.writeSpec({ holdRuns: true })
+			const restartMark = host.mark()
+			await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+			await host.waitUntil(() => host.boots(restartMark).length > 0, 'the held-run daemon to boot')
+
+			host.writeFixture('mute.pi', 'live_loop :drums do\n  play :c4\nend\n\nplay 64')
+			const editor = await host.showFixture('mute.pi')
+			const lenses = await vscode.commands.executeCommand(
+				'vscode.executeCodeLensProvider',
+				editor.document.uri,
+			)
+			const muteLens = lenses.find((lens) => lens.command.command === MUTE)
+			assert.ok(muteLens, 'the playable block offers a Mute lens')
+			assert.strictEqual(muteLens.command.title, '$(debug-pause) Mute')
+
+			const runMark = host.mark()
+			await vscode.commands.executeCommand(RUN_TEXT, 'live_loop :drums do\n  play :c4\nend', 0)
+			const run = await host.waitForMessage('/run-code', runMark)
+			const cellKey = codeLensModule.cellKeyFor(0, 'live_loop :drums do\n  play :c4\nend')
+
+			const muteMark = host.mark()
+			await vscode.commands.executeCommand(MUTE, ...muteLens.command.arguments)
+			const stop = await host.waitForMessage('/stop-job', muteMark, (message) =>
+				Boolean(message.args[1]),
+			)
+			assert.ok(Number.isFinite(stop.args[1]), 'the mute stopped the loop\'s job id')
+			assert.deepStrictEqual(
+				host.sinceMark(muteMark).filter((entry) => entry.address === '/stop-all-jobs'),
+				[],
+				'muting must not stop the whole session',
+			)
+			assert.ok(runner.serverIsRunning(), 'the server survived the mute')
+
+			const relensed = await vscode.commands.executeCommand(
+				'vscode.executeCodeLensProvider',
+				editor.document.uri,
+			)
+			assert.ok(
+				relensed.some(
+					(lens) => lens.command.command === UNMUTE && lens.command.arguments[0] === cellKey,
+				),
+				'the muted block\'s lens flipped to Unmute',
+			)
+			const unmuteLens = relensed.find((lens) => lens.command.command === UNMUTE)
+
+			const unmuteMark = host.mark()
+			await vscode.commands.executeCommand(UNMUTE, ...unmuteLens.command.arguments)
+			const rerun = await host.waitForMessage('/run-code', unmuteMark)
+			assert.match(rerun.args[1], /live_loop :drums/, 'unmute re-runs the stored code')
+			assert.deepStrictEqual(rerun.args[2], cellKey, 'unmute re-runs on the same cell workspace')
+			assert.deepStrictEqual(
+				host.sinceMark(unmuteMark).filter((entry) => entry.address === '/stop-all-jobs'),
+				[],
+				'unmute must not stop the whole session',
+			)
+		} finally {
+			await host.sendControl('stop-all')
+			host.writeSpec({})
+			await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+		}
+	})
+
+	test('a cold window dispatches mute and unmute without a server and without error', async () => {
+		const runner = host.extensionModule('source-runner/extension.js')
+		if (runner.serverIsRunning()) {
+			this.skip()
+		}
+		await vscode.commands.executeCommand(MUTE, 'file://0:play 60', 'play 60')
+		await vscode.commands.executeCommand(UNMUTE, 'file://0:play 60')
+	})})
