@@ -1,11 +1,11 @@
 ---
 # sonic-pi-pvuc
 title: 'Integration: mixer popover round-trips against the fake daemon (F3)'
-status: draft
+status: todo
 type: task
 priority: normal
 created_at: 2026-11-16T13:30:04Z
-updated_at: 2026-11-16T13:32:15Z
+updated_at: 2026-11-16T15:07:04Z
 parent: sonic-pi-wcgd
 blocked_by:
     - sonic-pi-v3do

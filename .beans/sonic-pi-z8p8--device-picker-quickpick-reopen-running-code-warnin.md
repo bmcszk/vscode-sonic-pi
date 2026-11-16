@@ -1,11 +1,11 @@
 ---
 # sonic-pi-z8p8
 title: Device picker QuickPick + reopen + running-code warning (F7)
-status: draft
+status: todo
 type: task
 priority: normal
 created_at: 2026-11-16T13:31:42Z
-updated_at: 2026-11-16T13:32:15Z
+updated_at: 2026-11-16T15:07:04Z
 parent: sonic-pi-kxiz
 blocked_by:
     - sonic-pi-jdhc
