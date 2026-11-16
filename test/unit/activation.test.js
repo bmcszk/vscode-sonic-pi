@@ -8,6 +8,7 @@ const Module = require('module')
 const { EventEmitter } = require('events')
 
 const registeredCommands = []
+const handlers = {}
 const subscriptions = []
 
 const vscodeStub = {
@@ -58,6 +59,7 @@ const vscodeStub = {
 	commands: {
 		registerCommand: (id, _fn) => {
 			registeredCommands.push(id)
+			handlers[id] = _fn
 			return { dispose() {} }
 		},
 		registerTextEditorCommand: (id, _fn) => {
@@ -122,6 +124,43 @@ const tests = {
 			)
 		}
 		assert.ok(subscriptions.length > 0, 'activate should push disposables')
+	},
+
+	async 'setLinkBpm with no server is a silent no-op (no input box)'() {
+		const extension = require('../../out/extension.js')
+		let inputBoxes = 0
+		const originalInputBox = vscodeStub.window.showInputBox
+		vscodeStub.window.showInputBox = async () => {
+			inputBoxes++
+			return undefined
+		}
+		const handler = handlers['vscode-sonic-pi.setLinkBpm']
+		assert.ok(handler, 'setLinkBpm command should be registered')
+		await handler()
+		assert.strictEqual(inputBoxes, 0, 'cold window must not open a modal')
+		vscodeStub.window.showInputBox = originalInputBox
+	},
+
+	async 'setLinkBpm with a server opens an input box defaulting to the current bpm'() {
+		const extension = require('../../out/extension.js')
+		const handler = handlers['vscode-sonic-pi.setLinkBpm']
+		let options
+		const originalInputBox = vscodeStub.window.showInputBox
+		vscodeStub.window.showInputBox = async (opts) => {
+			options = opts
+			return undefined
+		}
+		// The daemon's /link-bpm push recorded the current bpm through the statusbar wiring.
+		const statusBarPush = extension.onLinkBpm((bpm) => bpm)
+		vscodeStub.window.createStatusBarItem = () => ({
+			show() {},
+			hide() {},
+			dispose() {},
+			set text(v) {},
+		})
+		await handler()
+		vscodeStub.window.showInputBox = originalInputBox
+		assert.strictEqual(options.value, '60', 'input defaults to a number, not an empty field')
 	},
 }
 

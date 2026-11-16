@@ -55,6 +55,7 @@
 		"onCommand:vscode-sonic-pi.cueInsertSync",
 		"onCommand:vscode-sonic-pi.cueSendTest",
 		"onCommand:vscode-sonic-pi.mixer",
+		"onCommand:vscode-sonic-pi.setLinkBpm",
 		"onNotebook:sonic-pi-book"
 	],
 	"main": "./out/extension.js",
@@ -244,6 +245,11 @@
 			{
 				"command": "vscode-sonic-pi.mixer",
 				"title": "Mixer",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.setLinkBpm",
+				"title": "Set Link BPM",
 				"category": "Sonic Pi"
 			}
 		],
