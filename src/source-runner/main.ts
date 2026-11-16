@@ -28,6 +28,7 @@ import * as path from 'path'
 import OSC from 'osc-js'
 import * as utf8 from 'utf8'
 import { OscSender } from './oscsender'
+import { CueBenchSender } from '../cue-bench'
 import { parseDaemonStdout, resolveOscCuesPort } from './daemonstdout'
 import { Config } from './config'
 import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } from '../attach'
@@ -93,6 +94,7 @@ export class Main {
 	// The daemon-audio routes need their own socket: the keepalive sender is a lifecycle
 	// object (errors there declare the daemon dead) and must never carry audio traffic.
 	private daemonSender: OscSender | undefined
+	private cueBenchSender: CueBenchSender | undefined
 	// Raw /supersonic/device-table args, kept unparsed: the picker task decides the shape.
 	lastDeviceTable: OscArg[] = []
 	// Consecutive keepalive send errors before the daemon is declared dead. One ICMP
@@ -339,6 +341,9 @@ export class Main {
 		this.serverOscCuesPort = ports.oscCuesPort
 		this.guiUuid = ports.token
 		this.portsInitalizedResolver(new OscSender(ports.sendToServerPort))
+		if (this.serverOscCuesPort > 0) {
+			this.cueBenchSender = new CueBenchSender(this.serverOscCuesPort)
+		}
 		// An adopted daemon has no child process here, so the booter log is the only place its
 		// keep-alive port can come from. Without it no keep-alive is sent and the daemon's kill
 		// switch stops the audio of a playing set a hundred seconds after attaching.
@@ -761,6 +766,9 @@ export class Main {
 				)
 				this.guiUuid = ports.token
 				this.portsInitalizedResolver(new OscSender(this.serverSendToGuiPort))
+				if (this.serverOscCuesPort > 0) {
+					this.cueBenchSender = new CueBenchSender(this.serverOscCuesPort)
+				}
 
 				resolve() // Assume stuff is ok instantly....
 
@@ -1139,6 +1147,15 @@ export class Main {
 	requestVersion() {
 		const message = new OSC.Message('/version', this.guiUuid)
 		this.sendOsc(message)
+	}
+
+	// Send a test cue to the cue port (serverOscCuesPort).
+	// Uses CueBenchSender which packs OSC with typed args (int/float/string inference).
+	async sendTestCue(address: string, args: string[]): Promise<void> {
+		if (!this.cueBenchSender) {
+			throw new Error('Cue bench sender not initialized (no cue port)')
+		}
+		await this.cueBenchSender.sendTestCue(address, args)
 	}
 
 	// Remove the error highlight

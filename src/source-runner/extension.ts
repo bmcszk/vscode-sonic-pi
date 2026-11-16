@@ -144,6 +144,7 @@ export const onLinkPeers = (listener: (peers: number) => void) => {
 export const setLinkBpm = (bpm: number) => main.setLinkBpm(bpm)
 
 export const startServer = () => main.startServer()
+export const sendTestCue = (address: string, args: string[]) => main.sendTestCue(address, args)
 
 export const launchServerAutomatically = () => config.launchSonicPiServerAutomatically()
 
@@ -258,6 +259,31 @@ export function activate(context: vscode.ExtensionContext) {
 			// Pick the most recent cue (first in the list is newest)
 			const cue = cues[0]
 			await cueInspector.insertSync(cue)
+		}),
+	)
+
+	// View/title command: send test cue - prompts for address and args
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.cueSendTest', async () => {
+			const address = await vscode.window.showInputBox({
+				prompt: 'OSC address (e.g. /foo/orca)',
+				placeHolder: '/foo/orca',
+			})
+			if (!address) return
+			const argsInput = await vscode.window.showInputBox({
+				prompt: 'Space-separated arguments (e.g. 1 2.5 x)',
+				placeHolder: '1 2.5 x',
+				value: '',
+			})
+			const args = argsInput ? argsInput.trim().split(/\s+/) : []
+			try {
+				await sendTestCue(address, args)
+				void vscode.window.showInformationMessage(`Sent test cue: ${address} ${args.join(' ')}`)
+			} catch (error) {
+				void vscode.window.showErrorMessage(
+					`Failed to send test cue: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
 		}),
 	)
 
