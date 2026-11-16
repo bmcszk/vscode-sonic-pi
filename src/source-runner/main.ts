@@ -71,6 +71,7 @@ export class Main {
 		  }
 		| undefined
 	onVersion = new vscode.EventEmitter<string>()
+	onMixerSettings = new vscode.EventEmitter<{ drive: number; volume: number }>()
 
 	guiSendToServerPort: number
 	daemonPort: number
@@ -400,6 +401,14 @@ export class Main {
 				'(technical detail: reply port ' + this.guiListenToServerPort + ' was already bound)',
 			)
 			this.onReceiverFailed.fire()
+		})
+
+		osc.on('/mixer/settings', (message: OscMessage) => {
+			const drive = Number(message.args[0])
+			const volume = Number(message.args[1])
+			if (Number.isFinite(drive) && Number.isFinite(volume)) {
+				this.onMixerSettings.fire({ drive, volume })
+			}
 		})
 
 		osc.on('/version', (message: OscMessage) => {
@@ -985,6 +994,29 @@ export class Main {
 
 	mixerStereoMode() {
 		const message = new OSC.Message('/mixer-stereo-mode', this.guiUuid)
+		this.sendOsc(message)
+	}
+
+	// Pre-limiter gain. The daemon expects /mixer-drive(token, amp, silent); silent=1
+	// keeps the level change out of the cue log.
+	setDrive(amp: number) {
+		const message = new OSC.Message('/mixer-drive', this.guiUuid, amp, 1)
+		this.sendOsc(message)
+	}
+
+	setLpf(freq: number | 'off') {
+		const message =
+			freq === 'off'
+				? new OSC.Message('/mixer-lpf-disable', this.guiUuid)
+				: new OSC.Message('/mixer-lpf-enable', this.guiUuid, freq)
+		this.sendOsc(message)
+	}
+
+	setHpf(freq: number | 'off') {
+		const message =
+			freq === 'off'
+				? new OSC.Message('/mixer-hpf-disable', this.guiUuid)
+				: new OSC.Message('/mixer-hpf-enable', this.guiUuid, freq)
 		this.sendOsc(message)
 	}
 

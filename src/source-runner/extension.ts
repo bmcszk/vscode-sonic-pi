@@ -74,6 +74,10 @@ export const onFlash = (listener: (flash: { workspace: string; line: number }) =
 	return main.onFlash.event(listener)
 }
 
+export const onMixerSettings = (listener: (settings: { drive: number; volume: number }) => void) => {
+	return main.onMixerSettings.event(listener)
+}
+
 export const stopAllScripts = () => {
 	if (!main) {
 		throw Error('Runner not initialized')
