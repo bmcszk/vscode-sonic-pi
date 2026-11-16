@@ -5,7 +5,7 @@ status: in-progress
 type: epic
 priority: normal
 created_at: 2026-11-14T12:32:51Z
-updated_at: 2026-11-16T11:27:16Z
+updated_at: 2026-11-16T13:19:20Z
 parent: sonic-pi-u71o
 ---
 
@@ -34,3 +34,10 @@ Full spider-server OSC route list extracted from the installed daemon (/usr/lib/
 Top-5 killers: F1 per-run stop + F2 loop mute (/stop-job + /run/* events), F3 mixer popover (/mixer/settings push), F4 Link BPM+peers statusbar (/link-bpm, /link-num-peers pushes), F5 cue inspector + F6 cue test bench (/incoming/osc, /cue-port-*), F7 audio device hot-swap (/daemon/audio/* with the daemon token we hold).
 Single biggest insight: the daemon ALREADY PUSHES telemetry we ignore (/link-bpm, /mixer/settings, /run/started, /live_loop/scope...) - half the roadmap is 'stop ignoring the wire'.
 Phase B pending: user reviews roadmap and picks features -> promote to feature beans.
+
+## User green-light (2026-11-16, verbatim): 'i agree with lsp and address the 1-5'
+
+Phase B resolved:
+- F1 per-run stop: ALREADY SHIPPED inside bean sonic-pi-wmae (job tracking + /stop-job). F2 loop mute remains (its companion).
+- F2 mute/unmute loops, F3 mixer popover, F4 Link BPM+peers statusbar, F5 Cue Inspector + test bench, F7 audio device hot-swap -> promote to feature beans under this epic.
+- 858b (ruby-lsp embedded LSP) un-parked by the same quote - runs as its own epic, sequenced after the top-5 wave.
