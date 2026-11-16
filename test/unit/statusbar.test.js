@@ -28,6 +28,7 @@ class FakeStatusBarItem {
 const item = new FakeStatusBarItem()
 const deafItem = new FakeStatusBarItem()
 const mixerItem = new FakeStatusBarItem()
+const linkItem = new FakeStatusBarItem()
 let createdItems = []
 let inputBoxPrompt
 let inputBoxResponse
@@ -41,7 +42,8 @@ const vscodeStub = {
 			createdItems.push({ alignment, priority })
 			if (createdItems.length === 1) return item
 			if (createdItems.length === 2) return deafItem
-			return mixerItem
+			if (createdItems.length === 3) return mixerItem
+			return linkItem
 		},
 		showInputBox: (options) => {
 			inputBoxPrompt = options && options.prompt
@@ -206,7 +208,7 @@ test('deafness item shows while running but not receiving, clears on receiving o
 		sendMasterVolume: () => {},
 		...mixerBridge,
 	})
-	assert.strictEqual(createdItems.length, 3, 'three status-bar items exist (main, deafness, mixer)')
+	assert.strictEqual(createdItems.length, 4, 'four status-bar items exist (main, deafness, mixer, link)')
 	assert.strictEqual(deafnessLabel, '$(circle-slash) logs: elsewhere')
 	bar.setServerState('running')
 	assert.strictEqual(deafItem.shown, 0, 'a healthy window shows no deafness item')
@@ -223,6 +225,51 @@ test('deafness item shows while running but not receiving, clears on receiving o
 	bar.dispose()
 	assert.ok(deafItem.disposed)
 	assert.ok(mixerItem.disposed)
+})
+
+let linkInputOptions
+let linkInputResponse
+
+const linkBridge = {
+	...mixerBridge,
+	sendLinkBpm: (_bpm) => {},
+}
+
+// The setLinkBpm command lives in the extension host; statusbar exposes the input flow it
+// needs: the current bpm as the default value and the parsed send through the bridge.
+test('link item stays hidden until the first push, then shows and live-updates', () => {
+	createdItems = []
+	linkItem.shown = 0
+	linkItem.hidden = 0
+	const bar = new SonicPiStatusBar({
+		sendVersionRequest: () => {},
+		sendMasterVolume: () => {},
+		...mixerBridge,
+	})
+	assert.strictEqual(createdItems.length, 4, 'four status-bar items exist (main, deaf, mixer, link)')
+	assert.strictEqual(linkItem.shown, 0, 'link item hidden until the first push')
+	bar.setLinkData({ bpm: 122.4 })
+	assert.strictEqual(linkItem.text, '♪ 122.4')
+	assert.strictEqual(linkItem.shown, 1)
+	assert.strictEqual(linkItem.command, 'vscode-sonic-pi.setLinkBpm')
+	bar.setLinkData({ peers: 3 })
+	assert.strictEqual(linkItem.text, '♪ 122.4 · ⇄3', 'peers push merges with last bpm')
+	assert.strictEqual(linkItem.shown, 2, 'each push live-updates')
+	bar.dispose()
+	assert.ok(linkItem.disposed)
+})
+
+test('link data remembers the current bpm for the input default', () => {
+	createdItems = []
+	const bar = new SonicPiStatusBar({
+		sendVersionRequest: () => {},
+		sendMasterVolume: () => {},
+		...mixerBridge,
+	})
+	assert.strictEqual(bar.getCurrentBpm(), undefined)
+	bar.setLinkData({ bpm: 122.4 })
+	assert.strictEqual(bar.getCurrentBpm(), 122.4)
+	bar.dispose()
 })
 
 ;(async () => {

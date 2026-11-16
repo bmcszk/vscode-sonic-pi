@@ -41,6 +41,7 @@ import { shouldStopServerOnLastEditorClose } from '../editor-close'
 import { MuteRegistry } from '../loop-mute'
 import { CueStore } from '../cue-store'
 import { CueInspector } from '../cue-inspector'
+import { linkBpmInputValue } from '../link-label'
 
 let main: Main
 let config: Config
@@ -220,6 +221,23 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!main.serverStarted) return
 			void statusBar.showMixerQuickPick()
 		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.setLinkBpm', async () => {
+			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
+			if (!main.serverStarted) return
+			const input = await vscode.window.showInputBox({
+				prompt: 'Link BPM (20-999)',
+				value: linkBpmInputValue(statusBar.getCurrentBpm()),
+			})
+			if (input === undefined) return
+			const bpm = parseFloat(input)
+			if (!Number.isFinite(bpm)) {
+				void vscode.window.showErrorMessage('Link BPM must be a number from 20 to 999')
+				return
+			}
+			main.setLinkBpm(bpm)
+		}),
+		main.onLinkBpm.event((bpm) => statusBar.setLinkData({ bpm })),
+		main.onLinkPeers.event((peers) => statusBar.setLinkData({ peers })),
 		{ dispose: () => statusBar.dispose() },
 	)
 

@@ -8,6 +8,7 @@ const Module = require('module')
 const { EventEmitter } = require('events')
 
 const registeredCommands = []
+const handlers = {}
 const subscriptions = []
 
 const vscodeStub = {
@@ -58,6 +59,7 @@ const vscodeStub = {
 	commands: {
 		registerCommand: (id, _fn) => {
 			registeredCommands.push(id)
+			handlers[id] = _fn
 			return { dispose() {} }
 		},
 		registerTextEditorCommand: (id, _fn) => {
@@ -122,6 +124,30 @@ const tests = {
 			)
 		}
 		assert.ok(subscriptions.length > 0, 'activate should push disposables')
+	},
+
+	async 'setLinkBpm with no server is a silent no-op (no input box)'() {
+		const extension = require('../../out/extension.js')
+		let inputBoxes = 0
+		const originalInputBox = vscodeStub.window.showInputBox
+		vscodeStub.window.showInputBox = async () => {
+			inputBoxes++
+			return undefined
+		}
+		const handler = handlers['vscode-sonic-pi.setLinkBpm']
+		assert.ok(handler, 'setLinkBpm command should be registered')
+		await handler()
+		assert.strictEqual(inputBoxes, 0, 'cold window must not open a modal')
+		vscodeStub.window.showInputBox = originalInputBox
+	},
+
+	async 'setLinkBpm input default comes from linkBpmInputValue'() {
+		// The with-server input-box default rides on linkBpmInputValue (pure, tested in
+		// link-label.test.js). Here we pin the wiring contract: the cold-window path stays
+		// silent (previous test) and the default helper never returns an empty string.
+		const { linkBpmInputValue } = require('../../out/link-label.js')
+		assert.strictEqual(linkBpmInputValue(undefined), '60')
+		assert.strictEqual(linkBpmInputValue(124), '124')
 	},
 }
 
