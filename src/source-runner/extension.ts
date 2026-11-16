@@ -71,6 +71,12 @@ export const onServerRestart = (listener: () => void) => {
 	return main.onServerRestart.event(listener)
 }
 
+export const onCue = (
+	listener: (cue: { time: number; id: number; address: string; args: string }) => void,
+) => {
+	return main.onCue.event(listener)
+}
+
 export const onFlash = (listener: (flash: { workspace: string; line: number }) => void) => {
 	return main.onFlash.event(listener)
 }
