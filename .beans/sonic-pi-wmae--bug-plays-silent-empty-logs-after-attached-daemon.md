@@ -1,11 +1,11 @@
 ---
 # sonic-pi-wmae
 title: 'Bug: plays silent + empty logs after attached daemon dies (window never notices)'
-status: in-progress
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-08T14:05:41Z
-updated_at: 2026-11-16T11:28:36Z
+updated_at: 2026-11-16T12:21:49Z
 parent: sonic-pi-u71o
 ---
 
@@ -53,3 +53,14 @@ This is the THIRD manifestation of the dead-daemon silent-send class (after adop
 
 - Mute/unmute loops (F2) - future feature bean after 818h Phase B picks
 - Audio recovery / EADDRINUSE paths (already covered by existing tests)
+
+## Proof of Work (2026-11-16, parent finished the leaf after the worker timed out mid-research)
+
+Commands run + observed:
+- for f in test/unit/*.test.js; do node $f; done -> all green (incl. 2 new suites: daemon-liveness, per-run-stop)
+- npm test (lint + prettier + build + unit chain incl. the new suites + vsix smoke) -> exit 0, 0 not ok
+- npx vscode-test (3 labels) -> extension label 20 passing incl. NEW daemon-death e2e; attach/takeover skipped (real Sonic Pi server running on this machine - documented skip, CI unaffected)
+- Suppression grep: 0 hits; lint config untouched
+- Merged to dev2 (ec4ce2d), post-merge npm test re-run green
+
+Residual: none for the bug scope. Mute/unmute loops (F2) intentionally out of scope -> feature bean after 818h Phase B.
