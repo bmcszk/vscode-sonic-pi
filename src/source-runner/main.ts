@@ -1158,6 +1158,26 @@ export class Main {
 		await this.cueBenchSender.sendTestCue(address, args)
 	}
 
+	cuePortStart() {
+		const message = new OSC.Message('/cue-port-start', this.guiUuid)
+		this.sendOsc(message)
+	}
+
+	cuePortStop() {
+		const message = new OSC.Message('/cue-port-stop', this.guiUuid)
+		this.sendOsc(message)
+	}
+
+	cuePortExternal() {
+		const message = new OSC.Message('/cue-port-external', this.guiUuid)
+		this.sendOsc(message)
+	}
+
+	cuePortInternal() {
+		const message = new OSC.Message('/cue-port-internal', this.guiUuid)
+		this.sendOsc(message)
+	}
+
 	// Remove the error highlight
 	clearErrorHighlight() {
 		vscode.window.activeTextEditor?.setDecorations(this.errorHighlightDecorationType, [])
