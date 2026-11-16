@@ -38,6 +38,7 @@ import { SonicPiCodeLensProvider } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
+import { MuteRegistry } from '../loop-mute'
 
 let main: Main
 let config: Config
@@ -90,6 +91,30 @@ export const stopCellByKeys = (cellKeys: string[]) => {
 	main.stopCell(cellKeys)
 }
 
+// Mute/unmute a cell: mute stops its job and records the last-run code; unmute re-runs
+// that code without replacing the session, so other loops keep playing.
+const muteRegistry = new MuteRegistry()
+
+export const muteCellByKeys = (cellKeys: string[], code: string) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.stopCell(cellKeys)
+	muteRegistry.mute(cellKeys, code)
+}
+
+export const unmuteCellByKeys = (cellKeys: string[]) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	const entry = muteRegistry.unmute(cellKeys)
+	if (!entry) {
+		return undefined
+	}
+	main.runCode(entry.code, 0, entry.cells, { replaceSession: false })
+	return entry
+}
+
 // Notebook plays cannot ride on the 'ruby' launch mode: a notebook editor never shows up as a
 // sonic-pi text editor, so nothing else boots a server for it. The controller asks these three
 // before sending a run, and awaits startServer so the run lands on bound ports.
@@ -127,6 +152,9 @@ export function activate(context: vscode.ExtensionContext) {
 		notebookFlashMap.clear()
 	}
 	context.subscriptions.push(main.onServerRestart.event(() => clearPlaying()))
+	// A fresh daemon knows nothing about muted loops; their stored codes could never be
+	// soundly re-run, so the mute memory dies with the server generation.
+	context.subscriptions.push(main.onServerRestart.event(() => muteRegistry.clear()))
 	const statusBar = new SonicPiStatusBar({
 		sendVersionRequest: () => main.requestVersion(),
 		sendMasterVolume: (value) => main.setMasterVolume(value),

@@ -829,7 +829,8 @@ export class Main {
 
 	// The daemon numbers a fragment run's flashes and errors from the first line it was given, so the
 	// code is padded with a comment line per editor line above it: the run then reports file lines.
-	runCode(code: string, offset: number = 0, cells: string[] = []) {
+	runCode(code: string, offset: number = 0, cells: string[] = [], opts: { replaceSession?: boolean } = {}) {
+		const replaceSession = opts.replaceSession !== false
 		// The offset is the editor line the code starts on, and 0 when the whole buffer goes out.
 		// The safe-mode prefix is compensated by the runtime's firstline, so the padding lands
 		// one-to-one on the editor lines.
@@ -842,7 +843,7 @@ export class Main {
 		// Per-cell mental model: a play replaces the session's sound (matching the Sonic Pi
 		// app's Run button). testReplacesSession=false keeps Sonic Pi's stack-and-layer
 		// semantics for users who want overlapping runs.
-		if (this.config.runReplacesSession()) {
+		if (replaceSession && this.config.runReplacesSession()) {
 			this.stopAllJobs()
 		}
 		if (this.config.safeMode()) {
