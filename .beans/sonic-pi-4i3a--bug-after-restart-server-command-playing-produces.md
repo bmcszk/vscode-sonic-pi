@@ -1,11 +1,11 @@
 ---
 # sonic-pi-4i3a
 title: 'Bug: after Restart Server command, playing produces nothing'
-status: in-progress
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-06T12:58:40Z
-updated_at: 2026-11-16T11:25:13Z
+updated_at: 2026-11-16T13:00:39Z
 parent: sonic-pi-u71o
 ---
 
@@ -65,3 +65,10 @@ The user's restart report was actually the two-window informational flow working
 - notebook.ts takeover-failure error: plain terms.
 
 Verified by user: "it works". Commit 4e973c1.
+
+## Proof of Work (closed 2026-11-16)
+
+Fix landed + gated (TDD test 'restart ignores a still-visible dying server and boots its own daemon', forceManagedBootOnce, commit 91485bb).
+Manual verification: user quote, 2026-11-16: 'it seems to work after Restart Server.' - played after restart, sound + runs correct.
+
+Residual: none.
