@@ -24,6 +24,10 @@ let spawnedServer
 class FakeOscSender {
 	constructor(port) {
 		this.port = port
+		this.errorHandlers = []
+	}
+	onError(callback) {
+		this.errorHandlers.push(callback)
 	}
 }
 

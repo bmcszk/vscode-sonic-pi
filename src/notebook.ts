@@ -12,6 +12,7 @@ import {
 	takeOverConnection,
 	startServer,
 	stopAllScripts,
+	stopCellByKeys,
 } from './source-runner/extension'
 
 const header = `> Play this document as a notebook with the [Sonic Pi Extension for VS Code](https://marketplace.visualstudio.com/items?itemName=jakearl.vscode-sonic-pi\n`
@@ -222,12 +223,20 @@ export class NotebookController {
 		// sound + highlights persisted). Daemon semantics have no per-cell stop: stopping
 		// one cell stops the whole session's jobs (same as the Sonic Pi app's Stop).
 		this.controller.interruptHandler = () => {
+			const interruptedKeys: string[] = []
 			for (const notebookWorkingCopy of this.workingCopies.values()) {
-				for (const entry of notebookWorkingCopy.executionHistory.values()) {
+				for (const [key, entry] of notebookWorkingCopy.executionHistory.entries()) {
 					endExecution(entry, 'cell interrupt')
+					interruptedKeys.push(key)
 				}
 			}
-			stopAllScripts()
+			// Per-run stop: only the interrupted cells' jobs die; other runs keep playing.
+			// The daemon job ids come from /run/started pushes keyed by the workspace we sent.
+			if (interruptedKeys.length > 0) {
+				stopCellByKeys(interruptedKeys)
+			} else {
+				stopAllScripts()
+			}
 		}
 	}
 
@@ -245,8 +254,10 @@ export class NotebookController {
 				for (const entry of notebookWorkingCopy.executionHistory.values()) {
 					endExecution(entry, 'stopNotebook')
 				}
+				stopCellByKeys([...notebookWorkingCopy.executionHistory.keys()])
+			} else {
+				stopAllScripts()
 			}
-			stopAllScripts()
 			notebookWorkingCopy.executionHistory.clear()
 		}
 	}

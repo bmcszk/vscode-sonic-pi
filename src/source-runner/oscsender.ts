@@ -20,27 +20,63 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// Very simple OSC send wrapper. At the moment the send port is harcoded, but we already know the
-// port where this is. Use that!
-// The OSC receiving handling is in main.ts.
+// OSC send socket. osc-js stays for message encoding, but delivery goes through our
+// own dgram socket: a connected udp socket is the only way a dead destination becomes
+// a visible error (ICMP port-unreachable -> 'error' event) instead of silent loss -
+// that error signal is what daemon-liveness detection reads. osc-js's DatagramPlugin
+// cannot do this (per-send host/port addressing is illegal on a connected socket).
+import dgram from 'dgram'
 import OSC from 'osc-js'
 
 export class OscSender {
-	private osc: OSC
+	private socket: dgram.Socket
+	private errorHandlers: Array<(error: Error) => void> = []
+
+	private connectReady = false
+	private pending: Array<{ bytes: Buffer; callback?: (error?: Error | null) => void }> = []
+
 	constructor(private port: number) {
-		// Send-only socket: bind ephemeral. The library default ('localhost':41234) is still
-		// binding when the first send fires, which drops it (the first run after a cold boot
-		// vanished), and 41234 can already belong to another window's sender.
-		const options = {
-			type: 'udp4',
-			open: { port: 0, host: '127.0.0.1' },
-			send: { port, host: '127.0.0.1' },
-		}
-		this.osc = new OSC({ plugin: new OSC.DatagramPlugin(options) })
-		this.osc.open()
+		// Bind ephemeral: the library default ('localhost':41234) still binds when the
+		// first send fires, which drops it (the first run after a cold boot vanished),
+		// and 41234 can already belong to another window's sender.
+		this.socket = dgram.createSocket('udp4')
+		this.socket.bind(0, '127.0.0.1')
+		this.socket.on('error', (error: Error) => {
+			for (const handler of this.errorHandlers) {
+				handler(error)
+			}
+		})
+		// Sends are queued until connect completes: before that the socket cannot take
+		// the connected-style send overload and a port-less send would throw.
+		this.socket.connect(port, '127.0.0.1', () => {
+			this.connectReady = true
+			for (const item of this.pending.splice(0)) {
+				this.deliver(item.bytes, item.callback)
+			}
+		})
+	}
+
+	private deliver(bytes: Buffer, callback?: (error?: Error | null) => void) {
+		this.socket.send(bytes, 0, bytes.length, callback)
+	}
+
+	onError(callback: (error: Error) => void): void {
+		this.errorHandlers.push(callback)
 	}
 
 	send(message: OSC.Message) {
-		this.osc.send(message)
+		const bytes = Buffer.from(message.pack())
+		const report = (error?: Error | null) => {
+			if (error) {
+				for (const handler of this.errorHandlers) {
+					handler(error)
+				}
+			}
+		}
+		if (this.connectReady) {
+			this.deliver(bytes, report)
+		} else {
+			this.pending.push({ bytes, callback: report })
+		}
 	}
 }

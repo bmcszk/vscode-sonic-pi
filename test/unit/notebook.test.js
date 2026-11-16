@@ -132,6 +132,9 @@ class FakeMain {
 	stopAllJobs() {
 		this.events.push('stopAll')
 	}
+	stopCell(cells) {
+		this.events.push('stopCell:' + cells.join(','))
+	}
 	stopServer() {}
 	// Boots asynchronously like the real one, which only resolves once the daemon is ready.
 	startServer() {
@@ -546,7 +549,7 @@ const tests = {
 		)
 		settings.launchSonicPiServerAutomatically = 'ruby'
 	},
-	async 'stopping a cell stops the sound: interrupt handler ends executions and stops all jobs'() {
+	async 'stopping a cell stops the sound: interrupt ends the execution and kills that run'() {
 		const { main, handler, notebook } = openController()
 		const cells = [makeCell('c1', 'live_loop :probe do\n  play 60\n  sleep 1\nend')]
 		main.serverStarted = true
@@ -562,8 +565,9 @@ const tests = {
 		await controllerObject.interruptHandler(notebook)
 
 		assert.ok(
-			main.events.includes('stopAll'),
-			'interrupt must stop all running jobs - otherwise the sound continues',
+			main.events.some((event) => event.startsWith('stopCell:c1')),
+			'interrupt must kill the interrupted cell run - otherwise the sound continues, got: ' +
+				main.events.join(','),
 		)
 	},
 }

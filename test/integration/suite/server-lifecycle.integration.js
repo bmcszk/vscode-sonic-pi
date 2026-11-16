@@ -55,4 +55,40 @@ suite('Server lifecycle', () => {
 			(message) => Math.abs(message.args[1] - 1) < 1e-6,
 		)
 	})
+
+	test('a play after the daemon dies boots a fresh server instead of dying silently', async () => {
+		// The user-facing failure: the window stayed 'connected' to a dead daemon and every
+		// play went to a dead port with an empty log channel. The keepalive error signal must
+		// drop the server-alive claim so the next play takes the cold-boot path.
+		const firstBoot = host.lastBoot()
+		assert.ok(firstBoot, 'precondition: a daemon is running from the earlier test')
+
+		await host.sendControl('exit')
+
+		// The dead daemon is noticed through keepalive send errors (three strikes at 1s per
+		// ping). The loss line is the user-visible half of that; it must land BEFORE the
+		// next play so the play takes the cold path.
+		await host.waitUntil(
+			() =>
+				host
+					.logLines('Sonic Pi Log')
+					.some((line) => line.includes('Lost contact with the Sonic Pi daemon')),
+			'the window to declare the daemon dead',
+			15000,
+		)
+
+		// No background auto-boot: a repeatedly dying daemon must not become a boot loop.
+		// The recovery happens on the user's next play, which takes the cold-boot path.
+		const deathMark = host.mark()
+		await vscode.commands.executeCommand('vscode-sonic-pi.runWithText', 'play :e5')
+
+		await host.waitUntil(
+			() => host.boots(deathMark).length >= 1,
+			'the play after daemon death to boot a fresh daemon',
+			30000,
+		)
+		const secondBoot = host.lastBoot()
+		assert.notStrictEqual(secondBoot.pid, firstBoot.pid, 'the fresh daemon is a new process')
+		await host.waitForMessage('/run-code', deathMark, (message) => message.args[1].endsWith('play :e5'))
+	})
 })

@@ -81,6 +81,15 @@ export const stopAllScripts = () => {
 	main.stopAllJobs()
 }
 
+// Per-run stop: kill the daemon job(s) that belong to the given cells. Unknown or
+// finished cells fall back to the whole-session stop inside main.
+export const stopCellByKeys = (cellKeys: string[]) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.stopCell(cellKeys)
+}
+
 // Notebook plays cannot ride on the 'ruby' launch mode: a notebook editor never shows up as a
 // sonic-pi text editor, so nothing else boots a server for it. The controller asks these three
 // before sending a run, and awaits startServer so the run lands on bound ports.

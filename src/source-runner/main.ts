@@ -82,6 +82,13 @@ export class Main {
 	portsInitalized: Promise<OscSender>
 	portsInitalizedResolver!: (sender: OscSender) => void
 	keepAliveTimer: ReturnType<typeof setInterval> | undefined
+	private keepAliveFailures = 0
+	// Consecutive keepalive send errors before the daemon is declared dead. One ICMP
+	// hiccup is not death; three in a row means the destination port refuses everything.
+	private static readonly KEEPALIVE_FAILURE_LIMIT = 3
+	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
+	// to the cells that produced it (we send joined cell keys as the workspace).
+	private liveJobs = new Map<number, string>()
 
 	logOutput: vscode.OutputChannel
 	cuesOutput: vscode.OutputChannel
@@ -404,6 +411,23 @@ export class Main {
 			this.log(line)
 		})
 
+		osc.on('/run/started', (message: OscMessage) => {
+			const jobId = Number(message.args[0])
+			const workspace = typeof message.args[1] === 'string' ? message.args[1] : ''
+			if (Number.isFinite(jobId) && workspace) {
+				this.liveJobs.set(jobId, workspace)
+			}
+		})
+
+		osc.on('/run/ended', (message: OscMessage) => {
+			const jobId = Number(message.args[0])
+			this.liveJobs.delete(jobId)
+		})
+
+		osc.on('/runs/all-completed', () => {
+			this.liveJobs.clear()
+		})
+
 		osc.on('/incoming/osc', (message: OscMessage) => {
 			// console.log(
 			//  	'Got /incoming/osc' +
@@ -564,12 +588,36 @@ export class Main {
 
 	startKeepAlive() {
 		this.clearKeepAlive()
+		this.keepAliveFailures = 0
 		const daemonSender = new OscSender(this.daemonPort)
+		daemonSender.onError(() => {
+			this.keepAliveFailures++
+			if (this.keepAliveFailures >= Main.KEEPALIVE_FAILURE_LIMIT) {
+				this.daemonDied()
+			}
+		})
 		this.log(`Keep-alive started: pinging daemon port ${this.daemonPort} with /daemon/keep-alive`)
 		this.keepAliveTimer = setInterval(() => {
 			const message = new OSC.Message('/daemon/keep-alive', this.guiUuid)
 			daemonSender.send(message)
 		}, 1000)
+	}
+
+	// The daemon is gone (kill switch, crash, machine sleep). Without this the window keeps
+	// claiming a live server and every later play lands on a dead port: silently lost, empty
+	// log channel (user report: 'plays do nothing, no logs'). Reset so the next play takes
+	// the cold path: the server-alive claim drops, scanner finds nothing, managed boot
+	// brings a fresh daemon up. No auto-reboot here: a daemon that dies repeatedly must not
+	// become a boot loop in the background.
+	private daemonDied() {
+		if (!this.serverStarted && !this.keepAliveTimer) {
+			return
+		}
+		this.clearKeepAlive()
+		this.serverStarted = false
+		this.liveJobs.clear()
+		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
+		this.log('Lost contact with the Sonic Pi daemon - the next play boots a fresh server.')
 	}
 
 	private clearKeepAlive(): boolean {
@@ -767,7 +815,7 @@ export class Main {
 
 	// The daemon numbers a fragment run's flashes and errors from the first line it was given, so the
 	// code is padded with a comment line per editor line above it: the run then reports file lines.
-	runCode(code: string, offset: number = 0) {
+	runCode(code: string, offset: number = 0, cells: string[] = []) {
 		// The offset is the editor line the code starts on, and 0 when the whole buffer goes out.
 		// The safe-mode prefix is compensated by the runtime's firstline, so the padding lands
 		// one-to-one on the editor lines.
@@ -792,7 +840,13 @@ export class Main {
 			this.midiAutoStartSent = true
 		}
 		this.clearErrorHighlight()
-		const message = new OSC.Message('/run-code', this.guiUuid, code)
+		// The workspace argument rides the run through the daemon and comes back on
+		// /run/started, which is how a job id maps back to the cells that own it.
+		// Omitted entirely for plain editor runs (the daemon defaults the workspace).
+		const message =
+			cells.length > 0
+				? new OSC.Message('/run-code', this.guiUuid, code, cells.join('|'))
+				: new OSC.Message('/run-code', this.guiUuid, code)
 		this.sendOsc(message)
 	}
 
@@ -860,6 +914,24 @@ export class Main {
 	stopAllJobs() {
 		const message = new OSC.Message('/stop-all-jobs', this.guiUuid)
 		this.sendOsc(message)
+	}
+
+	// Per-run stop: kill only the job(s) a cell belongs to. Falls back to the whole-session
+	// stop when the cell's run is unknown or already finished - that keeps the notebook
+	// interrupt path correct even without run tracking.
+	stopCell(cells: string[]) {
+		const wanted = new Set(cells)
+		const matching = [...this.liveJobs.entries()].filter(([, workspace]) =>
+			workspace.split('|').some((key) => wanted.has(key)),
+		)
+		if (matching.length === 0) {
+			this.stopAllJobs()
+			return
+		}
+		for (const [jobId] of matching) {
+			const message = new OSC.Message('/stop-job', this.guiUuid, jobId)
+			this.sendOsc(message)
+		}
 	}
 
 	startRecording() {
