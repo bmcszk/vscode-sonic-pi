@@ -446,7 +446,7 @@ export class NotebookController {
 				c()
 			}
 			this.executions.addPending(resolve, cells)
-			runScript(script)
+			runScript(script, cells)
 		})
 	}
 }

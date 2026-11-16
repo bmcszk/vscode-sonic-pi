@@ -205,7 +205,7 @@ const makeNotebook = (cells) => ({
 
 const executionOf = (cell) => executions.get(cell.document.uri.toString())
 
-function openController() {
+function openController(existingCells = []) {
 	runner.activate({
 		subscriptions: [],
 		extensionUri: { fsPath: '/tmp' },
@@ -216,7 +216,13 @@ function openController() {
 	createdHandlers.length = 0
 	const cellFlashes = new CellFlashMap()
 	const controller = new NotebookController('test-kernel', 'sonic-pi-book', 'Sonic Pi Player', cellFlashes)
-	return { main, controller, cellFlashes, handler: createdHandlers[0], notebook: makeNotebook([]) }
+	return {
+		main,
+		controller,
+		cellFlashes,
+		handler: createdHandlers[0],
+		notebook: makeNotebook(existingCells),
+	}
 }
 
 const tests = {
@@ -275,8 +281,8 @@ const tests = {
 	},
 
 	async 'play while another window owns the reply port: this window takes over and plays'() {
-		const { main, handler, notebook } = openController()
 		const cells = [makeCell('c1', 'play 61')]
+		const { main, handler, notebook } = openController(cells)
 		main.receiving = false
 		main.serverStarted = true
 
@@ -293,8 +299,8 @@ const tests = {
 	},
 
 	async 'the taken-over window keeps owning: further plays need no second takeover'() {
-		const { main, handler, notebook } = openController()
 		const cells = [makeCell('c1', 'play 61'), makeCell('c2', 'play 62')]
+		const { main, handler, notebook } = openController(cells)
 		main.receiving = false
 		main.serverStarted = true
 

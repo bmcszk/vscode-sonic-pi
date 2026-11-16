@@ -51,11 +51,11 @@ export const scriptRunEnsuresServer = async (code: string, offset = 0) => {
 	main.runCode(code, offset)
 }
 
-export const runScript = (code: string) => {
+export const runScript = (code: string, cells: string[] = []) => {
 	if (!main) {
 		throw Error('Runner not initialized')
 	}
-	main.runCode(code)
+	main.runCode(code, 0, cells)
 }
 
 export const onRunStarted = (listener: (num: number) => void) => {

@@ -91,4 +91,57 @@ suite('Server lifecycle', () => {
 		assert.notStrictEqual(secondBoot.pid, firstBoot.pid, 'the fresh daemon is a new process')
 		await host.waitForMessage('/run-code', deathMark, (message) => message.args[1].endsWith('play :e5'))
 	})
+
+	test('a cell interrupt stops the exact daemon job the run started announced', async () => {
+		// The notebook's kernel interrupt must map back to the daemon job id the fake announced
+		// on /run/started; liveJobs stays empty without that push and the window falls back to
+		// the job-blind /stop-all-jobs.
+		host.writeSpec({ holdRuns: true })
+		const restartMark = host.mark()
+		await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+		await host.waitUntil(() => host.boots(restartMark)[0], 'the held-run daemon to boot')
+		try {
+			host.writeFixture('lifecycle.pibook', ['# Held', '', '```', 'play :c4', '```'].join('\n'))
+			const notebook = await host.openNotebook('lifecycle.pibook')
+			const cell = notebook.getCells().find((c) => c.kind === vscode.NotebookCellKind.Code)
+
+			const runMark = host.mark()
+			void vscode.commands.executeCommand('notebook.cell.execute', {
+				ranges: [
+					{ start: notebook.getCells().indexOf(cell), end: notebook.getCells().indexOf(cell) + 1 },
+				],
+				document: notebook.uri,
+			})
+			await host.waitForMessage('/run-code', runMark, (message) => message.args[1].includes('play :c4'))
+			const started = await host.waitUntil(
+				() =>
+					host
+						.sinceMark(runMark)
+						.find((entry) => entry.event === 'push' && entry.address === '/run/started'),
+				'the fake to push /run/started with the workspace',
+			)
+			assert.ok(
+				typeof started.args[1] === 'string' && started.args[1].length > 0,
+				'the /run/started push carries the workspace the run was sent with',
+			)
+			const jobId = started.args[0]
+
+			const stopMark = host.mark()
+			await vscode.commands.executeCommand('notebook.interruptExecution')
+			await host.waitForMessage('/stop-job', stopMark, (message) => message.args[1] === jobId)
+			assert.deepStrictEqual(
+				host
+					.sinceMark(stopMark)
+					.filter((entry) => entry.event === 'message' && entry.address === '/stop-all-jobs'),
+				[],
+				'a single-cell interrupt must not fall back to the job-blind stop',
+			)
+		} finally {
+			await host.sendControl('stop-all')
+			host.writeSpec({})
+			const restoreMark = host.mark()
+			await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+			await host.waitUntil(() => host.boots(restoreMark)[0], 'the restored daemon to boot')
+		}
+	})
 })
