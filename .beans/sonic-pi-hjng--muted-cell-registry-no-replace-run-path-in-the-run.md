@@ -1,11 +1,11 @@
 ---
 # sonic-pi-hjng
 title: Muted-cell registry + no-replace run path in the runner (F2)
-status: draft
+status: todo
 type: task
 priority: normal
 created_at: 2026-11-16T13:29:44Z
-updated_at: 2026-11-16T13:32:15Z
+updated_at: 2026-11-16T13:58:03Z
 parent: sonic-pi-eimm
 blocked_by:
     - sonic-pi-r0om

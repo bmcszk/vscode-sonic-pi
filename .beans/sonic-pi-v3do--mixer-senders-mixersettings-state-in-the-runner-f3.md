@@ -1,11 +1,11 @@
 ---
 # sonic-pi-v3do
 title: Mixer senders + /mixer/settings state in the runner (F3)
-status: draft
+status: todo
 type: task
 priority: normal
 created_at: 2026-11-16T13:30:04Z
-updated_at: 2026-11-16T13:32:15Z
+updated_at: 2026-11-16T13:58:03Z
 parent: sonic-pi-wcgd
 blocked_by:
     - sonic-pi-r0om
