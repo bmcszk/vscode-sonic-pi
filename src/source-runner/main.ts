@@ -74,6 +74,8 @@ export class Main {
 	onVersion = new vscode.EventEmitter<string>()
 	onMixerSettings = new vscode.EventEmitter<{ drive: number; volume: number }>()
 	onSupersonicDevices = new vscode.EventEmitter<{ kind: 'output' | 'input' | 'table'; names: string[] }>()
+	onLinkBpm = new vscode.EventEmitter<number>()
+	onLinkPeers = new vscode.EventEmitter<number>()
 
 	guiSendToServerPort: number
 	daemonPort: number
@@ -425,6 +427,20 @@ export class Main {
 		})
 		osc.on('/supersonic/device-table', (message: OscMessage) => {
 			this.fireSupersonicDevices('/supersonic/device-table', message.args)
+		})
+
+		osc.on('/link-bpm', (message: OscMessage) => {
+			const bpm = Number(message.args[0])
+			if (Number.isFinite(bpm)) {
+				this.onLinkBpm.fire(bpm)
+			}
+		})
+
+		osc.on('/link-num-peers', (message: OscMessage) => {
+			const peers = Number(message.args[0])
+			if (Number.isInteger(peers)) {
+				this.onLinkPeers.fire(peers)
+			}
 		})
 
 		osc.on('/version', (message: OscMessage) => {
@@ -902,7 +918,12 @@ export class Main {
 
 	// The daemon numbers a fragment run's flashes and errors from the first line it was given, so the
 	// code is padded with a comment line per editor line above it: the run then reports file lines.
-	runCode(code: string, offset: number = 0, cells: string[] = [], opts: { replaceSession?: boolean } = {}) {
+	runCode(
+		code: string,
+		offset: number = 0,
+		cells: string[] = [],
+		opts: { replaceSession?: boolean; silent?: boolean } = {},
+	) {
 		const replaceSession = opts.replaceSession !== false
 		// The offset is the editor line the code starts on, and 0 when the whole buffer goes out.
 		// The safe-mode prefix is compensated by the runtime's firstline, so the padding lands
@@ -931,9 +952,17 @@ export class Main {
 		// The workspace argument rides the run through the daemon and comes back on
 		// /run/started, which is how a job id maps back to the cells that own it.
 		// Omitted entirely for plain editor runs (the daemon defaults the workspace).
+		// A 4th /run-code arg of 1 asks the daemon to run silently (no log/flash echo) - it is
+		// only honored when a workspace argument is also present.
 		const message =
 			cells.length > 0
-				? new OSC.Message('/run-code', this.guiUuid, code, cells.join('|'))
+				? new OSC.Message(
+						'/run-code',
+						this.guiUuid,
+						code,
+						cells.join('|'),
+						...(opts.silent ? [1] : []),
+					)
 				: new OSC.Message('/run-code', this.guiUuid, code)
 		this.sendOsc(message)
 	}
@@ -997,6 +1026,22 @@ export class Main {
 
 	private getSelectedRange(editor: TextEditor): Range {
 		return new Range(editor.selection.anchor, editor.selection.active)
+	}
+
+	// set_link_bpm! only touches Link's tempo: the run must NOT replace the session. The
+	// daemon honors the silent flag (args[3]=1) only when a workspace argument is present,
+	// so the run always carries the 'link-bpm-set' workspace - it suppresses the log flash.
+	setLinkBpm(bpm: number) {
+		const MIN_BPM = 20
+		const MAX_BPM = 999
+		if (!Number.isFinite(bpm) || bpm < MIN_BPM || bpm > MAX_BPM) {
+			void vscode.window.showWarningMessage(
+				`Sonic Pi: Link BPM ${bpm} is outside the daemon's accepted range ${MIN_BPM}-${MAX_BPM}. Nothing was sent.`,
+			)
+			this.log('Rejected set_link_bpm out of range: ' + bpm)
+			return
+		}
+		this.runCode(`set_link_bpm! ${bpm}`, 0, ['link-bpm-set'], { replaceSession: false, silent: true })
 	}
 
 	stopAllJobs() {
