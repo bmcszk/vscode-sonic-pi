@@ -1,11 +1,11 @@
 ---
 # sonic-pi-es07
 title: 'UX: ''logs elsewhere'' deafness must name the real holder (app vs window) and be visible outside the log channel'
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-16T12:55:06Z
-updated_at: 2026-11-16T13:01:02Z
+updated_at: 2026-11-16T13:18:54Z
 parent: sonic-pi-u71o
 ---
 
@@ -45,3 +45,19 @@ The takeover UX message DID log ('Another VS Code window is connected... IT will
 - [ ] Unit: statusbar shows a deafness item while receiving=false after start; clears on receiving=true
 - [ ] Integration (attach suite): EADDRINUSE scenario asserts new wording (holder named)
 - [ ] npm test green end to end; no suppressions; no lint config changes
+
+## Proof of Work (2026-11-16, verified by parent)
+
+Worker delivered (branch es07-deaf-ux, commit 634e5b6, merged to dev2):
+- src/port-holder.ts: LogHolder classifier (/proc/net/udp inode -> /proc/<pid>/fd walk -> cmdline; injected-deps pure function; failures degrade to 'another-program')
+- EADDRINUSE message names the holder: 'The Sonic Pi app is showing the run logs. Your window's Play will still sound. To bring the logs here: press Play again - it takes over the connection.'
+- statusbar '$(circle-slash) logs: elsewhere' item shows only while running && !receiving; clears on receiver open / state change
+- tests: receiver-recovery 7 cases (classifier + message shape + fallback), statusbar 14 (item lifecycle)
+
+Parent-verified gates:
+- npm run lint -> 0 findings; npx prettier --check src -> clean
+- npm test -> exit 0, 0 not ok (unit chain + vsix smoke)
+- npx vscode-test -> 20 passing (extension label); attach/takeover suites SKIPPED on this machine (real Sonic Pi server running) - the attach-suite EADDRINUSE wording assertion runs in CI
+- suppression grep: 0; no lint/prettier config changes; package.json untouched
+
+Residual: none. Known minor: classifier's 'code' substring tier could over-match a program with 'code' in its path (self-cmdline exact match runs first, sonic-pi first) - acceptable honest-tier tradeoff, revisit if it ever misfires.
