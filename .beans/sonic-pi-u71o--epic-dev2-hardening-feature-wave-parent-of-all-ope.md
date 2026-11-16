@@ -5,7 +5,7 @@ status: in-progress
 type: milestone
 priority: normal
 created_at: 2026-11-16T11:25:08Z
-updated_at: 2026-11-16T11:27:16Z
+updated_at: 2026-11-16T11:28:04Z
 ---
 
 # Epic: dev2 hardening + feature wave (parent of all open work)
@@ -32,8 +32,10 @@ updated_at: 2026-11-16T11:27:16Z
 
 When children are resolved: squash-merge `dev2` → `dev` (fast-forward or PR #2), then PR #1 `dev` → `master` for 0.3.0 release.
 
-## Session discipline (keep-on-going)
+## Structure note (2026-11-08)
 
-One active epic per session (this). Subtasks delegated to workers with ~10min scope. Gates: lint clean, unit green, integration green, vsix smoke green — every dispatch.
+u71o is the MILESTONE (session goal) on branch dev2. Active epic = sonic-pi-818h (feature wave). wmae = active bug work (daemon liveness + per-run stop). 4i3a = awaiting user verification. 858b = PARKED (user: no ruby-lsp code until green-light).
+
+Session discipline: one active epic per session (818h). Subtasks delegated to workers with ~10min scope. Gates: lint clean, unit green, integration green, vsix smoke green - every dispatch.
 
 Refs: sonic-pi-dev2
