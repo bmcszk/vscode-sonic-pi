@@ -101,15 +101,29 @@ suite('Notebook run', () => {
 		await host.waitUntil(() => !isPlaying(second), 'the mark to clear when the run ends')
 	})
 
-	test('the cell Stop button interrupts the cell and stops every job on the daemon', async () => {
+	test("the cell Stop button interrupts the cell and stops that cell's daemon job", async () => {
 		const mark = host.mark()
 		void runCell(notebook, first)
 		await host.waitForMessage('/run-code', mark, (message) => message.args[1].includes('play :c4'))
+		const started = await host.waitUntil(
+			() =>
+				host
+					.sinceMark(mark)
+					.find((entry) => entry.event === 'push' && entry.address === '/run/started'),
+			'the fake to announce the job id on /run/started',
+		)
 		await host.waitUntil(() => isPlaying(first), 'the cell to be playing before the stop')
 
 		const stopMark = host.mark()
 		await vscode.commands.executeCommand('notebook.interruptExecution')
-		await host.waitForMessage('/stop-all-jobs', stopMark)
+		await host.waitForMessage('/stop-job', stopMark, (message) => message.args[1] === started.args[0])
+		assert.deepStrictEqual(
+			host
+				.sinceMark(stopMark)
+				.filter((entry) => entry.event === 'message' && entry.address === '/stop-all-jobs'),
+			[],
+			'a single-cell interrupt must not fall back to the job-blind stop',
+		)
 		await host.waitUntil(() => !isPlaying(first), 'the interrupted cell to stop playing')
 	})
 
@@ -121,7 +135,11 @@ suite('Notebook run', () => {
 			const run = await host.waitForMessage('/run-code', mark, (message) =>
 				message.args[1].includes('play :d4'),
 			)
-			assert.match(run.args[1], /play :c4/, 'the earlier cell is part of the notebook as one instrument')
+			assert.match(
+				run.args[1],
+				/play :c4/,
+				'the earlier cell is part of the notebook as one instrument',
+			)
 		} finally {
 			await host.updateSetting('notebookRunsWholeSong', false)
 		}
