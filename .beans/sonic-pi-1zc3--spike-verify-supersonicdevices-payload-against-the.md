@@ -1,11 +1,11 @@
 ---
 # sonic-pi-1zc3
 title: 'Spike: verify /supersonic/devices payload against the live daemon (F7 hard gate)'
-status: todo
+status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-16T13:31:42Z
-updated_at: 2026-11-16T13:32:21Z
+updated_at: 2026-11-16T13:32:57Z
 parent: sonic-pi-kxiz
 ---
 
