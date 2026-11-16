@@ -37,6 +37,7 @@ const vscodeStub = {
 	Uri: { joinPath: (...parts) => ({ fsPath: parts.join('/') }) },
 	window: {
 		createOutputChannel: () => ({ append() {}, appendLine() {}, show() {}, dispose() {} }),
+		createTreeView: (viewId, options) => ({ dispose() {} }),
 		createTextEditorDecorationType: () => ({}),
 		createStatusBarItem: () => ({ show() {}, hide() {}, dispose() {} }),
 		showErrorMessage: async (message) => {
@@ -119,6 +120,7 @@ class FakeMain {
 		this.onServerRestart = new StubEventEmitter()
 		this.onReceiverFailed = new StubEventEmitter()
 		this.onReceiverOpened = new StubEventEmitter()
+		this.onCue = new StubEventEmitter()
 		this.receiving = true
 		this.serverStarted = false
 		this.restartInProgress = false

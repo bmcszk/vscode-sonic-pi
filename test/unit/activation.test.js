@@ -35,6 +35,7 @@ const vscodeStub = {
 		}),
 		createTextEditorDecorationType: () => ({}),
 		createStatusBarItem: () => ({ show() {}, hide() {}, dispose() {} }),
+		createTreeView: (viewId, options) => ({ dispose() {} }),
 		showErrorMessage: async () => undefined,
 		showInformationMessage: async () => undefined,
 		onDidChangeVisibleTextEditors: () => ({ dispose() {} }),
