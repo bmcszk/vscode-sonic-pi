@@ -1,11 +1,11 @@
 ---
 # sonic-pi-ho80
 title: 'TreeView: cues panel with filter/pause/clear + insert sync path (F5)'
-status: draft
+status: todo
 type: task
 priority: normal
 created_at: 2026-11-16T13:30:44Z
-updated_at: 2026-11-16T13:32:15Z
+updated_at: 2026-11-16T14:06:44Z
 parent: sonic-pi-6oka
 blocked_by:
     - sonic-pi-56gn
