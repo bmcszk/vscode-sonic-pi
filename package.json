@@ -339,6 +339,11 @@
 					"default": false,
 					"description": "Stop the Sonic Pi server when the last Sonic Pi editor is closed. Off by default: a running server survives your editing session."
 				},
+				"vscode-sonic-pi.oscCuesPort": {
+					"type": "number",
+					"default": 0,
+					"description": "Override the OSC cues port. 0 discovers the port from the daemon stdout."
+				},
 				"vscode-sonic-pi.logAutoscroll": {
 					"type": "boolean",
 					"default": true,

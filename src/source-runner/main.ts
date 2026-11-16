@@ -28,7 +28,7 @@ import * as path from 'path'
 import OSC from 'osc-js'
 import * as utf8 from 'utf8'
 import { OscSender } from './oscsender'
-import { parseDaemonStdout } from './daemonstdout'
+import { parseDaemonStdout, resolveOscCuesPort } from './daemonstdout'
 import { Config } from './config'
 import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } from '../attach'
 import { classifyReplyPortHolder, holderSubject } from '../port-holder'
@@ -666,6 +666,10 @@ export class Main {
 				this.daemonPort = ports.daemonPort
 				this.guiListenToServerPort = ports.guiListenToServerPort
 				this.serverSendToGuiPort = ports.serverSendToGuiPort
+				this.serverOscCuesPort = resolveOscCuesPort(
+					this.config.oscCuesPortOverride(),
+					ports.oscCuesPort,
+				)
 				this.guiUuid = ports.token
 				this.portsInitalizedResolver(new OscSender(this.serverSendToGuiPort))
 

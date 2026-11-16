@@ -2,7 +2,17 @@ export type DaemonPorts = {
 	daemonPort: number
 	guiListenToServerPort: number
 	serverSendToGuiPort: number
+	oscCuesPort: number
 	token: number
+}
+
+// Resolution rule: a positive setting wins, otherwise the parsed port, otherwise
+// -1 (sentinel that must never be used as a send target).
+export function resolveOscCuesPort(settingPort: number, parsedPort: number): number {
+	if (settingPort > 0) {
+		return settingPort
+	}
+	return parsedPort
 }
 
 // Order: daemon-keep-alive gui-listen-to-server gui-send-to-server scsynth osc-cues [tau-api tau-phx] token
@@ -17,6 +27,7 @@ export function parseDaemonStdout(line: string): DaemonPorts | null {
 		daemonPort: parseInt(parts[0]),
 		guiListenToServerPort: parseInt(parts[1]),
 		serverSendToGuiPort: parseInt(parts[2]),
+		oscCuesPort: parseInt(parts[4]),
 		token: token,
 	}
 }

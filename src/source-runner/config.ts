@@ -83,4 +83,9 @@ export class Config {
 	public commandPath(): string {
 		return this.getConfiguration(this.rubySection).commandPath
 	}
+
+	public oscCuesPortOverride(): number {
+		const value = this.getConfiguration(this.section).oscCuesPort
+		return typeof value === 'number' && Number.isInteger(value) ? value : 0
+	}
 }
