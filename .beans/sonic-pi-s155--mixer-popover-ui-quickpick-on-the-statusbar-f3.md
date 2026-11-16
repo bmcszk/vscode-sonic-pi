@@ -1,11 +1,11 @@
 ---
 # sonic-pi-s155
 title: Mixer popover UI (QuickPick) on the statusbar (F3)
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-16T13:30:04Z
-updated_at: 2026-11-16T14:37:47Z
+updated_at: 2026-11-16T15:02:55Z
 parent: sonic-pi-wcgd
 blocked_by:
     - sonic-pi-v3do
@@ -25,3 +25,15 @@ blocked_by:
 ## Skills for coder
 - /home/blaze/.agents/skills/typescript/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/vscode-ext-commands/SKILL.md
+
+## Proof of Work (2026-11-16, parent-verified)
+
+Worker branch f3t2-mixer-popover (final commit on f3t2-mixer-popover), merged to dev2:
+- mixer-panel.ts: pure QuickPick formatter + onPick dispatchers
+- statusbar.ts: mixer item (priority 98) with showMixerQuickPick, bridge wiring
+- extension.ts: sendMasterVolume bridge + mixer senders (setDrive/setLpf/setHpf/setStereo/setInvert) + onMixerSettings emitter
+- package.json: surgical vscode-sonic-pi.mixer command + activationEvents
+- unit tests: mixer-panel.test.js (formatter + onPick), statusbar.test.js updated for 3 items
+
+Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, integration green, suppression grep 0.
+Residual: none.
