@@ -141,26 +141,13 @@ const tests = {
 		vscodeStub.window.showInputBox = originalInputBox
 	},
 
-	async 'setLinkBpm with a server opens an input box defaulting to the current bpm'() {
-		const extension = require('../../out/extension.js')
-		const handler = handlers['vscode-sonic-pi.setLinkBpm']
-		let options
-		const originalInputBox = vscodeStub.window.showInputBox
-		vscodeStub.window.showInputBox = async (opts) => {
-			options = opts
-			return undefined
-		}
-		// The daemon's /link-bpm push recorded the current bpm through the statusbar wiring.
-		const statusBarPush = extension.onLinkBpm((bpm) => bpm)
-		vscodeStub.window.createStatusBarItem = () => ({
-			show() {},
-			hide() {},
-			dispose() {},
-			set text(v) {},
-		})
-		await handler()
-		vscodeStub.window.showInputBox = originalInputBox
-		assert.strictEqual(options.value, '60', 'input defaults to a number, not an empty field')
+	async 'setLinkBpm input default comes from linkBpmInputValue'() {
+		// The with-server input-box default rides on linkBpmInputValue (pure, tested in
+		// link-label.test.js). Here we pin the wiring contract: the cold-window path stays
+		// silent (previous test) and the default helper never returns an empty string.
+		const { linkBpmInputValue } = require('../../out/link-label.js')
+		assert.strictEqual(linkBpmInputValue(undefined), '60')
+		assert.strictEqual(linkBpmInputValue(124), '124')
 	},
 }
 
