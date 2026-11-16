@@ -31,6 +31,7 @@ import { OscSender } from './oscsender'
 import { parseDaemonStdout } from './daemonstdout'
 import { Config } from './config'
 import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } from '../attach'
+import { classifyReplyPortHolder, holderSubject } from '../port-holder'
 import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
 
@@ -58,6 +59,7 @@ export class Main {
 	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
 	onServerRestart = new vscode.EventEmitter<void>()
 	onReceiverFailed = new vscode.EventEmitter<void>()
+	onReceiverOpened = new vscode.EventEmitter<void>()
 	onServerState = new vscode.EventEmitter<'stopped' | 'starting' | 'running'>()
 
 	// Outstanding /buffer-beautify request: buffer id and the promise resolving with
@@ -370,6 +372,7 @@ export class Main {
 			// must clear the deafness an earlier window's bind failure left behind, or every
 			// following play would take the server over again and kill this window's own daemon.
 			this.receiving = true
+			this.onReceiverOpened.fire()
 		})
 		osc.open()
 		// Another VS Code window attached to the same server wins the reply-port bind
@@ -377,14 +380,21 @@ export class Main {
 		osc.on('error', (error: Error & { code?: string }) => {
 			if (error.code !== 'EADDRINUSE') return
 			this.receiving = false
+			const subject = holderSubject(classifyReplyPortHolder(this.guiListenToServerPort))
 			this.logOutput.appendLine(
-				'Another VS Code window is connected to this Sonic Pi server, so IT will show the run ' +
-					"logs and this window won't. Your window's Play will still sound - the server takes " +
-					'every run it is sent.',
+				subject +
+					" is showing the run logs. Your window's Play will still sound. To bring the logs here: " +
+					'press Play again - it takes over the connection.',
 			)
 			this.logOutput.appendLine(
-				'To move the logs to THIS window: close the other window (or its Sonic Pi tab), ' +
-					'then press Play to take over the connection.',
+				'To move the logs to THIS window: close ' +
+					(subject === 'The Sonic Pi app'
+						? 'the Sonic Pi app (or restart its connection)'
+						: 'the other ' +
+							(subject === 'Another VS Code window'
+								? 'window (or its Sonic Pi tab)'
+								: 'program') +
+							', then press Play to take over the connection.'),
 			)
 			this.logOutput.appendLine(
 				'(technical detail: reply port ' + this.guiListenToServerPort + ' was already bound)',

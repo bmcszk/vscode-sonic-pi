@@ -136,6 +136,16 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		main.onServerState.event((state) => statusBar.setServerState(state)),
 		main.onVersion.event((version) => statusBar.setVersion(version)),
+		// The receiver flips between deaf and receiving outside the server state machine: hook it
+		// directly, or the deafness indicator would outlive the takeover that healed the window.
+		main.onReceiverFailed.event(() => statusBar.setReceiving(false)),
+		main.onReceiverOpened.event(() => statusBar.setReceiving(true)),
+		vscode.commands.registerCommand('vscode-sonic-pi.logsElsewhere', () =>
+			vscode.window.showInformationMessage(
+				'Another program or window owns the reply port: it shows the run logs, this window ' +
+					"can't. Press Play again to take over the connection and bring the logs here.",
+			),
+		),
 		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () =>
 			statusBar.showVolumeQuickPick(),
 		),

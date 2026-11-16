@@ -11,10 +11,14 @@ class FakeStatusBarItem {
 		this.tooltip = ''
 		this.command = ''
 		this.shown = 0
+		this.hidden = 0
 		this.disposed = false
 	}
 	show() {
 		this.shown++
+	}
+	hide() {
+		this.hidden++
 	}
 	dispose() {
 		this.disposed = true
@@ -22,6 +26,8 @@ class FakeStatusBarItem {
 }
 
 const item = new FakeStatusBarItem()
+const deafItem = new FakeStatusBarItem()
+let createdItems = []
 let inputBoxPrompt
 let inputBoxResponse
 let errorMessages = []
@@ -30,7 +36,11 @@ const vscodeStub = {
 	EventEmitter,
 	StatusBarAlignment: { Left: 1, Right: 2 },
 	window: {
-		createStatusBarItem: () => item,
+		createStatusBarItem: (alignment, priority) => {
+			const fake = createdItems.length % 2 === 0 ? item : deafItem
+			createdItems.push({ alignment, priority })
+			return fake
+		},
 		showInputBox: (options) => {
 			inputBoxPrompt = options && options.prompt
 			return Promise.resolve(inputBoxResponse)
@@ -50,6 +60,7 @@ Module._load = function (request) {
 
 const {
 	formatStatusLabel,
+	deafnessLabel,
 	parseVersionReply,
 	parseVolumeInput,
 	SonicPiStatusBar,
@@ -132,7 +143,7 @@ test('version reply updates the label', () => {
 	})
 	bar.setServerState('running')
 	bar.setVersion('5.2.2')
-	assert.strictEqual(item.text, '$(radio-tower) Sonic Pi 5.2.2')
+	assert.strictEqual(item.text, '$(radio-tower) Sonic Pi 5.2.2', 'the first status-bar item holds the label')
 	bar.dispose()
 })
 
@@ -164,6 +175,30 @@ test('volume quick pick ignores cancel and rejects non-numeric input', async () 
 	assert.strictEqual(errorMessages.length, 1)
 	bar.dispose()
 })
+
+test('deafness item shows while running but not receiving, clears on receiving or state change', () => {
+	createdItems = []
+	deafItem.shown = 0
+	const bar = new SonicPiStatusBar({
+		sendVersionRequest: () => {},
+		sendMasterVolume: () => {},
+	})
+	assert.strictEqual(createdItems.length, 2, 'a second status-bar item exists for the deafness indicator')
+	assert.strictEqual(deafnessLabel, '$(circle-slash) logs: elsewhere')
+	bar.setServerState('running')
+	assert.strictEqual(deafItem.shown, 0, 'a healthy window shows no deafness item')
+	bar.setReceiving(false)
+	assert.strictEqual(deafItem.shown, 1, 'deafness becomes visible outside the log channel')
+	bar.setReceiving(true)
+	bar.setReceiving(false)
+	assert.strictEqual(deafItem.shown, 2)
+	bar.setServerState('stopped')
+	bar.setReceiving(false)
+	assert.strictEqual(deafItem.shown, 2, 'no deafness item without a running server')
+	bar.dispose()
+	assert.ok(deafItem.disposed)
+})
+
 ;(async () => {
 	let failed = 0
 	for (const [name, fn] of tests) {

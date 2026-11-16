@@ -22,8 +22,11 @@ export const parseVolumeInput = (input: string): number | undefined => {
 	return Math.min(100, Math.max(0, value))
 }
 
+export const deafnessLabel = '$(circle-slash) logs: elsewhere'
+
 export class SonicPiStatusBar {
 	private item: vscode.StatusBarItem
+	private deafItem: vscode.StatusBarItem
 	private state: ServerState = 'stopped'
 	private version: string | undefined
 	// The box opens at the volume this window last set, so Enter is never an error on an
@@ -38,6 +41,9 @@ export class SonicPiStatusBar {
 	) {
 		this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100)
 		this.item.command = 'vscode-sonic-pi.masterVolume'
+		this.deafItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99)
+		this.deafItem.text = deafnessLabel
+		this.deafItem.command = 'vscode-sonic-pi.logsElsewhere'
 		this.render()
 		this.item.show()
 	}
@@ -45,6 +51,7 @@ export class SonicPiStatusBar {
 	setServerState(state: ServerState): void {
 		this.state = state
 		this.render()
+		if (state !== 'running') this.deafItem.hide()
 		if (state === 'running') {
 			this.bridge.sendVersionRequest()
 		}
@@ -54,7 +61,6 @@ export class SonicPiStatusBar {
 		this.version = version
 		this.render()
 	}
-
 	async showVolumeQuickPick(): Promise<void> {
 		const input = await vscode.window.showInputBox({
 			prompt: 'Master volume (0-100)',
@@ -70,11 +76,19 @@ export class SonicPiStatusBar {
 		this.bridge.sendMasterVolume(value)
 	}
 
+	// Deafness is only visible where the user looks: a server this window started but cannot
+	// hear replies from must show in the statusbar, not only in a log channel nobody reads.
+	setReceiving(receiving: boolean): void {
+		if (this.state === 'running' && !receiving) this.deafItem.show()
+		else this.deafItem.hide()
+	}
+
 	private render(): void {
 		this.item.text = formatStatusLabel(this.state, this.version)
 	}
 
 	dispose(): void {
 		this.item.dispose()
+		this.deafItem.dispose()
 	}
 }

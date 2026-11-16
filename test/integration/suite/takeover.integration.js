@@ -76,6 +76,14 @@ suite('Takeover on play', () => {
 			() => runner().isReceiving() === false,
 			'the other window to keep the app reply port',
 		)
+		// The squatter is a node process of this harness, not the Sonic Pi app and not a second
+		// VS Code window: the message must name a holder class, and must not misattribute it.
+		const deafLine = host
+			.logLines('Sonic Pi Log')
+			.find((line) => line.includes('is showing the run logs'))
+		assert.ok(deafLine, 'the EADDRINUSE deafness is reported in the log channel')
+		assert.match(deafLine, /^(The Sonic Pi app|Another VS Code window|Another program) is showing the run logs\./)
+		assert.ok(!deafLine.includes('Another VS Code window is connected'), 'the old wrong attribution is gone')
 	})
 
 	suiteTeardown(() => {
