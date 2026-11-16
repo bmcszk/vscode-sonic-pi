@@ -5,7 +5,7 @@ status: completed
 type: task
 priority: normal
 created_at: 2026-11-16T13:29:44Z
-updated_at: 2026-11-16T14:36:51Z
+updated_at: 2026-11-16T14:40:08Z
 parent: sonic-pi-eimm
 blocked_by:
     - sonic-pi-hjng
@@ -42,6 +42,32 @@ Residual: none.
 
 Worker branch f2t2-mute-ui (final commit on f2t2-mute-ui), merged to dev2:
 - CodeLens: Mute lens ' Mute' / ' Unmute' flipping with registry.isMuted
+- Notebook cell command wiring: muteCellByKeys/unmuteCellByKeys using CellWorkingCopy.content
+- package.json: surgical addition of muteLoop/unmuteLoop commands + activationEvents
+- activation suite: both new commands dispatch cold (no server) without error
+- codelens test: mute lens flips after registry.mute()
+- integration test: all 3 playable blocks show Mute lens; Mute lens flips to Unmute after muting
+
+Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, integration green, suppression grep 0.
+Residual: none.
+
+## Proof of Work (2026-11-16, parent-verified)
+
+Worker branch f2t2-mute-ui (final commit on f2t2-mute-ui), merged to dev2:
+- CodeLens: Mute lens ' Mute' / ' Unmute' flipping with registry.isMuted
+- Notebook cell command wiring: muteCellByKeys/unmuteCellByKeys using CellWorkingCopy.content
+- package.json: surgical addition of muteLoop/unmuteLoop commands + activationEvents
+- activation suite: both new commands dispatch cold (no server) without error
+- codelens test: mute lens flips after registry.mute()
+- integration test: all 3 playable blocks show Mute lens; Mute lens flips to Unmute after muting
+
+Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, integration green, suppression grep 0.
+Residual: none.
+
+## Proof of Work (2026-11-16, parent-verified)
+
+Worker branch f2t2-mute-ui (final commit on f2t2-mute-ui), merged to dev2:
+- CodeLens: Mute lens '$(debug-pause) Mute' / '$(play) Unmute' flipping with registry.isMuted
 - Notebook cell command wiring: muteCellByKeys/unmuteCellByKeys using CellWorkingCopy.content
 - package.json: surgical addition of muteLoop/unmuteLoop commands + activationEvents
 - activation suite: both new commands dispatch cold (no server) without error
