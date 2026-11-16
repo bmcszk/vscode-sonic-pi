@@ -54,6 +54,7 @@ export class Main {
 	processLogPath: string
 	scsynthLogPath: string
 
+	onCue = new vscode.EventEmitter<{ time: number; id: number; address: string; args: string }>()
 	onRunStarted = new vscode.EventEmitter<number>()
 	onRunEnded = new vscode.EventEmitter<number>()
 	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
@@ -450,6 +451,11 @@ export class Main {
 			//  		', ' +
 			//  		message.args[3],
 			//  )
+			const time = Number(message.args[0])
+			const id = Number(message.args[1])
+			const address = typeof message.args[2] === 'string' ? message.args[2] : ''
+			const args = typeof message.args[3] === 'string' ? message.args[3] : ''
+			this.onCue.fire({ time, id, address, args })
 			this.cueLog(message.args[2] + ': ' + message.args[3])
 		})
 
