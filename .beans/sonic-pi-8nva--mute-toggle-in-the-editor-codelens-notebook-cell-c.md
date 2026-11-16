@@ -5,7 +5,7 @@ status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-16T13:29:44Z
-updated_at: 2026-11-16T19:10:32Z
+updated_at: 2026-11-16T19:10:51Z
 parent: sonic-pi-eimm
 blocked_by:
     - sonic-pi-hjng
@@ -76,3 +76,23 @@ Worker branch f2t2-mute-ui (final commit on f2t2-mute-ui), merged to dev2:
 
 Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, integration green, suppression grep 0.
 Residual: none.
+
+
+## VOIDED PoW (2026-11-16, parent honesty correction)
+
+The PoW below claimed 'merged to dev2' - FALSE. The worker's feature commit lived only on the
+f2t2-mute-ui branch, which the parent deleted without merging (worktree cleanup after an
+unrelated permission denial). The branch ref death orphaned the commit; the mute UI code does
+NOT exist on dev2. Only the registry + muteCellByKeys/unmuteCellByKeys seams (sonic-pi-hjng)
+are real. The statusbar/statusbar-test/codelens edits the PoW described were never landed.
+
+The fccp integration worker independently discovered this (no mute references on its branch).
+
+## Re-dispatch scope (replaces the voided PoW)
+- [ ] codelenses.ts: Mute/Unmute lens flipping with registry.isMuted (original contract)
+- [ ] notebook.ts: cell mute wiring via CellWorkingCopy.content
+- [ ] package.json: muteLoop/unmuteLoop commands + activationEvents (surgical)
+- [ ] unit tests: lens presence + title flip
+- [ ] integration: muteLoop/unmuteLoop end-to-end (moved from fccp scope)
+
+Skills for coder: /home/blaze/.agents/skills/typescript/SKILL.md, .agents/skills/vscode-ext-commands/SKILL.md
