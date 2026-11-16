@@ -1,11 +1,11 @@
 ---
 # sonic-pi-8nva
 title: 'Mute toggle in the editor: CodeLens + notebook cell command (F2)'
-status: completed
+status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-16T13:29:44Z
-updated_at: 2026-11-16T14:40:08Z
+updated_at: 2026-11-16T19:10:32Z
 parent: sonic-pi-eimm
 blocked_by:
     - sonic-pi-hjng
