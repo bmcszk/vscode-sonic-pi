@@ -127,6 +127,44 @@ suite('Notebook run', () => {
 		await host.waitUntil(() => !isPlaying(first), 'the interrupted cell to stop playing')
 	})
 
+	test('a cell mute stops only that cell and its unmute re-runs the cell content', async () => {
+		const runner = host.extensionModule('source-runner/extension.js')
+		const mark = host.mark()
+		void runCell(notebook, first)
+		await host.waitForMessage('/run-code', mark, (message) => message.args[1].includes('play :c4'))
+		const started = await host.waitUntil(
+			() =>
+				host
+					.sinceMark(mark)
+					.find((entry) => entry.event === 'push' && entry.address === '/run/started'),
+			'the fake to announce the job id on /run/started',
+		)
+		const jobId = started.args[0]
+
+		const muteMark = host.mark()
+		await runner.muteCellByKeys([first.document.uri.toString()], first.document.getText())
+		await host.waitForMessage('/stop-job', muteMark, (message) => message.args[1] === jobId)
+		assert.deepStrictEqual(
+			host
+				.sinceMark(muteMark)
+				.filter((entry) => entry.event === 'message' && entry.address === '/stop-all-jobs'),
+			[],
+			'a cell mute must not fall back to the job-blind stop',
+		)
+
+		const unmuteMark = host.mark()
+		const entry = runner.unmuteCellByKeys([first.document.uri.toString()])
+		assert.strictEqual(entry.code, 'play :c4', 'the unmute carries the muted cell content')
+		const rerun = await host.waitForMessage('/run-code', unmuteMark, (message) => message.args.length > 2)
+		assert.match(rerun.args[1], /play :c4/, 'the unmute re-runs the cell content')
+		assert.deepStrictEqual(
+			host.sinceMark(unmuteMark).filter((e) => e.event === 'message' && e.address === '/stop-all-jobs'),
+			[],
+			'the unmute re-run must not replace the session',
+		)
+		await host.sendControl('stop-all')
+	})
+
 	test('whole-song mode replays the executed cells on the next play', async () => {
 		await host.updateSetting('notebookRunsWholeSong', true)
 		try {
