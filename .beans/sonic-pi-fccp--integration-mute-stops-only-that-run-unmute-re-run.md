@@ -1,11 +1,11 @@
 ---
 # sonic-pi-fccp
 title: 'Integration: mute stops only that run, unmute re-runs it (F2)'
-status: todo
+status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-16T13:29:44Z
-updated_at: 2026-11-16T15:07:04Z
+updated_at: 2026-11-16T19:06:53Z
 parent: sonic-pi-eimm
 blocked_by:
     - sonic-pi-hjng
