@@ -27,6 +27,7 @@ class FakeStatusBarItem {
 
 const item = new FakeStatusBarItem()
 const deafItem = new FakeStatusBarItem()
+const mixerItem = new FakeStatusBarItem()
 let createdItems = []
 let inputBoxPrompt
 let inputBoxResponse
@@ -37,9 +38,10 @@ const vscodeStub = {
 	StatusBarAlignment: { Left: 1, Right: 2 },
 	window: {
 		createStatusBarItem: (alignment, priority) => {
-			const fake = createdItems.length % 2 === 0 ? item : deafItem
 			createdItems.push({ alignment, priority })
-			return fake
+			if (createdItems.length === 1) return item
+			if (createdItems.length === 2) return deafItem
+			return mixerItem
 		},
 		showInputBox: (options) => {
 			inputBoxPrompt = options && options.prompt
@@ -106,12 +108,23 @@ test('volume input rejects non-numeric text', () => {
 	assert.strictEqual(parseVolumeInput(''), undefined)
 })
 
+const mixerBridge = {
+	setDrive: () => {},
+	setLpf: () => {},
+	setHpf: () => {},
+	setStereo: () => {},
+	setInvert: () => {},
+}
+
 test('status bar starts hidden-stopped and re-renders on state change', () => {
 	item.text = ''
+	createdItems = []
 	const bar = new SonicPiStatusBar({
 		sendVersionRequest: () => {},
 		sendMasterVolume: () => {},
+		...mixerBridge,
 	})
+	// Main item shows server state
 	assert.strictEqual(item.text, '$(circle-slash) Sonic Pi: stopped')
 	bar.setServerState('starting')
 	assert.strictEqual(item.text, '$(sync~spin) Sonic Pi: starting')
@@ -125,9 +138,11 @@ test('status bar starts hidden-stopped and re-renders on state change', () => {
 
 test('reaching running requests the version once', () => {
 	let requests = 0
+	createdItems = []
 	const bar = new SonicPiStatusBar({
 		sendVersionRequest: () => requests++,
 		sendMasterVolume: () => {},
+		...mixerBridge,
 	})
 	bar.setServerState('starting')
 	assert.strictEqual(requests, 0)
@@ -137,9 +152,11 @@ test('reaching running requests the version once', () => {
 })
 
 test('version reply updates the label', () => {
+	createdItems = []
 	const bar = new SonicPiStatusBar({
 		sendVersionRequest: () => {},
 		sendMasterVolume: () => {},
+		...mixerBridge,
 	})
 	bar.setServerState('running')
 	bar.setVersion('5.2.2')
@@ -149,9 +166,11 @@ test('version reply updates the label', () => {
 
 test('volume quick pick sends the mapped value', async () => {
 	const sent = []
+	createdItems = []
 	const bar = new SonicPiStatusBar({
 		sendVersionRequest: () => {},
 		sendMasterVolume: (value) => sent.push(value),
+		...mixerBridge,
 	})
 	inputBoxResponse = '80%'
 	await bar.showVolumeQuickPick()
@@ -162,9 +181,11 @@ test('volume quick pick sends the mapped value', async () => {
 
 test('volume quick pick ignores cancel and rejects non-numeric input', async () => {
 	const sent = []
+	createdItems = []
 	const bar = new SonicPiStatusBar({
 		sendVersionRequest: () => {},
 		sendMasterVolume: (value) => sent.push(value),
+		...mixerBridge,
 	})
 	inputBoxResponse = undefined
 	await bar.showVolumeQuickPick()
@@ -179,14 +200,17 @@ test('volume quick pick ignores cancel and rejects non-numeric input', async () 
 test('deafness item shows while running but not receiving, clears on receiving or state change', () => {
 	createdItems = []
 	deafItem.shown = 0
+	mixerItem.shown = 0
 	const bar = new SonicPiStatusBar({
 		sendVersionRequest: () => {},
 		sendMasterVolume: () => {},
+		...mixerBridge,
 	})
-	assert.strictEqual(createdItems.length, 2, 'a second status-bar item exists for the deafness indicator')
+	assert.strictEqual(createdItems.length, 3, 'three status-bar items exist (main, deafness, mixer)')
 	assert.strictEqual(deafnessLabel, '$(circle-slash) logs: elsewhere')
 	bar.setServerState('running')
 	assert.strictEqual(deafItem.shown, 0, 'a healthy window shows no deafness item')
+	assert.strictEqual(mixerItem.shown, 1, 'mixer item shows when server is running')
 	bar.setReceiving(false)
 	assert.strictEqual(deafItem.shown, 1, 'deafness becomes visible outside the log channel')
 	bar.setReceiving(true)
@@ -195,8 +219,10 @@ test('deafness item shows while running but not receiving, clears on receiving o
 	bar.setServerState('stopped')
 	bar.setReceiving(false)
 	assert.strictEqual(deafItem.shown, 2, 'no deafness item without a running server')
+	assert.strictEqual(mixerItem.shown, 1, 'mixer item hides when server stops')
 	bar.dispose()
 	assert.ok(deafItem.disposed)
+	assert.ok(mixerItem.disposed)
 })
 
 ;(async () => {

@@ -187,6 +187,11 @@ export function activate(context: vscode.ExtensionContext) {
 	const statusBar = new SonicPiStatusBar({
 		sendVersionRequest: () => main.requestVersion(),
 		sendMasterVolume: (value) => main.setMasterVolume(value),
+		setDrive: (value) => main.setDrive(value),
+		setLpf: (freq) => main.setLpf(freq),
+		setHpf: (freq) => main.setHpf(freq),
+		setStereo: (stereo) => (stereo ? main.mixerStereoMode() : main.mixerMonoMode()),
+		setInvert: (invert) => (invert ? main.mixerInvertStereo() : main.mixerStandardStereo()),
 	})
 	statusBar.setServerState('starting')
 	if (!main.serverStarted) statusBar.setServerState('stopped')
@@ -197,6 +202,7 @@ export function activate(context: vscode.ExtensionContext) {
 		// directly, or the deafness indicator would outlive the takeover that healed the window.
 		main.onReceiverFailed.event(() => statusBar.setReceiving(false)),
 		main.onReceiverOpened.event(() => statusBar.setReceiving(true)),
+		main.onMixerSettings.event((settings) => statusBar.setMixerSettings(settings)),
 		vscode.commands.registerCommand('vscode-sonic-pi.logsElsewhere', () =>
 			vscode.window.showInformationMessage(
 				'Another program or window owns the reply port: it shows the run logs, this window ' +
@@ -206,6 +212,7 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () =>
 			statusBar.showVolumeQuickPick(),
 		),
+		vscode.commands.registerCommand('vscode-sonic-pi.mixer', () => statusBar.showMixerQuickPick()),
 		{ dispose: () => statusBar.dispose() },
 	)
 

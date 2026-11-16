@@ -22,7 +22,7 @@
 		"lint": "eslint src",
 		"format:check": "prettier --check src",
 		"format": "prettier --write src",
-		"test": "npm run lint && npm run format:check && npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/receiver-recovery.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js && node test/unit/daemon-liveness.test.js && node test/unit/per-run-stop.test.js && node test/vsix-smoke.test.js && node test/unit/cue-bench.test.js",
+		"test": "npm run lint && npm run format:check && npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/receiver-recovery.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js && node test/unit/daemon-liveness.test.js && node test/unit/per-run-stop.test.js && node test/unit/mixer.test.js && node test/unit/mixer-panel.test.js && node test/unit/cue-bench.test.js && node test/vsix-smoke.test.js",
 		"test:integration": "npm run build && vscode-test",
 		"test:e2e": "npm run build && node test/e2e/protocol.js"
 	},
@@ -54,6 +54,7 @@
 		"onCommand:vscode-sonic-pi.cues._filter",
 		"onCommand:vscode-sonic-pi.cueInsertSync",
 		"onCommand:vscode-sonic-pi.cueSendTest",
+		"onCommand:vscode-sonic-pi.mixer",
 		"onNotebook:sonic-pi-book"
 	],
 	"main": "./out/extension.js",
@@ -239,6 +240,11 @@
 				"command": "vscode-sonic-pi.cueSendTest",
 				"title": "Send Test Cue",
 				"icon": "$(send)"
+			},
+			{
+				"command": "vscode-sonic-pi.mixer",
+				"title": "Mixer",
+				"category": "Sonic Pi"
 			}
 		],
 		"keybindings": [
