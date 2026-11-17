@@ -72,7 +72,7 @@ suite('Server lifecycle', () => {
 		// the integration test pins the push->item half plus the drive SENDER reaching the
 		// daemon via the setDriveForTest seam (real OSC wire + statusbar item + fake handling).
 		const driveMark = host.mark()
-		host.extensionModule('extension.js').setDriveForTest(1.5)
+		host.extensionModule('source-runner/extension.js').setDriveForTest(1.5)
 		await host.waitForMessage(
 			'/mixer-drive',
 			driveMark,
