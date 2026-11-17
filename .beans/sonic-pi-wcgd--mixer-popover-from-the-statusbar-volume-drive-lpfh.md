@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-16T13:30:04Z
-updated_at: 2026-11-17T12:49:48Z
+updated_at: 2026-11-17T13:03:40Z
 parent: sonic-pi-818h
 ---
 
@@ -24,3 +24,7 @@ User outcome: volume, drive, LPF/HPF with frequency, mono/invert/stereo - initia
 ## Proof of Work (2026-11-17)
 
 Tasks completed: mixer senders + /mixer/settings state (v3do), mixer popover QuickPick (s155), integration coverage (pvuc in flight - the push->item half is integration-proven; the popover dispatch is unit-covered in mixer-panel.test.js). Residual: pvuc integration bean finalizes the end-to-end proof.
+
+## Completion (2026-11-17)
+
+pvuc integration landed: push->item + drive wire asserted end-to-end. All three tasks completed. Residual: none.
