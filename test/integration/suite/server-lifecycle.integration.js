@@ -80,6 +80,35 @@ suite('Server lifecycle', () => {
 		)
 	})
 
+	test('Link pushes update the statusbar item and click-to-set sends the silent bpm run', async () => {
+		const linkItem = host.statusBarItem(97)
+		assert.ok(linkItem, 'the link statusbar item exists')
+
+		await host.sendControl('link-bpm', ['122.5'])
+		await host.sendControl('link-peers', ['3'])
+		await host.waitUntil(
+			() => linkItem.text.includes('122.5') && linkItem.text.includes('⇄3'),
+			'the link item to show the pushed bpm and peer count',
+		)
+
+		// The prompt opens at the pushed bpm (122.5), so accepting it is one keystroke and
+		// the suite never has to type into a DOM input box (same drive as the volume test).
+		const bpmMark = host.mark()
+		const prompted = vscode.commands.executeCommand('vscode-sonic-pi.setLinkBpm')
+		await host.delay(500)
+		await vscode.commands.executeCommand('quickInput.accept')
+		await prompted
+		await host.waitForMessage(
+			'/run-code',
+			bpmMark,
+			(message) =>
+				message.args.length > 3 &&
+				message.args[2] === 'link-bpm-set' &&
+				message.args[3] === 1 &&
+				String(message.args[1]).includes('set_link_bpm! 122.5'),
+		)
+	})
+
 	test('a play after the daemon dies boots a fresh server instead of dying silently', async () => {
 		// The user-facing failure: the window stayed 'connected' to a dead daemon and every
 		// play went to a dead port with an empty log channel. The keepalive error signal must
