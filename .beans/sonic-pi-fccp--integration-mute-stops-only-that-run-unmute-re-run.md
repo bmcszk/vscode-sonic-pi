@@ -5,7 +5,7 @@ status: completed
 type: task
 priority: normal
 created_at: 2026-11-16T13:29:44Z
-updated_at: 2026-11-16T19:33:50Z
+updated_at: 2026-11-17T12:48:28Z
 parent: sonic-pi-eimm
 blocked_by:
     - sonic-pi-hjng
@@ -38,3 +38,11 @@ Worker branch fccp-mute-integration (8529bd0), merged to dev2 (1e8ff3b):
 
 Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, suppression grep 0.
 Residual: none.
+
+## Addendum (2026-11-17)
+
+The mute integration test landed with this bean initially timed out on /stop-job. Root causes found
+and fixed on dev2 (fcc2706): (1) editor Run cell runs now carry a cell key so liveJobs tracks them
+(runWithText threads cells), (2) the test waits for the extension-side liveJobs instead of racing,
+(3) the /stop-job predicate treated job id 0 as falsy. All three were real product/test bugs; the
+integration suite now passes 29+1+1.

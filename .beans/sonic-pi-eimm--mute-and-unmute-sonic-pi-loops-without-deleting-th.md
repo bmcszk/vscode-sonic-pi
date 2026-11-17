@@ -1,10 +1,11 @@
 ---
 # sonic-pi-eimm
 title: Mute and unmute Sonic Pi loops without deleting them (stop this loop's job, remember its code, re-run on unmute)
-status: draft
+status: completed
 type: feature
+priority: normal
 created_at: 2026-11-16T13:29:31Z
-updated_at: 2026-11-16T13:29:31Z
+updated_at: 2026-11-17T12:49:00Z
 parent: sonic-pi-818h
 ---
 
@@ -23,3 +24,14 @@ runCode (main.ts:828-861) calls stopAllJobs() at 842 whenever runReplacesSession
 - task: Muted-cell registry + no-replace run path in the runner
 - task: Mute toggle in the editor (CodeLens + notebook cell command)
 - task: Integration - mute stops only that run, unmute re-runs it
+
+## Proof of Work (2026-11-17)
+
+All three tasks completed:
+- hjng: mute registry + no-replace run path (unit)
+- 8nva: mute UI CodeLens + notebook commands (unit + integration; re-dispatched after the VOIDED false PoW incident)
+- fccp: mute/unmute integration (editor + notebook paths, per-run stop verified on the wire)
+
+End-to-end: a notebook or editor cell can be muted (only its job stops), unmuted (its code re-runs under the same workspace without replacing the session). En-route product fixes: runWithText cell keys + /stop-job job-id-0 predicate (fcc2706).
+
+Residual: none.

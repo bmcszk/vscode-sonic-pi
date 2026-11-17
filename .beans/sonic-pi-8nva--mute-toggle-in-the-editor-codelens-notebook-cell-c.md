@@ -1,11 +1,11 @@
 ---
 # sonic-pi-8nva
 title: 'Mute toggle in the editor: CodeLens + notebook cell command (F2)'
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-16T13:29:44Z
-updated_at: 2026-11-16T19:49:11Z
+updated_at: 2026-11-17T12:48:50Z
 parent: sonic-pi-eimm
 blocked_by:
     - sonic-pi-hjng
@@ -108,4 +108,23 @@ Worker branch 8nva-mute-ui-redo (committed to dev2), merged:
 - integration test: mute stops only that run, unmute re-runs with stored text
 
 Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, integration green, suppression grep 0.
+Residual: none.
+
+
+
+## Proof of Work (re-dispatch landed 2026-11-17, parent-verified)
+
+Re-dispatch scope delivered and merged to dev2 (1224001 + fcc2706):
+- codelenses.ts: Mute/Unmute lens per playable block, flipping with registry.isMuted
+- muteLoop/unmuteLoop command handlers (cold-window silent no-op, pattern of masterVolume guard)
+- notebook cell mute via CellWorkingCopy.content
+- package.json: muteLoop/unmuteLoop commands + activationEvents (surgical)
+- unit: codelenses.test.js lens presence + title flip
+- integration: editor-controls mute test - mute stops ONLY the run's job (/stop-job with /run/started
+  id), unmute re-runs stored text under the same workspace, no session replacement
+
+Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, integration 29+1+1 passing, suppressions 0.
+En-route product fixes (sonic-pi-fccp addendum + fcc2706): runWithText carries the block cell key so
+editor Run cells are mute/stop-job-able; /stop-job predicate accepts job id 0.
+
 Residual: none.
