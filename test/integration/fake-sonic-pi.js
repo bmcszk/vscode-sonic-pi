@@ -178,6 +178,12 @@ async function main() {
 			sendToGui(commandSocket, '/link-bpm', [args[0]])
 		} else if (name === 'link-peers') {
 			sendToGui(commandSocket, '/link-num-peers', [args[0]])
+		} else if (name === 'request-audio-devices') {
+			// The real daemon answers one request with three pushes (daemon-audio spike,
+			// bean sonic-pi-1zc3): outputs, inputs, device-table - flat name arrays.
+			sendToGui(commandSocket, '/supersonic/devices', ['system', 'System Default', 'Dock Audio'])
+			sendToGui(commandSocket, '/supersonic/input-devices', ['System Default', 'Mic'])
+			sendToGui(commandSocket, '/supersonic/device-table', ['PipeWire', '', 2, 'ALSA', 20])
 		} else if (name === 'cue') {
 			sendToGui(commandSocket, '/incoming/osc', [
 				Date.now() / 1000,

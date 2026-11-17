@@ -55,6 +55,8 @@
 		"onCommand:vscode-sonic-pi.cueInsertSync",
 		"onCommand:vscode-sonic-pi.cueSendTest",
 		"onCommand:vscode-sonic-pi.mixer",
+		"onCommand:vscode-sonic-pi.audioDevices",
+		"onCommand:vscode-sonic-pi.reopenAudioDevice",
 		"onCommand:vscode-sonic-pi.muteLoop",
 		"onCommand:vscode-sonic-pi.unmuteLoop",
 		"onNotebook:sonic-pi-book"
@@ -256,6 +258,16 @@
 			{
 				"command": "vscode-sonic-pi.mixer",
 				"title": "Mixer",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.audioDevices",
+				"title": "Audio Devices",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.reopenAudioDevice",
+				"title": "Reset Audio Device",
 				"category": "Sonic Pi"
 			}
 		],

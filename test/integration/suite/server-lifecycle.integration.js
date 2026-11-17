@@ -80,6 +80,12 @@ suite('Server lifecycle', () => {
 		)
 	})
 
+	test('requestAudioDevices reaches the daemon as /daemon/audio/request-devices and the picker shows the pushed devices', async () => {
+		const mark = host.mark()
+		host.extensionModule('source-runner/extension.js').requestAudioDevices()
+		await host.waitForMessage('/daemon/audio/request-devices', mark, (message) => message.args.length === 1)
+	})
+
 	test('a play after the daemon dies boots a fresh server instead of dying silently', async () => {
 		// The user-facing failure: the window stayed 'connected' to a dead daemon and every
 		// play went to a dead port with an empty log channel. The keepalive error signal must
