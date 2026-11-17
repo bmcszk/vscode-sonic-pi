@@ -1,11 +1,11 @@
 ---
 # sonic-pi-6sux
 title: 'Integration: Link pushes update the item, click sets bpm (F4)'
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-16T13:30:27Z
-updated_at: 2026-11-17T13:03:55Z
+updated_at: 2026-11-17T13:10:17Z
 parent: sonic-pi-2fkg
 blocked_by:
     - sonic-pi-9x5q
@@ -24,3 +24,11 @@ blocked_by:
 
 ## Skills for coder
 - /home/blaze/.agents/skills/typescript/SKILL.md
+
+## Proof of Work (2026-11-17, parent-verified)
+
+Worker branch 6sux-link-integration (3484af3), merged to dev2:
+- integration test: link-bpm 122.5 + link-peers 3 pushes -> statusbar item shows '♪ 122.5 · ⇄3'; click-to-set drives the input (pre-filled with the pushed bpm) -> /run-code asserted on the wire with workspace 'link-bpm-set', silent flag 1, set_link_bpm! 122.5
+
+Gates: lint 0, prettier clean, npm test exit 0 / 0 not ok, integration 30+1+1 passing (attach/takeover green, no skips), suppressions 0.
+Residual: none.
