@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-16T13:30:27Z
-updated_at: 2026-11-17T12:49:48Z
+updated_at: 2026-11-17T13:10:31Z
 parent: sonic-pi-818h
 ---
 
@@ -25,3 +25,7 @@ CRITICAL subtlety (spider-server.rb:302-316): the silent flag (args[3]==1) is on
 ## Proof of Work (2026-11-17)
 
 Tasks completed: Link telemetry receivers + silent BPM-set sender (9x5q), statusbar item with click-to-set (27kb). Live pushes update the item; click opens input defaulting to current bpm; silent no-replace run. Residual: F4 t3 integration (6sux) remains in draft - it completes the feature's end-to-end proof.
+
+## Completion update (2026-11-17): F4 t3 (6sux) landed
+
+Link integration landed: pushes update the statusbar item; click-to-set sends the silent bpm run. All three tasks completed. End-to-end proven: live pushes -> item -> click -> silent run on the wire. Residual: none.
