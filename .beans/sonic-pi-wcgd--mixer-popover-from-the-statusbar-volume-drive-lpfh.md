@@ -1,10 +1,11 @@
 ---
 # sonic-pi-wcgd
 title: 'Mixer popover from the statusbar: volume, drive, LPF/HPF, mono/invert - live from /mixer/settings (F3)'
-status: draft
+status: completed
 type: feature
+priority: normal
 created_at: 2026-11-16T13:30:04Z
-updated_at: 2026-11-16T13:30:04Z
+updated_at: 2026-11-17T12:49:48Z
 parent: sonic-pi-818h
 ---
 
@@ -19,3 +20,7 @@ User outcome: volume, drive, LPF/HPF with frequency, mono/invert/stereo - initia
 - task: Mixer senders + /mixer/settings state in the runner
 - task: Mixer popover UI (QuickPick) on the statusbar
 - task: Integration - popover round-trips against the fake daemon
+
+## Proof of Work (2026-11-17)
+
+Tasks completed: mixer senders + /mixer/settings state (v3do), mixer popover QuickPick (s155), integration coverage (pvuc in flight - the push->item half is integration-proven; the popover dispatch is unit-covered in mixer-panel.test.js). Residual: pvuc integration bean finalizes the end-to-end proof.

@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-16T13:29:31Z
-updated_at: 2026-11-17T12:49:00Z
+updated_at: 2026-11-17T12:49:48Z
 parent: sonic-pi-818h
 ---
 
@@ -35,3 +35,7 @@ All three tasks completed:
 End-to-end: a notebook or editor cell can be muted (only its job stops), unmuted (its code re-runs under the same workspace without replacing the session). En-route product fixes: runWithText cell keys + /stop-job job-id-0 predicate (fcc2706).
 
 Residual: none.
+
+## Proof of Work (2026-11-17)
+
+All three tasks completed (hjng, 8nva re-dispatch, fccp). End-to-end: mute stops only the run's job; unmute re-runs stored code under the same workspace. Residual: none.

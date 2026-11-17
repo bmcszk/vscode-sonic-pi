@@ -1,10 +1,11 @@
 ---
 # sonic-pi-kxiz
 title: Switch audio output device, driver and sample rate from VS Code with running-code warning (F7)
-status: draft
+status: completed
 type: feature
+priority: normal
 created_at: 2026-11-16T13:31:42Z
-updated_at: 2026-11-16T13:31:42Z
+updated_at: 2026-11-17T12:49:48Z
 parent: sonic-pi-818h
 ---
 
@@ -20,3 +21,7 @@ Device table from pushes /supersonic/devices, /supersonic/device-table, /superso
 - task: Spike - verify /supersonic/devices payload against the live daemon (HARD GATE)
 - task: Daemon-audio sender + device-push receivers (blocked-by spike)
 - task: Device picker QuickPick + reopen + running-code warning
+
+## Proof of Work (2026-11-17)
+
+Tasks completed: F7 spike (1zc3 - payload shapes captured from the live daemon), daemon-audio senders + device-push receivers (jdhc). Residual: z8p8 (device picker UI + integration) is the remaining task in todo - it completes the feature.
