@@ -31,7 +31,20 @@ suite('Editor controls', () => {
 		assert.deepStrictEqual(titles.slice(0, 2), ['$(play) Run', '$(stop) Stop'])
 		assert.deepStrictEqual(
 			titles.filter((title) => title !== '$(play) Run' && title !== '$(stop) Stop'),
-			['$(play) Run cell', '$(play) Run cell', '$(sync) Load def'],
+			[
+				'$(play) Run cell',
+				'$(debug-pause) Mute',
+				'$(play) Run cell',
+				'$(debug-pause) Mute',
+				'$(play) Run cell',
+				'$(debug-pause) Mute',
+				'$(play) Run cell',
+				'$(debug-pause) Mute',
+				'$(sync) Load def',
+				'$(debug-pause) Mute',
+				'$(sync) Load def',
+				'$(debug-pause) Mute',
+			],
 		)
 
 		const lensFor = (title, line) =>
@@ -255,15 +268,27 @@ suite('Editor controls', () => {
 
 			const runMark = host.mark()
 			await vscode.commands.executeCommand(RUN_TEXT, 'live_loop :drums do\n  play :c4\nend', 0)
-			const run = await host.waitForMessage('/run-code', runMark)
+			await host.waitForMessage('/run-code', runMark)
+			// liveJobs fills from the /run/started push, which lands after the fake records
+			// /run-code. The extension receives the push asynchronously: wait until ITS liveJobs
+			// has the entry, or the mute races ahead and falls back to stop-all.
+			const runnerForJobs = host.extensionModule('source-runner/extension.js')
+			await host.waitUntil(
+				() =>
+					typeof runnerForJobs.liveJobWorkspaceFor === 'function' &&
+					runnerForJobs.liveJobWorkspaceFor('file://0:live_loop :drums do\n  play :c4\nend') !== undefined,
+				'the extension to track the run in liveJobs',
+			)
 			const cellKey = codeLensModule.cellKeyFor(0, 'live_loop :drums do\n  play :c4\nend')
 
 			const muteMark = host.mark()
 			await vscode.commands.executeCommand(MUTE, ...muteLens.command.arguments)
+			// Job ids start at 0 on a fresh daemon - 0 is a valid id, so the predicate must
+			// check the type, not the truthiness.
 			const stop = await host.waitForMessage('/stop-job', muteMark, (message) =>
-				Boolean(message.args[1]),
+				Number.isFinite(message.args[1]),
 			)
-			assert.ok(Number.isFinite(stop.args[1]), 'the mute stopped the loop\'s job id')
+			assert.ok(Number.isFinite(stop.args[1]), "the mute stopped the loop's job id")
 			assert.deepStrictEqual(
 				host.sinceMark(muteMark).filter((entry) => entry.address === '/stop-all-jobs'),
 				[],
@@ -279,7 +304,7 @@ suite('Editor controls', () => {
 				relensed.some(
 					(lens) => lens.command.command === UNMUTE && lens.command.arguments[0] === cellKey,
 				),
-				'the muted block\'s lens flipped to Unmute',
+				"the muted block's lens flipped to Unmute",
 			)
 			const unmuteLens = relensed.find((lens) => lens.command.command === UNMUTE)
 
@@ -300,11 +325,8 @@ suite('Editor controls', () => {
 		}
 	})
 
-	test('a cold window dispatches mute and unmute without a server and without error', async () => {
-		const runner = host.extensionModule('source-runner/extension.js')
-		if (runner.serverIsRunning()) {
-			this.skip()
-		}
+	test('a window dispatches mute and unmute without error', async () => {
 		await vscode.commands.executeCommand(MUTE, 'file://0:play 60', 'play 60')
 		await vscode.commands.executeCommand(UNMUTE, 'file://0:play 60')
-	})})
+	})
+})

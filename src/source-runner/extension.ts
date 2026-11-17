@@ -34,7 +34,7 @@ import { Main } from './main'
 import { Config } from './config'
 import { computeBeautifyEdit } from '../beautify'
 import { flashPaintFor, notebookFlashMap } from '../cell-flash-map'
-import { SonicPiCodeLensProvider } from '../codelenses'
+import { SonicPiCodeLensProvider, cellKeyFor } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
@@ -46,13 +46,13 @@ import { linkBpmInputValue } from '../link-label'
 let main: Main
 let config: Config
 
-export const scriptRunEnsuresServer = async (code: string, offset = 0) => {
+export const scriptRunEnsuresServer = async (code: string, offset = 0, cells: string[] = []) => {
 	// Command-Palette/editor Run must survive a cold window: a play before any boot went
 	// to unbound ports and vanished without feedback (user: 'no logs, no feedback').
 	if (!main.serverStarted && config.launchSonicPiServerAutomatically() !== 'never') {
 		await main.startServer()
 	}
-	main.runCode(code, offset)
+	main.runCode(code, offset, cells)
 }
 
 export const runScript = (code: string, cells: string[] = []) => {
@@ -97,6 +97,7 @@ export const stopAllScripts = () => {
 
 // Per-run stop: kill the daemon job(s) that belong to the given cells. Unknown or
 // finished cells fall back to the whole-session stop inside main.
+export const liveJobWorkspaceFor = (cellKey: string) => main.liveJobWorkspaceFor(cellKey)
 export const stopCellByKeys = (cellKeys: string[]) => {
 	if (!main) {
 		throw Error('Runner not initialized')
@@ -417,7 +418,11 @@ export function activate(context: vscode.ExtensionContext) {
 			// A Run cell sends only its block, so pass the block's editor line: runCode pads the text
 			// up to that line and the daemon then reports file-absolute flash lines. A cold-window
 			// cell play must boot the server first (Option B takeover-on-play).
-			void scriptRunEnsuresServer(code, blockLine ?? 0).then(() => notebookFlashMap.clear())
+			// The block's line+text also become its cell key, so the daemon's /run/started workspace
+			// maps this run to the block - that is what makes per-run mute/stop-job work for
+			// editor Run cells, not just notebook cells.
+			const cells = blockLine === undefined ? [] : [cellKeyFor(blockLine, code)]
+			void scriptRunEnsuresServer(code, blockLine ?? 0, cells).then(() => notebookFlashMap.clear())
 		}),
 	)
 
