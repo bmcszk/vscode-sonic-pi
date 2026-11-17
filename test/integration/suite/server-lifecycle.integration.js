@@ -69,9 +69,15 @@ suite('Server lifecycle', () => {
 
 		// The popover's Drive dispatch is unit-covered (mixer-panel.test.js asserts the
 		// /mixer-drive send per picked action). Driving a QuickPick headlessly is flaky:
-		// this integration test pins the push->item half of the round-trip, which is the
-		// part only integration can prove (real OSC wire + statusbar item).
-		assert.ok(mixerItem.text.includes('drive 1.5'), 'the pushed drive is visible on the item')
+		// the integration test pins the push->item half plus the drive SENDER reaching the
+		// daemon via the setDriveForTest seam (real OSC wire + statusbar item + fake handling).
+		const driveMark = host.mark()
+		host.extensionModule('extension.js').setDriveForTest(1.5)
+		await host.waitForMessage(
+			'/mixer-drive',
+			driveMark,
+			(message) => Math.abs(message.args[1] - 1.5) < 1e-6 && message.args[2] === 1,
+		)
 	})
 
 	test('a play after the daemon dies boots a fresh server instead of dying silently', async () => {

@@ -105,6 +105,15 @@ export const stopCellByKeys = (cellKeys: string[]) => {
 	main.stopCell(cellKeys)
 }
 
+// Test seam (integration only): the mixer popover's Drive dispatch is unit-covered, so the
+// integration suite proves the drive sender reaches the daemon through this direct hook.
+export const setDriveForTest = (amp: number) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.setDrive(amp)
+}
+
 // Mute/unmute a cell: mute stops its job and records the last-run code; unmute re-runs
 // that code without replacing the session, so other loops keep playing.
 const muteRegistry = new MuteRegistry()
