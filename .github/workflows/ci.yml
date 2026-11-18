@@ -46,3 +46,7 @@ jobs:
         run: just lint
 
       - run: just test-unit
+
+      # Artifact-level gate (kept out of test:unit on purpose: it packages the real vsix
+      # through the registry), so CI keeps proving the artifact loads its own module graph.
+      - run: node test/vsix-smoke.test.js
