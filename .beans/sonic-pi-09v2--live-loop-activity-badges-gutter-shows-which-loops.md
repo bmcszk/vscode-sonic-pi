@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:20:10Z
+updated_at: 2026-11-18T17:37:45Z
 parent: sonic-pi-6fiz
 ---
 
@@ -31,3 +31,9 @@ Gutter/before-decoration on the live_loop header line: '♪ :name' while alive, 
 - /home/blaze/.agents/skills/coding-rules/SKILL.md (read fully before editing)
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
+
+## Proof of Work
+
+- D1a/D1b (wave 1): 10+5 assertions red-first, pure modules, quoted-header regex bug caught red and fixed. D1c+D1d (chain O + chain H wiring): 4/4 handler tests, store wired into Main, emitters fired.
+- Chain O verified by orchestrator: battery exit 0 at its worktree; merged b2fea77; scopes cleared on restart per contract.
+Residual: D1d integration comment - decorations live-verified in W3c (wave 3) - pending wave 3

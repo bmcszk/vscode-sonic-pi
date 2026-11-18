@@ -1,11 +1,11 @@
 ---
 # sonic-pi-nixf
 title: Run-state hardening from daemon run events (D3)
-status: todo
+status: completed
 type: feature
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:07:08Z
+updated_at: 2026-11-18T17:37:45Z
 parent: sonic-pi-6fiz
 ---
 
@@ -29,3 +29,9 @@ onRunStarted/onRunEnded fire from real pushes (log regex stays as fallback, dedu
 - /home/blaze/.agents/skills/coding-rules/SKILL.md (read fully before editing)
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
+
+## Proof of Work
+
+- D3a: dual-source emitters, dedupe + endedRuns set (late log line cannot revive an ended run - worker-caught spec gap, red-proven); 6/6 run-state tests. D3b: spider/ready idempotent + re-armed on restart (worker-caught second gap); exited paths log the push; 5/5 lifecycle tests.
+- Orchestrator verified battery exit 0; merged b2fea77.
+Residual: /spider/ready statusbar integration assert - wave 3
