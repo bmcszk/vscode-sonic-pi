@@ -342,6 +342,16 @@
 					"default": "auto",
 					"description": "How to get a Sonic Pi server: attach to the app you run yourself, or manage a daemon."
 				},
+				"vscode-sonic-pi.rubyLsp.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable the ruby-lsp language server for Sonic Pi buffers (diagnostics squiggles, hover, go to definition). Takes effect on window reload."
+				},
+				"vscode-sonic-pi.rubyLspPath": {
+					"type": "string",
+					"default": "",
+					"description": "Full path to the ruby-lsp executable. Leave empty to look it up on PATH. Requires the bundler gem. Takes effect on window reload."
+				},
 				"vscode-sonic-pi.launchSonicPiServerAutomatically": {
 					"type": "string",
 					"enum": [
