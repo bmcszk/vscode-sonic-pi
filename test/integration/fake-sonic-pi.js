@@ -178,6 +178,23 @@ async function main() {
 			sendToGui(commandSocket, '/link-bpm', [args[0]])
 		} else if (name === 'link-peers') {
 			sendToGui(commandSocket, '/link-num-peers', [args[0]])
+		} else if (name === 'live-loop-scope') {
+			// /live_loop/scope(jobid, name, workspace, line, scope_num) - spider-server.rb:1002
+			sendToGui(commandSocket, '/live_loop/scope', [args[0], args[1], args[2], args[3], args[4]])
+		} else if (name === 'live-loop-scope-ended') {
+			// /live_loop/scope-ended(jobid, name) - spider-server.rb:1004
+			sendToGui(commandSocket, '/live_loop/scope-ended', [args[0], args[1]])
+		} else if (name === 'midi-ports') {
+			// One 'enabled<TAB>name' string per line (runtime.rb:1949-1951) - spider-server.rb:986-988
+			sendToGui(commandSocket, '/midi/in-ports', [args[0]])
+		} else if (name === 'midi-out-ports') {
+			sendToGui(commandSocket, '/midi/out-ports', [args[0]])
+		} else if (name === 'gamepads') {
+			sendToGui(commandSocket, '/gamepad/devices-list', [args[0]])
+		} else if (name === 'spider-ready') {
+			sendToGui(commandSocket, '/spider/ready', [])
+		} else if (name === 'exited') {
+			sendToGui(commandSocket, '/exited', [])
 		} else if (name === 'request-audio-devices') {
 			// The real daemon answers one request with three pushes (daemon-audio spike,
 			// bean sonic-pi-1zc3): outputs, inputs, device-table - flat name arrays.

@@ -2,6 +2,15 @@
 // Live-loop badges: an alive loop renders as a '♪ :name' badge on its live_loop header line.
 // Pure renderer: store + document text in, decoration positions out.
 const assert = require('assert')
+const Module = require('module')
+
+// The pure renderer lives beside the vscode decorator that consumes it, so loading the module
+// needs a vscode stub; nothing in this suite touches the decorator.
+const load = Module._load
+Module._load = function (request) {
+	if (request === 'vscode') return { window: { createTextEditorDecorationType: () => ({ dispose() {} }) }, Range: class {} }
+	return load.apply(this, arguments)
+}
 
 const { LiveLoopScopeStore } = require('../../out/live-loop-scope')
 const { badgeDecorations } = require('../../out/live-loop-badges')

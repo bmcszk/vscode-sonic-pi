@@ -45,6 +45,11 @@ import { CueStore } from '../cue-store'
 import { CueInspector } from '../cue-inspector'
 import { linkBpmInputValue } from '../link-label'
 import { runDevicePicker, DeviceNames } from '../audio-device-picker'
+import { runGamepadPicker, runMidiPortPicker } from '../device-ports'
+import { LiveLoopBadgeDecorator } from '../live-loop-badges'
+import { buildPreviewCode } from '../docs-preview'
+import { DOCS_PREVIEW_WORKSPACE } from '../docs-browser'
+import { ensureInitFile } from '../init-file'
 import { shouldAutoRunOnSave } from './run-on-save'
 
 let main: Main
@@ -116,6 +121,79 @@ export const setDriveForTest = (amp: number) => {
 		throw Error('Runner not initialized')
 	}
 	main.setDrive(amp)
+}
+
+// Test seam (unit only): the runner module's Main is created by activate, which needs a
+// vscode host. A suite that exercises the seams below against a real Main installs it here.
+export const setMainForTest = (instance: Main) => {
+	main = instance
+}
+
+// The docs picker's second step: a builtin's sound plays as a silent, no-replace run under its
+// own workspace, so previewing never replaces the session and a stuck preview stops with the
+// existing Stop command. Returns false when the entry has no playable snippet.
+export const previewEntry = (entry: { kind: string; name: string }): boolean => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	const code = buildPreviewCode(entry)
+	if (code === undefined) return false
+	main.runCode(code, 0, [DOCS_PREVIEW_WORKSPACE], { replaceSession: false, silent: true })
+	return true
+}
+
+// Test seam (integration only): the live-loop scope store lives on the Main instance, which
+// the host's module graph reaches only through the runner module.
+export const liveLoopScopeForTest = () => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	return main.liveLoopScope
+}
+
+// Test seam (integration only): the cached raw device-list pushes the pickers parse.
+export const deviceListCacheForTest = () => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	return {
+		inPorts: main.lastMidiInPorts,
+		outPorts: main.lastMidiOutPorts,
+		gamepads: main.lastGamepads,
+	}
+}
+
+// Test seam (integration only): the device pickers' QuickPick cannot be driven headlessly, so
+// the suite proves the picked item's outcome - the sender call it makes - through this hook.
+// The item shape is the one buildPortQuickPickItems produces (port direction + list index).
+export const pickMidiPortForTest = (pick: { port: 'in' | 'out'; index: number; enabled: boolean }) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.midiPortEnable(pick.port, pick.index, !pick.enabled)
+}
+
+export const pickGamepadForTest = (pick: { index: number; enabled: boolean }) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.gamepadEnable(pick.index, !pick.enabled)
+}
+
+// Test seam (integration only): the timewarp input box cannot be typed into from the host.
+export const setTimewarpForTest = (seconds: number) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.setGlobalTimewarp(seconds)
+}
+
+// init.rb is the user's silent pre-boot script: opening it is pure file I/O, so a cold window
+// needs no server. The daemon evals it on its next boot (spider-server.rb:249-253).
+export const openInitFile = async (homedir: string): Promise<void> => {
+	const { path } = ensureInitFile(homedir)
+	const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path))
+	await vscode.window.showTextDocument(doc, { preview: false })
 }
 
 // Mute/unmute a cell: mute stops its job and records the last-run code; unmute re-runs
@@ -249,10 +327,34 @@ export function activate(context: vscode.ExtensionContext) {
 
 	registerStatusBar(context)
 	registerCueInspector(context)
+	registerLiveLoopBadges(context)
 	registerLastEditorClose(context)
 	registerEditorCommands(context)
 	registerRunOnSave(context)
 	registerLspDiagnostics(context)
+}
+
+// Live-loop badges: a gutter '♪ :name' on every alive loop's header line. The daemon's
+// /live_loop/scope and /live_loop/scope-ended pushes (spider-server.rb:1002-1004) update the
+// store; the decorator repaints the visible editors. A restart clears every badge, like the
+// muted-loop memory: the fresh daemon has no loops yet.
+const registerLiveLoopBadges = (context: vscode.ExtensionContext) => {
+	const decorator = new LiveLoopBadgeDecorator({
+		store: main.liveLoopScope,
+		visibleEditors: () =>
+			vscode.window.visibleTextEditors.filter((editor) => editor.document.languageId === 'sonic-pi'),
+	})
+	const repaint = () => decorator.refresh()
+	context.subscriptions.push(
+		main.onLiveLoopScope.event(repaint),
+		main.onLiveLoopScopeEnded.event(repaint),
+		vscode.window.onDidChangeVisibleTextEditors(repaint),
+		main.onServerRestart.event(() => {
+			main.liveLoopScope.clear()
+			decorator.clearAll()
+		}),
+		{ dispose: () => decorator.dispose() },
+	)
 }
 
 // Status bar wiring: the popover actions dispatch to the runner and the server state,
@@ -304,6 +406,15 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 			if (!main.serverStarted) return
 			void confirmThenReopenAudioDevice()
 		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.midiDevices', () => {
+			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
+			if (!main.serverStarted) return
+			void runMidiPortPicker(main, { showQuickPick: (items) => vscode.window.showQuickPick(items) })
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.gamepads', () => {
+			if (!main.serverStarted) return
+			void runGamepadPicker(main, { showQuickPick: (items) => vscode.window.showQuickPick(items) })
+		}),
 		vscode.commands.registerCommand('vscode-sonic-pi.setLinkBpm', async () => {
 			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
 			if (!main.serverStarted) return
@@ -319,10 +430,31 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 			}
 			main.setLinkBpm(bpm)
 		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.setGlobalTimewarp', async () => {
+			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
+			if (!main.serverStarted) return
+			await promptThenSetGlobalTimewarp()
+		}),
 		main.onLinkBpm.event((bpm) => statusBar.setLinkData({ bpm })),
 		main.onLinkPeers.event((peers) => statusBar.setLinkData({ peers })),
 		{ dispose: () => statusBar.dispose() },
 	)
+}
+
+// Global timewarp (/set-global-timewarp, spider-server.rb:806-814): the daemon rejects
+// anything outside 0-5, so the prompt validates before the sender ever fires.
+const promptThenSetGlobalTimewarp = async () => {
+	const input = await vscode.window.showInputBox({
+		prompt: 'Global timewarp (0-5): 0.25 quarter speed, 4 four times faster',
+		value: '1',
+	})
+	if (input === undefined) return
+	const seconds = parseFloat(input)
+	if (!Number.isFinite(seconds)) {
+		void vscode.window.showErrorMessage('Global timewarp must be a number from 0 to 5')
+		return
+	}
+	main.setGlobalTimewarp(seconds)
 }
 
 // Ruby LSP diagnostics: squiggles as you type on .pi documents. The shared client boot

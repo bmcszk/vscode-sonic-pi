@@ -36,6 +36,9 @@ export interface OscHandlerHost {
 	runtimeReady: boolean
 	onServerState: { fire(value: 'stopped' | 'starting' | 'running'): void }
 	lastDeviceTable: OscArg[]
+	lastMidiInPorts: string
+	lastMidiOutPorts: string
+	lastGamepads: string
 	liveJobs: Map<number, string>
 	announcedRuns: Set<number>
 	endedRuns: Set<number>
@@ -122,6 +125,7 @@ export const registerOscHandlers = (host: OscHandlerHost): void => {
 	})
 
 	registerRunTrackingHandlers(host, osc)
+	registerDeviceListHandlers(host, osc)
 	registerLiveLoopScopeHandlers(host, osc)
 	registerLifecycleHandlers(host, osc)
 	registerLogErrorHandler(host, osc)
@@ -224,6 +228,25 @@ const stopForRuntimeExit = (host: OscHandlerHost, push: string, reason: string):
 	host.log('Sonic Pi runtime left (' + push + ')' + (reason ? ': ' + reason : ''))
 	host.onServerState.fire('stopped')
 }
+
+// Device lists: the daemon pushes one 'enabled<TAB>name' string per list (runtime.rb:1949-1951)
+// after it enumerates, so each push replaces the previous one. Main keeps the raw string; the
+// pickers parse the cache on dispatch (device-ports.ts).
+const registerDeviceListHandlers = (host: OscHandlerHost, osc: OSC): void => {
+	osc.on('/midi/in-ports', (message: OscMessage) => {
+		host.lastMidiInPorts = deviceListPayload(message.args)
+	})
+
+	osc.on('/midi/out-ports', (message: OscMessage) => {
+		host.lastMidiOutPorts = deviceListPayload(message.args)
+	})
+
+	osc.on('/gamepad/devices-list', (message: OscMessage) => {
+		host.lastGamepads = deviceListPayload(message.args)
+	})
+}
+
+const deviceListPayload = (args: OscArg[]): string => (typeof args[0] === 'string' ? args[0] : '')
 
 // Live loops: /live_loop/scope(jobid, name, workspace, line, scope_num) fires when the loop
 // thread comes alive and /live_loop/scope-ended(jobid, name) from its ensure block

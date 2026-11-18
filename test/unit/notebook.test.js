@@ -135,6 +135,10 @@ class FakeMain {
 		this.onLinkBpm = new StubEventEmitter()
 		this.onLinkPeers = new StubEventEmitter()
 		this.onSupersonicDevices = new StubEventEmitter()
+		// The badge decorator registry subscribes to the live-loop pushes and the store it paints.
+		this.onLiveLoopScope = new StubEventEmitter()
+		this.onLiveLoopScopeEnded = new StubEventEmitter()
+		this.liveLoopScope = { clear() {}, list: () => [] }
 		this.receiving = true
 		this.serverStarted = false
 		this.restartInProgress = false

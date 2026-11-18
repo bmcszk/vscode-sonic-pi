@@ -131,9 +131,12 @@ class FakeMain {
 			'onLinkBpm',
 			'onLinkPeers',
 			'onSupersonicDevices',
+			'onLiveLoopScope',
+			'onLiveLoopScopeEnded',
 		]) {
 			this[name] = new StubEmitter()
 		}
+		this.liveLoopScope = { clear() {}, list: () => [] }
 		this.events = []
 		this.runCodeCalls = []
 		FakeMain.instances.push(this)

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import * as os from 'os'
 import {
 	ArgumentsCompletionItemProvider,
 	CommandCompletionItemProvider,
@@ -17,7 +18,10 @@ import {
 	muteCellByKeys,
 	unmuteCellByKeys,
 	serverIsRunning,
+	openInitFile,
+	previewEntry,
 } from './source-runner/extension'
+import type { DocsEntry } from './docs-browser'
 import { SonicPiCodeLensProvider } from './codelenses'
 
 const selector = { language: 'sonic-pi' }
@@ -43,7 +47,14 @@ const registerStaticCommands = (context: vscode.ExtensionContext) => {
 			)
 		}),
 		vscode.commands.registerCommand('vscode-sonic-pi.docs', () => {
-			void showDocsBrowser()
+			// Preview rides the silent run path, so it needs a server. A cold dispatch of the docs
+			// picker stays available (reading docs needs no daemon); only the preview step is off.
+			const previewWhenRunning = (entry: DocsEntry) => (serverIsRunning() ? previewEntry(entry) : false)
+			void showDocsBrowser(previewWhenRunning)
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.openInitFile', () => {
+			// Pure file I/O: init.rb is the user's boot script, and editing it never needs a server.
+			void openInitFile(os.homedir())
 		}),
 	)
 }

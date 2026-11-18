@@ -65,7 +65,11 @@
 		"onCommand:vscode-sonic-pi.reopenAudioDevice",
 		"onCommand:vscode-sonic-pi.muteLoop",
 		"onCommand:vscode-sonic-pi.unmuteLoop",
-		"onNotebook:sonic-pi-book"
+		"onNotebook:sonic-pi-book",
+		"onCommand:vscode-sonic-pi.midiDevices",
+		"onCommand:vscode-sonic-pi.gamepads",
+		"onCommand:vscode-sonic-pi.setGlobalTimewarp",
+		"onCommand:vscode-sonic-pi.openInitFile"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -336,6 +340,26 @@
 			{
 				"command": "vscode-sonic-pi.reopenAudioDevice",
 				"title": "Reset Audio Device",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.midiDevices",
+				"title": "MIDI Devices",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.gamepads",
+				"title": "Gamepads",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.setGlobalTimewarp",
+				"title": "Set Global Timewarp",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.openInitFile",
+				"title": "Open init.rb",
 				"category": "Sonic Pi"
 			}
 		],

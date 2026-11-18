@@ -105,6 +105,11 @@ export class Main {
 	private cueBenchSender: CueBenchSender | undefined
 	// Raw /supersonic/device-table args, kept unparsed: the picker task decides the shape.
 	lastDeviceTable: OscArg[] = []
+	// The daemon's last device-list pushes, kept as the raw 'enabled<TAB>name' wire strings:
+	// the pickers parse them on dispatch (device-ports.ts), not on arrival.
+	lastMidiInPorts = ''
+	lastMidiOutPorts = ''
+	lastGamepads = ''
 	// Consecutive keepalive send errors before the daemon is declared dead. One ICMP
 	// hiccup is not death; three in a row means the destination port refuses everything.
 	private static readonly KEEPALIVE_FAILURE_LIMIT = 3
@@ -860,6 +865,24 @@ export class Main {
 		this.runCode(`set_link_bpm! ${bpm}`, 0, ['link-bpm-set'], { replaceSession: false, silent: true })
 	}
 
+	// set_global_timewarp! rescales every running sleep (spider-server.rb:806-814). Like the Link
+	// tempo it must NOT replace the session, so it rides the silent no-replace run.
+	setGlobalTimewarp(seconds: number) {
+		const MIN = 0
+		const MAX = 5
+		if (!Number.isFinite(seconds) || seconds < MIN || seconds > MAX) {
+			void vscode.window.showWarningMessage(
+				`Sonic Pi: timewarp ${seconds} is outside the daemon's accepted range ${MIN}-${MAX}. Nothing was sent.`,
+			)
+			this.log('Rejected set_global_timewarp out of range: ' + seconds)
+			return
+		}
+		this.runCode(`set_global_timewarp! ${seconds}`, 0, ['timewarp-set'], {
+			replaceSession: false,
+			silent: true,
+		})
+	}
+
 	stopAllJobs() {
 		this.sendOsc(new OSC.Message('/stop-all-jobs', this.guiUuid))
 	}
@@ -878,6 +901,7 @@ export class Main {
 	setMasterVolume = (volumePercent: number) => senders.setMasterVolume(this.senderContext(), volumePercent)
 	midiPortEnable = (direction: 'in' | 'out', port: number, on: boolean) =>
 		senders.midiPortEnable(this.senderContext(), direction, port, on)
+	// Re-enumeration: the daemon refreshes its device list and pushes the new one.
 	midiReset = () => senders.midiReset(this.senderContext())
 	gamepadEnable = (pad: number, on: boolean) => senders.gamepadEnable(this.senderContext(), pad, on)
 	gamepadStart = () => senders.gamepadStart(this.senderContext())

@@ -83,3 +83,62 @@ export const buildGamepadQuickPickItems = (pads: DevicePair[]): GamepadQuickPick
 	})
 	return items
 }
+
+// The picker's own re-enumeration entry: MIDI devices come and go, so the list the daemon
+// pushed can be wrong by the time the user opens the pick.
+export const REFRESH_ACTION = 'refresh'
+
+export type PortPickerItem = PortQuickPickItem & { action?: typeof REFRESH_ACTION }
+
+const refreshItem = (): PortPickerItem => ({
+	label: '$(refresh) Refresh MIDI devices',
+	action: REFRESH_ACTION,
+})
+
+// The slice of Main the pickers drive. A cold-window dispatch never reaches them (the caller
+// guards), so the device operations assume a booted, bound server.
+export type DevicePickerMain = {
+	readonly lastMidiInPorts: string
+	readonly lastMidiOutPorts: string
+	readonly lastGamepads: string
+	midiPortEnable(direction: PortDirection, port: number, on: boolean): void
+	midiReset(): void
+	gamepadEnable(pad: number, on: boolean): void
+}
+
+export type DevicePickerUi = {
+	showQuickPick: (
+		items: (PortQuickPickItem | GamepadQuickPickItem)[],
+	) => PromiseLike<PortQuickPickItem | GamepadQuickPickItem | undefined>
+}
+
+export const runMidiPortPicker = async (main: DevicePickerMain, ui: DevicePickerUi): Promise<void> => {
+	const items: PortPickerItem[] = [
+		...buildPortQuickPickItems(
+			parseDevicePairs(main.lastMidiInPorts),
+			parseDevicePairs(main.lastMidiOutPorts),
+		),
+		refreshItem(),
+	]
+	const picked = (await ui.showQuickPick(items)) as PortPickerItem | undefined
+	if (!picked) return
+	if (picked.action === REFRESH_ACTION) {
+		main.midiReset()
+		return
+	}
+	if (picked.port === undefined || picked.enabled === undefined) return
+	main.midiPortEnable(picked.port, portIndexFor(items, picked), !picked.enabled)
+}
+
+// The item carries the port's index within its own direction list, which is what
+// /midi-port-enable addresses (spider-server.rb:746); the picker order is not the wire order.
+const portIndexFor = (items: PortPickerItem[], picked: PortPickerItem): number =>
+	items.filter((item) => item.port === picked.port).indexOf(picked)
+
+export const runGamepadPicker = async (main: DevicePickerMain, ui: DevicePickerUi): Promise<void> => {
+	const items = buildGamepadQuickPickItems(parseDevicePairs(main.lastGamepads))
+	if (items.length === 0) return
+	const picked = (await ui.showQuickPick(items)) as GamepadQuickPickItem | undefined
+	if (!picked || picked.pad === undefined || picked.enabled === undefined) return
+	main.gamepadEnable(picked.pad, !picked.enabled)
+}

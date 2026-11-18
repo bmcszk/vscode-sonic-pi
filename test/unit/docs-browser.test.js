@@ -168,6 +168,51 @@ const tests = {
 			)
 		})
 	},
+
+	'a playable entry offers the second step and Preview hands the entry to the player'() {
+		// given a picker that picks the fx and its second step that picks Preview
+		vscodeCalls.steps = []
+		vscodeCalls.openedDocs = []
+		vscodeStub.window.showQuickPick = async (items) => {
+			vscodeCalls.steps.push(items.map((item) => item.step ?? 'first'))
+			if (items[0].step === undefined) return items.find((item) => item.label === SLICER)
+			return items.find((item) => item.step === 'preview')
+		}
+		const played = []
+		// when the docs browser runs with a preview player
+		return showDocsBrowser((entry) => {
+			played.push(entry)
+			return true
+		}).then(() => {
+			// then the fx was previewed and no docs editor opened
+			assert.deepStrictEqual(played.map((entry) => entry.name), [SLICER])
+			assert.deepStrictEqual(
+				vscodeCalls.steps[1],
+				['open', 'preview'],
+				'the second step offers both actions',
+			)
+			assert.deepStrictEqual(vscodeCalls.openedDocs, [], 'a preview does not open the docs editor')
+		})
+	},
+
+	'a command entry skips the second step: it has no sound to preview'() {
+		// given a picker that picks a command entry
+		vscodeCalls.openedDocs = []
+		vscodeStub.window.showQuickPick = async (items) => {
+			if (items[0].step === undefined) return items.find((item) => item.entry.kind === 'command')
+			return items.find((item) => item.step === 'preview')
+		}
+		const played = []
+		// when the docs browser runs with a preview player
+		return showDocsBrowser((entry) => {
+			played.push(entry)
+			return true
+		}).then(() => {
+			// then no preview was requested and the docs editor opened instead
+			assert.deepStrictEqual(played, [], 'a command never offers a preview')
+			assert.ok(vscodeCalls.openedDocs.length > 0, 'the command docs still open')
+		})
+	},
 }
 
 async function runAll() {
