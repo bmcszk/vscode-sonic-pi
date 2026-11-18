@@ -130,7 +130,11 @@ const makeServerScript = (responses) => {
 			`const RESPONSES = ${JSON.stringify(responses)}`,
 			`const MARKER_DIR = ${JSON.stringify(markerDir)}`,
 			'const FS = require("fs")',
-			'const marker = (name, data) => FS.writeFileSync(`${MARKER_DIR}/${name}.json`, JSON.stringify(data))',
+			'const marker = (name, data) => {',
+		'  const tmp = `${MARKER_DIR}/${name}.tmp`',
+		'  FS.writeFileSync(tmp, JSON.stringify(data))',
+		'  FS.renameSync(tmp, `${MARKER_DIR}/${name}.json`) // atomic: readers never see a truncated file',
+		'}',
 			'let buffer = Buffer.alloc(0)',
 			// REAL LSP stdio framing: Content-Length header + \r\n\r\n + body.
 			'const send = (msg) => {',
