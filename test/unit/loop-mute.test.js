@@ -70,6 +70,13 @@ const vscodeStub = {
 		registerCodeLensProvider: () => ({ dispose() {} }),
 		registerCompletionItemProvider: () => ({ dispose() {} }),
 		registerHoverProvider: () => ({ dispose() {} }),
+		// Ruby LSP diagnostics controller creates one named collection at activate time.
+		createDiagnosticCollection: () => ({
+			set() {},
+			delete() {},
+			clear() {},
+			dispose() {},
+		}),
 	},
 	notebooks: {
 		registerNotebookSerializer: () => ({ dispose() {} }),
@@ -94,6 +101,8 @@ const vscodeStub = {
 		getConfiguration: () => ({ get: (_key, fallback) => fallback }),
 		onDidChangeConfiguration: () => ({ dispose() {} }),
 		onDidChangeTextDocument: () => ({ dispose() {} }),
+		onDidOpenTextDocument: () => ({ dispose() {} }),
+		workspaceFolders: [],
 		onDidCloseTextDocument: () => ({ dispose() {} }),
 		registerTextDocumentContentProvider: () => ({ dispose() {} }),
 		registerNotebookSerializer: () => ({ dispose() {} }),

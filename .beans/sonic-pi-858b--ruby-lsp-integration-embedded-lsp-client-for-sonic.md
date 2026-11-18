@@ -1,11 +1,11 @@
 ---
 # sonic-pi-858b
 title: 'Ruby LSP integration: embedded LSP client for sonic-pi files (error highlighting as you type)'
-status: todo
+status: completed
 type: epic
 priority: normal
 created_at: 2026-11-05T21:20:27Z
-updated_at: 2026-11-16T13:19:20Z
+updated_at: 2026-11-18T15:41:52Z
 parent: sonic-pi-u71o
 ---
 
@@ -58,9 +58,9 @@ Ruby LSP integration: embedded LSP client for sonic-pi files (error highlighting
                                                                               
   ## AC (epic closure)                                                        
                                                                               
-  [ ] user re-picks this epic in a future session                             
-  [ ] wave tasks complete with gates green (suites + e2e + package)           
-  [ ] diagnostics verified against a syntax-broken .pi file live
+  [x] user re-picks this epic in a future session (user said 'continue on dev3 branch' with stacked PRs, this session)                             
+  [x] wave tasks complete with gates green (suites + e2e + package)           
+  [x] diagnostics verified against a syntax-broken .pi file live (real-server smokes re-run at 9e710f8: missing-end -> 2 Prism items, clean DSL -> 0; hover smoke green)
 
 ## User correction (2026-11-07, binding): doc reframed, no code changes yet
 
@@ -81,3 +81,16 @@ docs/research/ruby-lsp-integration.md rewritten (merged c355b3b):
 ## Un-parked (2026-11-16, user verbatim: 'i agree with lsp')
 
 Green-lit for implementation. Sequenced after the 818h top-5 wave. Research docs complete and version-accurate (docs/research/ruby-lsp-integration.md): spike-first plan, installed gem verified on disk.
+
+
+
+## Unparked (user directive, this session)
+User said 'continue on dev3 branch' with stacked PRs - the epic is active again. Spike sonic-pi-6y2f claimed; work happens on feat/ruby-lsp-spike (worktree .worktrees/ruby-lsp-spike), stack: dev3 -> dev2 -> dev (PR #2 is the dev2->dev link).
+
+## Proof of Work (end-to-end)
+
+- All six leaves completed with PoW: 6y2f spike (GO), ce06 lifecycle, jhpc framing bug, u3ui diagnostics, jg86 hover/definition, f6pd+v2u1 shared client/capability/hint, l2qf settings+docs.
+- Epic e2e at dev3 9e710f8: real-server diagnostics smoke (missing-end -> 2 Prism items, clean -> 0), hover smoke green, run-unit.js 36 suites exit 0, npm test exit 0, lint/prettier clean, zero suppressions.
+- Shipped on the stacked line: PR #3 (dev3 -> dev2) on top of PR #2 (dev2 -> dev); CI success on stack heads.
+- Machine note: bundler gem installed during the spike (worker, disclosed).
+Residual: none - merges are the user gate

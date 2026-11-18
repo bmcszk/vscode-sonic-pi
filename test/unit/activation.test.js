@@ -49,6 +49,8 @@ const vscodeStub = {
 		onDidChangeConfiguration: () => ({ dispose() {} }),
 		onDidChangeTextDocument: () => ({ dispose() {} }),
 		onDidCloseTextDocument: () => ({ dispose() {} }),
+		onDidOpenTextDocument: () => ({ dispose() {} }),
+		workspaceFolders: [],
 		registerTextDocumentContentProvider: () => ({ dispose() {} }),
 		registerNotebookSerializer: (..._a) => ({ dispose() {} }),
 		// A controller asks for the notebooks of its type as they open, so the kernel is picked
@@ -72,6 +74,13 @@ const vscodeStub = {
 		registerCodeLensProvider: () => ({ dispose() {} }),
 		registerCompletionItemProvider: () => ({ dispose() {} }),
 		registerHoverProvider: () => ({ dispose() {} }),
+		// Ruby LSP diagnostics controller creates one named collection at activate time.
+		createDiagnosticCollection: () => ({
+			set() {},
+			delete() {},
+			clear() {},
+			dispose() {},
+		}),
 	},
 	notebooks: {
 		registerNotebookSerializer: () => ({ dispose() {} }),

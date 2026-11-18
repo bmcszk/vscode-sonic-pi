@@ -4,6 +4,17 @@ All notable changes to the "sonic-pi-5-extension" extension will be documented i
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## Unreleased
+
+### Added
+
+- ruby-lsp language server for Sonic Pi buffers: diagnostics as squiggles, hover, and go to definition.
+- Settings `vscode-sonic-pi.rubyLsp.enabled` (default on) and `vscode-sonic-pi.rubyLspPath` for the server toggle and executable override.
+
+### Changed
+
+- Missing or broken ruby-lsp now degrades gracefully: a one-time hint plus static language features instead of errors.
+
 ## [0.2.2] - 2026-11-05
 
 ### Fixed

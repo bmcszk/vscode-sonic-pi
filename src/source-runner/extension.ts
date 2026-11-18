@@ -37,6 +37,8 @@ import { flashPaintFor, notebookFlashMap } from '../cell-flash-map'
 import { SonicPiCodeLensProvider, cellKeyFor } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
+import { LspDiagnosticsController } from '../lsp/diagnostics'
+import { ensureLspClient, onLspClientReady } from '../lsp/shared-client'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
 import { MuteRegistry } from '../loop-mute'
 import { CueStore } from '../cue-store'
@@ -248,6 +250,7 @@ export function activate(context: vscode.ExtensionContext) {
 	registerCueInspector(context)
 	registerLastEditorClose(context)
 	registerEditorCommands(context)
+	registerLspDiagnostics(context)
 }
 
 // Status bar wiring: the popover actions dispatch to the runner and the server state,
@@ -318,6 +321,30 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 		main.onLinkPeers.event((peers) => statusBar.setLinkData({ peers })),
 		{ dispose: () => statusBar.dispose() },
 	)
+}
+
+// Ruby LSP diagnostics: squiggles as you type on .pi documents. The shared client boot
+// (lsp/shared-client) owns the single LspClient; this registrar owns only the editor
+// surface, swapping in the shared client when it is ready and replaying already-open
+// editors so the first document squiggles too.
+class NullLspClient {
+	request(): Promise<undefined> {
+		return Promise.resolve(undefined)
+	}
+	sendNotification(): void {}
+}
+
+const registerLspDiagnostics = (context: vscode.ExtensionContext) => {
+	const controller = new LspDiagnosticsController(new NullLspClient())
+	context.subscriptions.push(controller)
+	onLspClientReady((client) => {
+		controller.swapClient(client)
+		controller.start()
+		for (const editor of vscode.window.visibleTextEditors) {
+			if (editor.document.languageId === 'sonic-pi') controller.handleOpenedDocument(editor.document)
+		}
+	})
+	ensureLspClient(context)
 }
 
 // Cue Inspector: TreeView over the live cue store plus its view/palette commands.

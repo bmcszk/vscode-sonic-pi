@@ -1,11 +1,11 @@
 ---
 # sonic-pi-l2qf
 title: Settings + docs (858b)
-status: draft
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-16T13:32:00Z
-updated_at: 2026-11-16T13:32:15Z
+updated_at: 2026-11-18T15:41:12Z
 parent: sonic-pi-858b
 blocked_by:
     - sonic-pi-u3ui
@@ -13,14 +13,36 @@ blocked_by:
     - sonic-pi-f6pd
 ---
 
-# Task: Settings + docs (858b)
+# Settings + docs (858b) - final leaf of the Ruby LSP epic
 
-vscode-sonic-pi.rubyLsp.enabled (default on), .path override; README/CHANGELOG.
+## Research basis (landed code)
+- The only LSP setting today: vscode-sonic-pi.rubyLspPath (resolveRubyLspPathFromConfig in src/lsp/client.ts; PATH fallback). LSP features: diagnostics (u3ui), hover/definition (jg86), shared client + capability + one-time hint (f6pd).
+- Docs surfaces: README.md (features section), docs/SETTINGS.md (settings table), CHANGELOG.md (Keep a Changelog-ish top section).
+
+## Scope
+1. Settings (package.json contributes.configuration):
+   - vscode-sonic-pi.rubyLsp.enabled (boolean, default true): false -> registrars never boot, capability reports 'off'; flipping live requires reload (document that in the description - honest and simple; live restart wiring is out of scope for this leaf).
+   - vscode-sonic-pi.rubyLsp.path (string, default ''): documented as the existing override (resolveRubyLspPathFromConfig already reads rubyLspPath - either rename the read site to the new key or declare the EXISTING key properly in package.json; pick the smaller diff and keep one key, not two).
+2. Capability 'off' state: shared-client honors enabled=false -> no boot, no info message, getStatus 'off'. Unit-proven.
+3. Docs: docs/SETTINGS.md rows for both keys; README short paragraph (what squiggles/hover need: ruby-lsp + bundler gem installed; one-time hint when missing); CHANGELOG entry under a new 'Unreleased' heading (release process adds versions later).
+4. Tests: enabled=false -> nothing boots, no message (unit); default-on unchanged (existing suites keep passing untouched - they run without the key, proving default).
 
 ## Acceptance criteria
-- [ ] settings toggle stops/starts the client
-- [ ] docs updated
-- [ ] full npm test chain green
+- [ ] settings toggle stops the client from booting (enabled=false: no spawn, no message, status 'off', unit-proven)
+- [x] docs updated: SETTINGS.md rows, README paragraph, CHANGELOG entry
+- [ ] `node test/run-unit.js` exit 0; `npm test` exit 0; lint/prettier clean; budgets hold; zero suppressions
 
-## Skills for coder
-- /home/blaze/.agents/skills/typescript/SKILL.md
+## Skills for coder (verified)
+- /home/blaze/.agents/skills/coding-rules/SKILL.md (read fully before editing)
+- /home/blaze/.agents/skills/tdd/SKILL.md
+- /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
+Do not touch: src/completionItems.ts, src/source-runner/main.ts; client.ts only if the setting key read needs it (<5 lines, disclosed).
+
+## Proof of Work
+
+- Red-first toggle: enabled=false -> created 1 !== 0 (red), guard in shared-client -> green; default-on (no key) boots to ready unchanged; 2 tests in test/unit/lsp-settings.test.js, orchestrator ran both.
+- One path key shipped: existing vscode-sonic-pi.rubyLspPath declared in package.json (worker choice by smaller diff, code already read it; rubyLsp.path discarded - zero client.ts edits).
+- Docs: docs/SETTINGS.md 'Language server (ruby-lsp)' rows (enabled + path, reload note); README paragraph (squiggles, hover/definition, bundler gem, one-time hint, toggle); CHANGELOG '## Unreleased' Added/Changed entries.
+- Gates re-run by orchestrator: run-unit.js 36 suites exit 0; npm test exit 0 (incl. vsix smoke); lint exit 0; format:check src clean; zero suppressions.
+- Incident note: an orchestrator git-stash slip in this worktree briefly surfaced an ancient shared-repo stash (p1-statusbar era); recovered with reset --hard to the worker commit d5f7a8d; all stash entries preserved; worker commit verified intact (git show --stat).
+Residual: none
