@@ -5,7 +5,7 @@ status: in-progress
 type: epic
 priority: normal
 created_at: 2026-11-14T12:32:51Z
-updated_at: 2026-11-16T13:19:20Z
+updated_at: 2026-11-18T17:07:08Z
 parent: sonic-pi-u71o
 ---
 
@@ -26,7 +26,7 @@ Full spider-server OSC route list extracted from the installed daemon (/usr/lib/
 
 ## Phases
 - [x] Phase A: docs/research/feature-roadmap.md delivered + parent-verified + merged (170d75c)
-- [ ] Phase B: user reviews roadmap; we promote picks into feature beans
+- [x] Phase B: picks promoted into the dev4 epic (sonic-pi-6fiz: D0-D6) - user delegated the review ('addressed ALL in new dev4 wave')
 
 ## Phase A delivered (2026-11-14, parent-verified): docs/research/feature-roadmap.md merged (170d75c)
 
