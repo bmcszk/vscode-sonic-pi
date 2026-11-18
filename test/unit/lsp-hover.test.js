@@ -93,7 +93,11 @@ const fakeVscodeModule = {
 		},
 		workspaceFolders: [],
 	},
-	window: { visibleTextEditors: [] },
+	window: {
+		visibleTextEditors: [],
+		createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }),
+		showInformationMessage: async () => undefined,
+	},
 }
 
 const load = Module._load
@@ -283,20 +287,20 @@ const tests = {
 
 	async 'no double hover: opening the same .pi document twice does not re-register providers'() {
 		const beforeHovers = fakeRegistry.hovers.length
-		const { registerLspLanguageFeatures, bootLspClientForTesting } = require('../../out/lsp/hover.js')
+		const { registerLspLanguageFeatures } = require('../../out/lsp/hover.js')
 
 		// given: a registrar context
 		const context = { subscriptions: [], asAbsolutePath: (rel) => '/tmp/' + rel }
 		registerLspLanguageFeatures(context)
 
-		// when: two .pi documents open (each triggers the boot listener)
+		// when: two .pi documents open (each would trigger a per-registrar boot listener)
 		vscodeHandlers.onOpen(makeDocument('/tmp/one.pi', 'puts 1\n'))
 		vscodeHandlers.onOpen(makeDocument('/tmp/two.pi', 'puts 2\n'))
 
-		// then: provider count unchanged; the boot ran once (single client build)
+		// then: provider count unchanged; the shared boot resolved no client (no ruby-lsp path)
 		assert.strictEqual(fakeRegistry.hovers.length - beforeHovers, 1)
-		const booted = bootLspClientForTesting()
-		assert.strictEqual(booted, undefined, 'no client without a configured ruby-lsp path')
+		const { getLspCapabilityStatus } = require('../../out/lsp/shared-client.js')
+		assert.strictEqual(getLspCapabilityStatus(), 'unavailable:no-binary')
 	},
 }
 
