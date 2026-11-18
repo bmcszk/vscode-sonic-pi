@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
-import { LspClient, resolveRubyLspPathFromConfig } from './client'
 import type { LspClientLike } from './diagnostics'
+import { ensureLspClient, onLspClientReady } from './shared-client'
 
 // Ruby LSP hover/definition pass-through: the editor providers forward textDocument/hover
 // and textDocument/definition to the client 1:1 and normalize the LSP result to vscode
@@ -105,22 +105,13 @@ export class LspHoverController {
 	}
 }
 
-// A no-op client stand-in until the real server is resolved and ready: requests resolve
-// undefined (providers return null), notifications are dropped.
+// A no-op client stand-in until the shared boot resolves and readies the real server:
+// requests resolve undefined (providers return null), notifications are dropped.
 class NullLspClient {
 	request(): Promise<undefined> {
 		return Promise.resolve(undefined)
 	}
 	sendNotification(): void {}
-}
-
-// Test seam: the fake vscode module in unit tests has no config/URI plumbing, so the boot
-// path reads undefined from resolveRubyLspPathFromConfig; tests observe nothing booted.
-export const bootLspClientForTesting = (): LspClient | undefined => {
-	const serverPath = resolveRubyLspPathFromConfig()
-	const workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
-	if (!serverPath || !workspaceFolderUri) return undefined
-	return new LspClient({ serverPath, workspaceFolderUri })
 }
 
 export const registerLspLanguageFeatures = (context: vscode.ExtensionContext) => {
@@ -139,14 +130,7 @@ export const registerLspLanguageFeatures = (context: vscode.ExtensionContext) =>
 			},
 		),
 	)
-	let booted = false
-	const bootForFirstPiDocument = vscode.workspace.onDidOpenTextDocument((document) => {
-		if (booted || document.languageId !== 'sonic-pi') return
-		const client = bootLspClientForTesting()
-		if (!client) return
-		booted = true
-		context.subscriptions.push({ dispose: () => void client.dispose() })
-		void client.start().then(() => controller.swapClient(client))
-	})
-	context.subscriptions.push(bootForFirstPiDocument)
+	// The shared boot owns the single LspClient; once it is ready this controller swaps it in.
+	onLspClientReady((client) => controller.swapClient(client))
+	ensureLspClient(context)
 }
