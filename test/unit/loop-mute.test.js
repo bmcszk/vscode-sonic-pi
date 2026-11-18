@@ -80,6 +80,7 @@ const vscodeStub = {
 	window: {
 		createOutputChannel: () => ({ append() {}, appendLine() {}, show() {}, dispose() {} }),
 		createStatusBarItem: () => ({ show() {}, hide() {}, dispose() {} }),
+		createTreeView: () => ({ title: '', dispose() {} }),
 		createTextEditorDecorationType: () => ({}),
 		showInformationMessage: async () => undefined,
 		showWarningMessage: async () => undefined,
@@ -115,6 +116,11 @@ class FakeMain {
 			'onServerRestart',
 			'onReceiverFailed',
 			'onReceiverOpened',
+			'onCue',
+			'onMixerSettings',
+			'onLinkBpm',
+			'onLinkPeers',
+			'onSupersonicDevices',
 		]) {
 			this[name] = new StubEmitter()
 		}

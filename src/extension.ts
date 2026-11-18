@@ -22,27 +22,19 @@ import { SonicPiCodeLensProvider } from './codelenses'
 
 const selector = { language: 'sonic-pi' }
 
-export function activate(context: vscode.ExtensionContext) {
-	activate_runner(context)
-
-	registerDocsView(context)
+// One-shot informational and navigation commands: no runner or notebook state involved.
+const registerStaticCommands = (context: vscode.ExtensionContext) => {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.checkInstall', () => {
 			void vscode.commands.executeCommand('setContext', 'sonicPiInstalled', true)
 			void vscode.window.showInformationMessage('All Good!')
 		}),
-	)
-
-	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.openExamples', () => {
 			void vscode.commands.executeCommand(
 				'vscode.openFolder',
 				vscode.Uri.joinPath(context.extensionUri, 'examples'),
 			)
 		}),
-	)
-
-	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.openTutorial', () => {
 			void vscode.commands.executeCommand(
 				'vscode.openWith',
@@ -50,14 +42,15 @@ export function activate(context: vscode.ExtensionContext) {
 				'sonic-pi-book',
 			)
 		}),
-	)
-
-	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.docs', () => {
 			void showDocsBrowser()
 		}),
 	)
+}
 
+// Text-editor language features over sonic-pi documents: completions, hovers and the
+// notebook serializer for .pibook files.
+const registerLanguageFeatures = (context: vscode.ExtensionContext) => {
 	context.subscriptions.push(
 		vscode.languages.registerCompletionItemProvider(
 			selector,
@@ -83,6 +76,15 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.languages.registerCompletionItemProvider(selector, new CommandCompletionItemProvider()),
 		vscode.workspace.registerNotebookSerializer('sonic-pi-book', serializer, { transientOutputs: true }),
 	)
+}
+
+export function activate(context: vscode.ExtensionContext) {
+	activate_runner(context)
+
+	registerDocsView(context)
+	registerStaticCommands(context)
+
+	registerLanguageFeatures(context)
 
 	const notebookController = new NotebookController(
 		'sonic-pi-book-kernel',

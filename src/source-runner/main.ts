@@ -35,25 +35,26 @@ import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } 
 import { classifyReplyPortHolder, holderSubject } from '../port-holder'
 import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
+import { registerOscHandlers } from './osc-handlers'
 
 // OSC payloads from the Sonic Pi daemon: integer fields and text fields.
 type OscArg = number | string
 type OscMessage = { args: OscArg[] }
 
 export class Main {
-	private receiving = true
-	rootPath: string
-	rubyPath: string
-	daemonLauncherPath: string
-	samplePath: string
-	spUserPath: string
-	spUserTmpPath: string
-	logPath: string
-	serverErrorLogPath: string
-	serverOutputLogPath: string
-	guiLogPath: string
-	processLogPath: string
-	scsynthLogPath: string
+	receiving = true
+	rootPath!: string
+	rubyPath!: string
+	daemonLauncherPath!: string
+	samplePath!: string
+	spUserPath!: string
+	spUserTmpPath!: string
+	logPath!: string
+	serverErrorLogPath!: string
+	serverOutputLogPath!: string
+	guiLogPath!: string
+	processLogPath!: string
+	scsynthLogPath!: string
 
 	onCue = new vscode.EventEmitter<{ time: number; id: number; address: string; args: string }>()
 	onRunStarted = new vscode.EventEmitter<number>()
@@ -66,7 +67,7 @@ export class Main {
 
 	// Outstanding /buffer-beautify request: buffer id and the promise resolving with
 	// the daemon's /buffer/replace reply. One request at a time (beautify is modal).
-	private pendingBeautify:
+	pendingBeautify:
 		| {
 				bufferId: string
 				resolve: (reply: { content: string; line: number; index: number }) => void
@@ -78,14 +79,14 @@ export class Main {
 	onLinkBpm = new vscode.EventEmitter<number>()
 	onLinkPeers = new vscode.EventEmitter<number>()
 
-	guiSendToServerPort: number
-	daemonPort: number
-	guiListenToServerPort: number
-	serverListenToGuiPort: number
-	serverOscCuesPort: number
-	serverSendToGuiPort: number
-	scsynthPort: number
-	scsynthSendPort: number
+	guiSendToServerPort!: number
+	daemonPort!: number
+	guiListenToServerPort!: number
+	serverListenToGuiPort!: number
+	serverOscCuesPort!: number
+	serverSendToGuiPort!: number
+	scsynthPort!: number
+	scsynthSendPort!: number
 
 	portsInitalized: Promise<OscSender>
 	portsInitalizedResolver!: (sender: OscSender) => void
@@ -104,12 +105,12 @@ export class Main {
 	private static readonly KEEPALIVE_FAILURE_LIMIT = 3
 	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
 	// to the cells that produced it (we send joined cell keys as the workspace).
-	private liveJobs = new Map<number, string>()
+	liveJobs = new Map<number, string>()
 
-	logOutput: vscode.OutputChannel
-	cuesOutput: vscode.OutputChannel
+	logOutput!: vscode.OutputChannel
+	cuesOutput!: vscode.OutputChannel
 
-	serverStarted: boolean
+	serverStarted!: boolean
 	midiAutoStartSent: boolean = false
 	daemonProcess: child_process.ChildProcess | undefined
 	restartInProgress = false
@@ -122,9 +123,9 @@ export class Main {
 	// the burst of reconnect lines the daemon prints per audio outage.
 	lastAudioLossNotifiedAt = 0
 
-	platform: string
-	guiUuid: number
-	config: Config
+	platform!: string
+	guiUuid!: number
+	config!: Config
 	spiderServerScanner: () => SpiderPorts | undefined = findRunningSpiderServer
 
 	errorHighlightDecorationType = vscode.window.createTextEditorDecorationType({
@@ -132,7 +133,22 @@ export class Main {
 	})
 
 	constructor() {
-		// Set up path defaults based on platform
+		this.initializePaths()
+
+		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
+
+		this.initializeOutputChannels()
+		this.registerAutoLaunchWatchers()
+	}
+
+	private initializeOutputChannels() {
+		this.cuesOutput = vscode.window.createOutputChannel('Sonic Pi Cues')
+		this.logOutput = vscode.window.createOutputChannel('Sonic Pi Log')
+		this.cuesOutput.show()
+		this.logOutput.show()
+	}
+
+	private initializePaths() {
 		this.platform = os.platform()
 		if (this.platform === 'win32') {
 			this.rootPath = 'C:/Program Files/Sonic Pi'
@@ -150,8 +166,6 @@ export class Main {
 		if (this.config.sonicPiRootDirectory()) {
 			this.rootPath = this.config.sonicPiRootDirectory()
 		}
-
-		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
 
 		if (this.config.commandPath()) {
 			this.rubyPath = this.config.commandPath()
@@ -196,19 +210,12 @@ export class Main {
 			fs.mkdirSync(this.logPath, { recursive: true })
 		}
 
-		this.cuesOutput = vscode.window.createOutputChannel('Sonic Pi Cues')
-		this.logOutput = vscode.window.createOutputChannel('Sonic Pi Log')
-		this.cuesOutput.show()
-		this.logOutput.show()
-
 		this.serverStarted = false
 		this.midiAutoStartSent = false
-
-		// this.oscSender = new OscSender()
-
-		// create an uuid for the editor
 		this.guiUuid = -1
+	}
 
+	private registerAutoLaunchWatchers() {
 		// watch to see if the user opens a ruby or custom file and we need to start the server
 		vscode.window.onDidChangeVisibleTextEditors((editors) => {
 			const launchAuto = this.config.launchSonicPiServerAutomatically()
@@ -376,277 +383,7 @@ export class Main {
 	// This is where the incoming OSC messages are processed.
 	// We are processing most of the incoming OSC messages, but not everything yet.
 	setupOscReceiver() {
-		// exclusive: true -> a second window's bind fails with EADDRINUSE instead of
-		// (SO_REUSEADDR) both binding and Linux flipping packet delivery between
-		// binders mid-session. Ownership becomes deterministic and detectable.
-		const pluginOptions = {
-			type: 'udp4',
-			open: { port: this.guiListenToServerPort, host: '127.0.0.1', exclusive: true },
-		}
-		const osc = new OSC({ plugin: new OSC.DatagramPlugin(pluginOptions) })
-		osc.on('open', () => {
-			// A fresh receiver that bound owns the reply port again: a later takeover or restart
-			// must clear the deafness an earlier window's bind failure left behind, or every
-			// following play would take the server over again and kill this window's own daemon.
-			this.receiving = true
-			this.onReceiverOpened.fire()
-		})
-		osc.open()
-		// Another VS Code window attached to the same server wins the reply-port bind
-		// (EADDRINUSE). This host would send runs that execute but never see replies.
-		osc.on('error', (error: Error & { code?: string }) => {
-			if (error.code !== 'EADDRINUSE') return
-			this.receiving = false
-			const subject = holderSubject(classifyReplyPortHolder(this.guiListenToServerPort))
-			this.logOutput.appendLine(
-				subject +
-					" is showing the run logs. Your window's Play will still sound. To bring the logs here: " +
-					'press Play again - it takes over the connection.',
-			)
-			this.logOutput.appendLine(
-				'To move the logs to THIS window: close ' +
-					(subject === 'The Sonic Pi app'
-						? 'the Sonic Pi app (or restart its connection)'
-						: 'the other ' +
-							(subject === 'Another VS Code window'
-								? 'window (or its Sonic Pi tab)'
-								: 'program') +
-							', then press Play to take over the connection.'),
-			)
-			this.logOutput.appendLine(
-				'(technical detail: reply port ' + this.guiListenToServerPort + ' was already bound)',
-			)
-			this.onReceiverFailed.fire()
-		})
-
-		osc.on('/mixer/settings', (message: OscMessage) => {
-			const drive = Number(message.args[0])
-			const volume = Number(message.args[1])
-			if (Number.isFinite(drive) && Number.isFinite(volume)) {
-				this.onMixerSettings.fire({ drive, volume })
-			}
-		})
-		osc.on('/supersonic/devices', (message: OscMessage) => {
-			this.fireSupersonicDevices('/supersonic/devices', message.args)
-		})
-		osc.on('/supersonic/input-devices', (message: OscMessage) => {
-			this.fireSupersonicDevices('/supersonic/input-devices', message.args)
-		})
-		osc.on('/supersonic/device-table', (message: OscMessage) => {
-			this.fireSupersonicDevices('/supersonic/device-table', message.args)
-		})
-
-		osc.on('/link-bpm', (message: OscMessage) => {
-			const bpm = Number(message.args[0])
-			if (Number.isFinite(bpm)) {
-				this.onLinkBpm.fire(bpm)
-			}
-		})
-
-		osc.on('/link-num-peers', (message: OscMessage) => {
-			const peers = Number(message.args[0])
-			if (Number.isInteger(peers)) {
-				this.onLinkPeers.fire(peers)
-			}
-		})
-
-		osc.on('/version', (message: OscMessage) => {
-			const version = message.args[0]
-			if (typeof version === 'string' && version) {
-				this.onVersion.fire(version)
-			}
-		})
-
-		osc.on('/log/info', (message: OscMessage) => {
-			// this.logOutput.appendLine('Got /log/info' + ' -> ' + message.args[0] + ', ' + message.args[1])
-			const line = String(message.args[1])
-			const parse = /(Completed|Starting) run (\d+)/.exec(line)
-			if (parse) {
-				const num = +parse[2]
-				if (parse[1] === 'Completed') this.onRunEnded.fire(num)
-				else if (parse[1] === 'Starting') this.onRunStarted.fire(num)
-			}
-			this.log(line)
-		})
-
-		osc.on('/run/started', (message: OscMessage) => {
-			const jobId = Number(message.args[0])
-			const workspace = typeof message.args[1] === 'string' ? message.args[1] : ''
-			if (Number.isFinite(jobId) && workspace) {
-				this.liveJobs.set(jobId, workspace)
-			}
-		})
-
-		osc.on('/run/ended', (message: OscMessage) => {
-			const jobId = Number(message.args[0])
-			this.liveJobs.delete(jobId)
-		})
-
-		osc.on('/runs/all-completed', () => {
-			this.liveJobs.clear()
-		})
-
-		osc.on('/incoming/osc', (message: OscMessage) => {
-			// console.log(
-			//  	'Got /incoming/osc' +
-			//  		' -> ' +
-			//  		message.args[0] +
-			//  		', ' +
-			//  		message.args[1] +
-			//  		', ' +
-			//  		message.args[2] +
-			//  		', ' +
-			//  		message.args[3],
-			//  )
-			const time = Number(message.args[0])
-			const id = Number(message.args[1])
-			const address = typeof message.args[2] === 'string' ? message.args[2] : ''
-			const args = typeof message.args[3] === 'string' ? message.args[3] : ''
-			this.onCue.fire({ time, id, address, args })
-			this.cueLog(message.args[2] + ': ' + message.args[3])
-		})
-
-		osc.on('/log/multi_message', (message: OscMessage) => {
-			// console.log('Got /log/multi_message')
-			this.processMultiMessage(message)
-		})
-
-		osc.on('/syntax_error', (message: OscMessage) => {
-			// console.log(
-			// 	'Got /syntax_error' +
-			// 		message.args[0] +
-			// 		', ' +
-			// 		message.args[1] +
-			// 		', ' +
-			// 		message.args[2] +
-			// 		', ' +
-			// 		message.args[3] +
-			// 		', ' +
-			// 		message.args[4],
-			// )
-			this.processSyntaxError(message)
-		})
-
-		osc.on('/error', (message: OscMessage) => {
-			// console.log('Got /error')
-			this.processError(message)
-		})
-
-		osc.on('/flash', (message: OscMessage) => {
-			const workspace = message.args[1]
-			const line = message.args[2]
-			if (typeof workspace !== 'string' || typeof line !== 'number') return
-			this.onFlash.fire({ workspace, line })
-		})
-
-		// Reply to /buffer-beautify: the daemon drains its message queue and answers with
-		// gui.send("/buffer/replace", buf_id, content, line, index, first_line) — same
-		// address the Qt GUI consumes for buffer replacements (spider-server.rb:1035).
-		osc.on('/buffer/replace', (message: OscMessage) => {
-			const bufferId = message.args[0]
-			const pending = this.pendingBeautify
-			if (!pending || bufferId !== pending.bufferId) {
-				return
-			}
-			const content = message.args[1]
-			const line = message.args[2]
-			const index = message.args[3]
-			if (typeof content !== 'string' || typeof line !== 'number' || typeof index !== 'number') {
-				return
-			}
-			this.pendingBeautify = undefined
-			pending.resolve({ content, line, index })
-		})
-
-		//osc.on('*', (message: {address: string}) => {
-		//    this.logOutput.appendLine("Got message of type: " + message.address);
-		//});
-	}
-
-	// Show information about the syntax error to the user
-	processSyntaxError(message: OscMessage) {
-		const job_id = message.args[0]
-		const desc = message.args[1]
-		const error_line = message.args[2]
-		const line = Number(message.args[3])
-
-		void vscode.window
-			.showErrorMessage(
-				'Syntax error on Ajob ' + job_id + ': ' + desc + '\nLine ' + line + ': ' + error_line,
-				'Goto error',
-			)
-			.then((item) => {
-				if (item) {
-					const errorHighlight: vscode.DecorationOptions[] = []
-					const editor = vscode.window.activeTextEditor!
-					const range = editor.document.lineAt(line - 1).range
-					editor.selection = new vscode.Selection(range.start, range.end)
-					editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport)
-					errorHighlight.push({ range })
-					editor.setDecorations(this.errorHighlightDecorationType, errorHighlight)
-				}
-			})
-	}
-
-	// Show information about the error to the user
-	processError(message: OscMessage) {
-		const job_id = message.args[0]
-		const desc = message.args[1]
-		const backtrace = message.args[2]
-		const line = Number(message.args[3])
-
-		this.logOutput.appendLine(
-			'Error on job ' + job_id + ': ' + desc + '\nLine ' + line + ': ' + backtrace,
-		)
-		//void vscode.window
-		//	.showErrorMessage(
-		//		'Error on job ' + job_id + ': ' + desc + '\nLine ' + line + ': ' + backtrace,
-		//		'Goto error',
-		//	)
-		//	.then((item) => {
-		//		if (item) {
-		const errorHighlight: vscode.DecorationOptions[] = []
-		const editor = vscode.window.activeTextEditor!
-		const range = editor.document.lineAt(line - 1).range
-		editor.selection = new vscode.Selection(range.start, range.end)
-		editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport)
-		errorHighlight.push({ range })
-		editor.setDecorations(this.errorHighlightDecorationType, errorHighlight)
-		//		}
-		//	})
-	}
-
-	// Process an incoming multi-message
-	processMultiMessage(message: OscMessage) {
-		const job_id = message.args[0]
-		const thread_name = message.args[1]
-		const runtime = message.args[2]
-		const count = Number(message.args[3])
-
-		let toShow = '{run: ' + job_id + ', time: ' + runtime
-		if (thread_name) {
-			toShow += ', thread: ' + thread_name
-		}
-		toShow += '}'
-		this.logOutput.appendLine(toShow)
-
-		for (let i = 0; i < count; i++) {
-			//let type = message.args[4 + (2*i)];
-			const str = String(message.args[4 + 1 + 2 * i])
-			const lines = str.split(/\r?\n/)
-			if (!str) {
-				toShow = ' |'
-			} else if (i === count - 1) {
-				toShow = ' └─ '
-			} else {
-				toShow = ' ├─ '
-			}
-			this.logOutput.append(toShow)
-
-			lines.forEach((line: string) => {
-				this.logOutput.appendLine(line)
-			})
-		}
+		registerOscHandlers(this)
 	}
 
 	private getDaemonSender() {
@@ -734,6 +471,27 @@ export class Main {
 		clearInterval(this.keepAliveTimer)
 		this.keepAliveTimer = undefined
 		return true
+	}
+
+	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
+	// to the cells that produced it (we send joined cell keys as the workspace).
+	private registerRunTrackingHandlers(osc: OSC) {
+		osc.on('/run/started', (message: OscMessage) => {
+			const jobId = Number(message.args[0])
+			const workspace = typeof message.args[1] === 'string' ? message.args[1] : ''
+			if (Number.isFinite(jobId) && workspace) {
+				this.liveJobs.set(jobId, workspace)
+			}
+		})
+
+		osc.on('/run/ended', (message: OscMessage) => {
+			const jobId = Number(message.args[0])
+			this.liveJobs.delete(jobId)
+		})
+
+		osc.on('/runs/all-completed', () => {
+			this.liveJobs.clear()
+		})
 	}
 
 	// This is the main part of launching Sonic Pi's backend
@@ -927,6 +685,30 @@ export class Main {
 		return path.join(os.homedir(), '.sonic-pi', 'log', 'daemon.log')
 	}
 
+	// Another VS Code window attached to the same server wins the reply-port bind
+	// (EADDRINUSE). This host would send runs that execute but never see replies.
+	private onReplyPortTaken() {
+		this.receiving = false
+		const subject = holderSubject(classifyReplyPortHolder(this.guiListenToServerPort))
+		this.logOutput.appendLine(
+			subject +
+				" is showing the run logs. Your window's Play will still sound. To bring the logs here: " +
+				'press Play again - it takes over the connection.',
+		)
+		this.logOutput.appendLine(
+			'To move the logs to THIS window: close ' +
+				(subject === 'The Sonic Pi app'
+					? 'the Sonic Pi app (or restart its connection)'
+					: 'the other ' +
+						(subject === 'Another VS Code window' ? 'window (or its Sonic Pi tab)' : 'program') +
+						', then press Play to take over the connection.'),
+		)
+		this.logOutput.appendLine(
+			'(technical detail: reply port ' + this.guiListenToServerPort + ' was already bound)',
+		)
+		this.onReceiverFailed.fire()
+	}
+
 	// The daemon numbers a fragment run's flashes and errors from the first line it was given, so the
 	// code is padded with a comment line per editor line above it: the run then reports file lines.
 	runCode(
@@ -1056,8 +838,70 @@ export class Main {
 	}
 
 	stopAllJobs() {
-		const message = new OSC.Message('/stop-all-jobs', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/stop-all-jobs', this.guiUuid))
+	}
+
+	startRecording() {
+		this.sendOsc(new OSC.Message('/start-recording', this.guiUuid))
+	}
+
+	stopRecording() {
+		this.sendOsc(new OSC.Message('/stop-recording', this.guiUuid))
+	}
+
+	saveRecording(path: string) {
+		this.sendOsc(new OSC.Message('/save-recording', this.guiUuid, path))
+	}
+
+	deleteRecording() {
+		this.sendOsc(new OSC.Message('/delete-recording', this.guiUuid))
+	}
+
+	mixerInvertStereo() {
+		this.sendOsc(new OSC.Message('/mixer-invert-stereo', this.guiUuid))
+	}
+
+	mixerStandardStereo() {
+		this.sendOsc(new OSC.Message('/mixer-standard-stereo', this.guiUuid))
+	}
+
+	mixerMonoMode() {
+		this.sendOsc(new OSC.Message('/mixer-mono-mode', this.guiUuid))
+	}
+
+	mixerStereoMode() {
+		this.sendOsc(new OSC.Message('/mixer-stereo-mode', this.guiUuid))
+	}
+
+	// Pre-limiter gain. The daemon expects /mixer-drive(token, amp, silent); silent=1
+	// keeps the level change out of the cue log.
+	setDrive(amp: number) {
+		this.sendOsc(new OSC.Message('/mixer-drive', this.guiUuid, amp, 1))
+	}
+
+	setLpf(freq: number | 'off') {
+		this.sendOsc(
+			freq === 'off'
+				? new OSC.Message('/mixer-lpf-disable', this.guiUuid)
+				: new OSC.Message('/mixer-lpf-enable', this.guiUuid, freq),
+		)
+	}
+
+	setHpf(freq: number | 'off') {
+		this.sendOsc(
+			freq === 'off'
+				? new OSC.Message('/mixer-hpf-disable', this.guiUuid)
+				: new OSC.Message('/mixer-hpf-enable', this.guiUuid, freq),
+		)
+	}
+
+	// Master fader after the limiter; the server clamps the passed amp to 0..1.
+	setMasterVolume(volumePercent: number) {
+		this.sendOsc(new OSC.Message('/mixer-output-volume', this.guiUuid, volumePercent / 100))
+	}
+
+	requestVersion() {
+		this.sendOsc(new OSC.Message('/version', this.guiUuid))
 	}
 
 	// Per-run stop: kill only the job(s) a cell belongs to. Falls back to the whole-session
@@ -1089,82 +933,6 @@ export class Main {
 		}
 	}
 
-	startRecording() {
-		const message = new OSC.Message('/start-recording', this.guiUuid)
-		this.sendOsc(message)
-	}
-
-	stopRecording() {
-		const message = new OSC.Message('/stop-recording', this.guiUuid)
-		this.sendOsc(message)
-	}
-
-	saveRecording(path: string) {
-		const message = new OSC.Message('/save-recording', this.guiUuid, path)
-		this.sendOsc(message)
-	}
-
-	deleteRecording() {
-		const message = new OSC.Message('/delete-recording', this.guiUuid)
-		this.sendOsc(message)
-	}
-
-	mixerInvertStereo() {
-		const message = new OSC.Message('/mixer-invert-stereo', this.guiUuid)
-		this.sendOsc(message)
-	}
-
-	mixerStandardStereo() {
-		const message = new OSC.Message('/mixer-standard-stereo', this.guiUuid)
-		this.sendOsc(message)
-	}
-
-	mixerMonoMode() {
-		const message = new OSC.Message('/mixer-mono-mode', this.guiUuid)
-		this.sendOsc(message)
-	}
-
-	mixerStereoMode() {
-		const message = new OSC.Message('/mixer-stereo-mode', this.guiUuid)
-		this.sendOsc(message)
-	}
-
-	// Pre-limiter gain. The daemon expects /mixer-drive(token, amp, silent); silent=1
-	// keeps the level change out of the cue log.
-	setDrive(amp: number) {
-		const message = new OSC.Message('/mixer-drive', this.guiUuid, amp, 1)
-		this.sendOsc(message)
-	}
-
-	setLpf(freq: number | 'off') {
-		const message =
-			freq === 'off'
-				? new OSC.Message('/mixer-lpf-disable', this.guiUuid)
-				: new OSC.Message('/mixer-lpf-enable', this.guiUuid, freq)
-		this.sendOsc(message)
-	}
-
-	setHpf(freq: number | 'off') {
-		const message =
-			freq === 'off'
-				? new OSC.Message('/mixer-hpf-disable', this.guiUuid)
-				: new OSC.Message('/mixer-hpf-enable', this.guiUuid, freq)
-		this.sendOsc(message)
-	}
-
-	// Master fader after the limiter; the server clamps the passed amp to 0..1.
-	setMasterVolume(volumePercent: number) {
-		const message = new OSC.Message('/mixer-output-volume', this.guiUuid, volumePercent / 100)
-		this.sendOsc(message)
-	}
-
-	requestVersion() {
-		const message = new OSC.Message('/version', this.guiUuid)
-		this.sendOsc(message)
-	}
-
-	// Send a test cue to the cue port (serverOscCuesPort).
-	// Uses CueBenchSender which packs OSC with typed args (int/float/string inference).
 	async sendTestCue(address: string, args: string[]): Promise<void> {
 		if (!this.cueBenchSender) {
 			throw new Error('Cue bench sender not initialized (no cue port)')
@@ -1173,23 +941,19 @@ export class Main {
 	}
 
 	cuePortStart() {
-		const message = new OSC.Message('/cue-port-start', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/cue-port-start', this.guiUuid))
 	}
 
 	cuePortStop() {
-		const message = new OSC.Message('/cue-port-stop', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/cue-port-stop', this.guiUuid))
 	}
 
 	cuePortExternal() {
-		const message = new OSC.Message('/cue-port-external', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/cue-port-external', this.guiUuid))
 	}
 
 	cuePortInternal() {
-		const message = new OSC.Message('/cue-port-internal', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/cue-port-internal', this.guiUuid))
 	}
 
 	// Remove the error highlight

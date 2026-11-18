@@ -15,6 +15,15 @@ export default defineConfig(
 		rules: {
 			'@typescript-eslint/no-floating-promises': 'error',
 			'@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],
+			'max-lines': ['error', 1000],
+			'max-lines-per-function': ['error', { max: 100, skipBlankLines: true, skipComments: true }],
+		},
+	},
+	// Checked-in generated docs artifact; only max-lines is disabled here.
+	{
+		files: ['src/builtins/generate-builtins.ts'],
+		rules: {
+			'max-lines': 'off',
 		},
 	},
 )
