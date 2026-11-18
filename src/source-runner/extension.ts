@@ -45,6 +45,7 @@ import { CueStore } from '../cue-store'
 import { CueInspector } from '../cue-inspector'
 import { linkBpmInputValue } from '../link-label'
 import { runDevicePicker, DeviceNames } from '../audio-device-picker'
+import { shouldAutoRunOnSave } from './run-on-save'
 
 let main: Main
 let config: Config
@@ -250,6 +251,7 @@ export function activate(context: vscode.ExtensionContext) {
 	registerCueInspector(context)
 	registerLastEditorClose(context)
 	registerEditorCommands(context)
+	registerRunOnSave(context)
 	registerLspDiagnostics(context)
 }
 
@@ -404,6 +406,28 @@ const registerCueInspector = (context: vscode.ExtensionContext) => {
 		}),
 	)
 
+	// The cue-port routes are on the wire (main.cuePort*) but no command reached them: the Cues
+	// view title carries the two switches Sonic Pi's own cue-port menu offers. A dispatch without
+	// a server is a silent no-op - the queue would swallow the message anyway.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._portStop', () => {
+			if (!main.serverStarted) return
+			main.cuePortStop()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._portStart', () => {
+			if (!main.serverStarted) return
+			main.cuePortStart()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._portExternal', () => {
+			if (!main.serverStarted) return
+			main.cuePortExternal()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._portInternal', () => {
+			if (!main.serverStarted) return
+			main.cuePortInternal()
+		}),
+	)
+
 	// View/title command: send test cue - prompts for address and args
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.cueSendTest', async () => {
@@ -490,6 +514,19 @@ const registerLastEditorClose = (context: vscode.ExtensionContext) => {
 	context.subscriptions.push(
 		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),
 		{ dispose: () => playingLines.dispose() },
+	)
+}
+
+// Auto-run on save (opt-in, default off): a saved sonic-pi file plays whole-file, like the Run
+// lens. A save is not a click, so a cold window stays silent instead of booting a daemon the way
+// scriptRunEnsuresServer would; the decision itself lives in run-on-save.ts. The setting is read
+// per save, so flipping it needs no reload.
+const registerRunOnSave = (context: vscode.ExtensionContext) => {
+	context.subscriptions.push(
+		vscode.workspace.onDidSaveTextDocument((document) => {
+			if (!main.serverStarted) return
+			shouldAutoRunOnSave({ enabled: config.runOnSave(), document }, main)
+		}),
 	)
 }
 

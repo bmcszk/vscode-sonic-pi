@@ -45,6 +45,9 @@ export class Config {
 	public autoMidiStart(): boolean {
 		return this.getConfiguration(this.section).autoMidiStart === true
 	}
+	public runOnSave(): boolean {
+		return this.getConfiguration(this.section).runOnSave === true
+	}
 	public launchSonicPiServerAutomatically(): string {
 		return this.getConfiguration(this.section).launchSonicPiServerAutomatically
 	}

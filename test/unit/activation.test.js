@@ -50,6 +50,7 @@ const vscodeStub = {
 		onDidChangeTextDocument: () => ({ dispose() {} }),
 		onDidCloseTextDocument: () => ({ dispose() {} }),
 		onDidOpenTextDocument: () => ({ dispose() {} }),
+		onDidSaveTextDocument: () => ({ dispose() {} }),
 		workspaceFolders: [],
 		registerTextDocumentContentProvider: () => ({ dispose() {} }),
 		registerNotebookSerializer: (..._a) => ({ dispose() {} }),
@@ -148,6 +149,20 @@ const tests = {
 		await handler()
 		assert.strictEqual(inputBoxes, 0, 'cold window must not open a modal')
 		vscodeStub.window.showInputBox = originalInputBox
+	},
+
+	async 'cue-port commands exist and cold dispatch is a silent no-op'() {
+		for (const id of [
+			'vscode-sonic-pi.cues._portStop',
+			'vscode-sonic-pi.cues._portStart',
+			'vscode-sonic-pi.cues._portExternal',
+			'vscode-sonic-pi.cues._portInternal',
+		]) {
+			assert.ok(handlers[id], `${id} should be registered`)
+			// No server in this stub: the handler must return without reaching the runner
+			// (which activate() never pointed at a live Main in this activation).
+			await handlers[id]()
+		}
 	},
 
 	async 'setLinkBpm input default comes from linkBpmInputValue'() {

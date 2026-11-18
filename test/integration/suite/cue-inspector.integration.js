@@ -2,62 +2,48 @@ const assert = require('assert')
 const vscode = require('vscode')
 const host = require('../harness/host')
 
-// Cue-port controls + fake-daemon cue push. The fake daemon's /fake/ command socket handles
-// cue-port toggles and cue pushes directly; the extension's cuePort* senders are unit-covered
-// (routes asserted in per-run-stop pattern suites), so this suite asserts the control wire.
+// Cue-port controls + fake-daemon cue push. The cue-port routes are asserted on the daemon wire:
+// each contributed command is dispatched the way the workbench dispatches it, and the fake daemon
+// has to receive the route with the token of the boot this window owns - nothing here talks to
+// the fake daemon's own control socket, so a missing or dead sender fails the suite.
 suite('Cue Inspector + cue-port controls', () => {
 	suiteSetup(async () => {
-		// The server-lifecycle suite (earlier in this label) already booted the fake daemon;
-		// its /fake/ command socket is what sendControl targets. No boot of our own.
+		// The server-lifecycle suite (earlier in this label) already booted the fake daemon this
+		// window owns; the cue-port commands need just that running server. No boot of our own.
 		await host.activateExtension()
 	})
 
-	test('cue-port-stop then cue-port-start appear on the fake daemon wire ledger', async () => {
+	const assertCuePortRoute = async (command, address) => {
+		// given
+		const token = host.lastBoot().token
 		const mark = host.mark()
 
-		await host.sendControl('cue-port-stop')
-		await host.waitUntil(
-			() => host.sinceMark(mark).some(e => e.event === 'control' && e.name === 'cue-port-stop'),
-			'the fake daemon to record cue-port-stop'
+		// when
+		await vscode.commands.executeCommand(command)
+
+		// then
+		const message = await host.waitForMessage(address, mark)
+		assert.deepStrictEqual(
+			message.args,
+			[token],
+			`${address} carries the token of the daemon this window booted`,
 		)
+	}
 
-		const mark2 = host.mark()
-		await host.sendControl('cue-port-start')
-		await host.waitUntil(
-			() => host.sinceMark(mark2).some(e => e.event === 'control' && e.name === 'cue-port-start'),
-			'the fake daemon to record cue-port-start'
-		)
-
-		const controls = host
-			.sinceMark(mark)
-			.filter((entry) => entry.event === 'control')
-			.map((entry) => entry.name)
-
-		assert.deepStrictEqual(controls.slice(0, 2), ['cue-port-stop', 'cue-port-start'])
+	test('_portStop sends /cue-port-stop with the boot token', async () => {
+		await assertCuePortRoute('vscode-sonic-pi.cues._portStop', '/cue-port-stop')
 	})
 
-	test('cue-port-external and cue-port-internal appear on the fake daemon wire ledger', async () => {
-		const mark = host.mark()
+	test('_portStart sends /cue-port-start with the boot token', async () => {
+		await assertCuePortRoute('vscode-sonic-pi.cues._portStart', '/cue-port-start')
+	})
 
-		await host.sendControl('cue-port-external')
-		await host.waitUntil(
-			() => host.sinceMark(mark).some(e => e.event === 'control' && e.name === 'cue-port-external'),
-			'the fake daemon to record cue-port-external'
-		)
+	test('_portExternal sends /cue-port-external with the boot token', async () => {
+		await assertCuePortRoute('vscode-sonic-pi.cues._portExternal', '/cue-port-external')
+	})
 
-		const mark2 = host.mark()
-		await host.sendControl('cue-port-internal')
-		await host.waitUntil(
-			() => host.sinceMark(mark2).some(e => e.event === 'control' && e.name === 'cue-port-internal'),
-			'the fake daemon to record cue-port-internal'
-		)
-
-		const controls = host
-			.sinceMark(mark)
-			.filter((entry) => entry.event === 'control')
-			.map((entry) => entry.name)
-
-		assert.deepStrictEqual(controls.slice(0, 2), ['cue-port-external', 'cue-port-internal'])
+	test('_portInternal sends /cue-port-internal with the boot token', async () => {
+		await assertCuePortRoute('vscode-sonic-pi.cues._portInternal', '/cue-port-internal')
 	})
 
 	test('fake cue control push appears on the wire', async () => {
