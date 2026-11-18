@@ -1,11 +1,11 @@
 ---
 # sonic-pi-v2u1
 title: 'Bug: hover registrar boots a second ruby-lsp client - two server processes per window'
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-18T15:13:50Z
-updated_at: 2026-11-18T15:33:57Z
+updated_at: 2026-11-18T15:41:24Z
 parent: sonic-pi-858b
 ---
 

@@ -1,11 +1,11 @@
 ---
 # sonic-pi-f6pd
 title: No-ruby-lsp fallback + capability status (858b)
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-16T13:32:00Z
-updated_at: 2026-11-18T15:33:57Z
+updated_at: 2026-11-18T15:41:24Z
 parent: sonic-pi-858b
 blocked_by:
     - sonic-pi-ce06

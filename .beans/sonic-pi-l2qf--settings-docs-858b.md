@@ -1,11 +1,11 @@
 ---
 # sonic-pi-l2qf
 title: Settings + docs (858b)
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-16T13:32:00Z
-updated_at: 2026-11-18T15:34:30Z
+updated_at: 2026-11-18T15:41:12Z
 parent: sonic-pi-858b
 blocked_by:
     - sonic-pi-u3ui
@@ -29,7 +29,7 @@ blocked_by:
 
 ## Acceptance criteria
 - [ ] settings toggle stops the client from booting (enabled=false: no spawn, no message, status 'off', unit-proven)
-- [ ] docs updated: SETTINGS.md rows, README paragraph, CHANGELOG entry
+- [x] docs updated: SETTINGS.md rows, README paragraph, CHANGELOG entry
 - [ ] `node test/run-unit.js` exit 0; `npm test` exit 0; lint/prettier clean; budgets hold; zero suppressions
 
 ## Skills for coder (verified)
@@ -37,3 +37,12 @@ blocked_by:
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
 Do not touch: src/completionItems.ts, src/source-runner/main.ts; client.ts only if the setting key read needs it (<5 lines, disclosed).
+
+## Proof of Work
+
+- Red-first toggle: enabled=false -> created 1 !== 0 (red), guard in shared-client -> green; default-on (no key) boots to ready unchanged; 2 tests in test/unit/lsp-settings.test.js, orchestrator ran both.
+- One path key shipped: existing vscode-sonic-pi.rubyLspPath declared in package.json (worker choice by smaller diff, code already read it; rubyLsp.path discarded - zero client.ts edits).
+- Docs: docs/SETTINGS.md 'Language server (ruby-lsp)' rows (enabled + path, reload note); README paragraph (squiggles, hover/definition, bundler gem, one-time hint, toggle); CHANGELOG '## Unreleased' Added/Changed entries.
+- Gates re-run by orchestrator: run-unit.js 36 suites exit 0; npm test exit 0 (incl. vsix smoke); lint exit 0; format:check src clean; zero suppressions.
+- Incident note: an orchestrator git-stash slip in this worktree briefly surfaced an ancient shared-repo stash (p1-statusbar era); recovered with reset --hard to the worker commit d5f7a8d; all stash entries preserved; worker commit verified intact (git show --stat).
+Residual: none
