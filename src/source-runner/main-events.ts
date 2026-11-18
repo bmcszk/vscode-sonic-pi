@@ -23,3 +23,11 @@ export const onSupersonicDevices = new vscode.EventEmitter<{
 }>()
 export const onLinkBpm = new vscode.EventEmitter<number>()
 export const onLinkPeers = new vscode.EventEmitter<number>()
+export const onLiveLoopScope = new vscode.EventEmitter<{
+	jobid: number
+	name: string
+	workspace: string
+	line: number
+	scopeNum: number
+}>()
+export const onLiveLoopScopeEnded = new vscode.EventEmitter<{ jobid: number; name: string }>()

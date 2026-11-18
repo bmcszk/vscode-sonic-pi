@@ -33,9 +33,10 @@ import { parseDaemonStdout, resolveOscCuesPort } from './daemonstdout'
 import { Config } from './config'
 import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } from '../attach'
 import { classifyReplyPortHolder, holderSubject } from '../port-holder'
-import { shouldAutoStartMidi } from '../midi'
+import { shouldAutoStartGamepad, shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
 import { registerOscHandlers } from './osc-handlers'
+import { LiveLoopScopeStore } from '../live-loop-scope'
 import * as senders from './senders'
 import * as events from './main-events'
 
@@ -80,6 +81,8 @@ export class Main {
 	onLinkBpm = events.onLinkBpm
 	onLinkPeers = events.onLinkPeers
 	onSupersonicDevices = events.onSupersonicDevices
+	onLiveLoopScope = events.onLiveLoopScope
+	onLiveLoopScopeEnded = events.onLiveLoopScopeEnded
 
 	guiSendToServerPort!: number
 	daemonPort!: number
@@ -108,6 +111,16 @@ export class Main {
 	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
 	// to the cells that produced it (we send joined cell keys as the workspace).
 	liveJobs = new Map<number, string>()
+	// Job ids that already announced their start: a run id fires onRunStarted once, no matter
+	// whether the daemon's /run/started push or the /log/info line arrives first.
+	announcedRuns = new Set<number>()
+	// Job ids the daemon reported as ended: the log-line fallback must not revive them; a
+	// daemon generation that reuses an id does so through /run/started, which does revive it.
+	endedRuns = new Set<number>()
+	// The runtime announced /spider/ready for this generation: a duplicate push changes nothing.
+	runtimeReady = false
+	// Live-loop pushes: which loops are alive right now and where their headers sit.
+	liveLoopScope = new LiveLoopScopeStore()
 
 	// Senders take the queued send fn and the daemon token, never Main itself.
 	private senderContext(): senders.SenderContext {
@@ -119,6 +132,7 @@ export class Main {
 
 	serverStarted!: boolean
 	midiAutoStartSent: boolean = false
+	gamepadAutoStartSent: boolean = false
 	daemonProcess: child_process.ChildProcess | undefined
 	restartInProgress = false
 	// One-shot: the next startServer must skip the attach scanner. A restart just killed the
@@ -219,6 +233,7 @@ export class Main {
 
 		this.serverStarted = false
 		this.midiAutoStartSent = false
+		this.gamepadAutoStartSent = false
 		this.guiUuid = -1
 	}
 
@@ -592,6 +607,8 @@ export class Main {
 			this.forceManagedBootOnce = true
 			this.onServerState.fire('stopped')
 			this.midiAutoStartSent = false
+			this.gamepadAutoStartSent = false
+			this.runtimeReady = false
 			await this.startServer()
 		} finally {
 			this.restartInProgress = false
@@ -612,6 +629,8 @@ export class Main {
 		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
 		this.onServerState.fire('stopped')
 		this.midiAutoStartSent = false
+		this.gamepadAutoStartSent = false
+		this.runtimeReady = false
 		this.logOutput.appendLine('Sonic Pi server stopped (last Sonic Pi editor closed)')
 	}
 
@@ -744,10 +763,7 @@ export class Main {
 			code = 'use_arg_checks true #__nosave__ set by Qt GUI user preferences.\n' + code
 		}
 		code = utf8.encode(code)
-		if (this.config.autoMidiStart() && shouldAutoStartMidi(code, this.midiAutoStartSent)) {
-			this.sendOsc(new OSC.Message('/midi-start', this.guiUuid))
-			this.midiAutoStartSent = true
-		}
+		this.startDeviceCuesFor(code)
 		this.clearErrorHighlight()
 		// The workspace argument rides the run through the daemon and comes back on
 		// /run/started, which is how a job id maps back to the cells that own it.
@@ -860,9 +876,29 @@ export class Main {
 	setLpf = (freq: number | 'off') => senders.setLpf(this.senderContext(), freq)
 	setHpf = (freq: number | 'off') => senders.setHpf(this.senderContext(), freq)
 	setMasterVolume = (volumePercent: number) => senders.setMasterVolume(this.senderContext(), volumePercent)
+	midiPortEnable = (direction: 'in' | 'out', port: number, on: boolean) =>
+		senders.midiPortEnable(this.senderContext(), direction, port, on)
+	midiReset = () => senders.midiReset(this.senderContext())
+	gamepadEnable = (pad: number, on: boolean) => senders.gamepadEnable(this.senderContext(), pad, on)
+	gamepadStart = () => senders.gamepadStart(this.senderContext())
+	gamepadStop = () => senders.gamepadStop(this.senderContext())
 
 	requestVersion() {
 		this.sendOsc(new OSC.Message('/version', this.guiUuid))
+	}
+
+	// midi_*/gamepad_* are silent until the daemon gets its start message. Both device families
+	// follow the same rule here: at most once per server session.
+	private startDeviceCuesFor(code: string) {
+		if (!this.config.autoMidiStart()) return
+		if (shouldAutoStartMidi(code, this.midiAutoStartSent)) {
+			this.sendOsc(new OSC.Message('/midi-start', this.guiUuid))
+			this.midiAutoStartSent = true
+		}
+		if (shouldAutoStartGamepad(code, this.gamepadAutoStartSent)) {
+			this.gamepadStart()
+			this.gamepadAutoStartSent = true
+		}
 	}
 
 	// Per-run stop: kill only the job(s) a cell belongs to. Falls back to the whole-session

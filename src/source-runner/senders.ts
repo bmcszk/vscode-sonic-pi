@@ -63,3 +63,22 @@ export const setHpf = ({ send, token }: SenderContext, freq: number | 'off') =>
 // Master fader after the limiter; the server clamps the passed amp to 0..1.
 export const setMasterVolume = ({ send, token }: SenderContext, volumePercent: number) =>
 	send(new OSC.Message('/mixer-output-volume', token, volumePercent / 100))
+
+// Per-device MIDI/gamepad enables carry on=1|0, never a boolean: the daemon tests args[3]==1
+// (spider-server.rb:746-764). A gamepad is addressed by its index in devices-list.
+export const midiPortEnable = (
+	{ send, token }: SenderContext,
+	direction: 'in' | 'out',
+	port: number,
+	on: boolean,
+) => send(new OSC.Message('/midi-port-enable', token, direction, port, on ? 1 : 0))
+
+// Re-enumeration: the daemon refreshes its device list and pushes it again.
+export const midiReset = ({ send, token }: SenderContext) => send(new OSC.Message('/midi-reset', token))
+
+export const gamepadEnable = ({ send, token }: SenderContext, pad: number, on: boolean) =>
+	send(new OSC.Message('/gamepad-enable', token, pad, on ? 1 : 0))
+
+export const gamepadStart = ({ send, token }: SenderContext) => send(new OSC.Message('/gamepad-start', token))
+
+export const gamepadStop = ({ send, token }: SenderContext) => send(new OSC.Message('/gamepad-stop', token))
