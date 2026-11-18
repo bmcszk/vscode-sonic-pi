@@ -1,11 +1,11 @@
 ---
 # sonic-pi-fz82
 title: MIDI + gamepad device pickers (D2)
-status: completed
+status: in-progress
 type: feature
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:37:45Z
+updated_at: 2026-11-18T17:38:25Z
 parent: sonic-pi-6fiz
 ---
 
@@ -36,3 +36,7 @@ Pushes /midi/in-ports + /midi/out-ports (spider-server.rb:986-988) + /gamepad/de
 - D2a wave 1: 8 tests/15 assertions red-first (parse round-trip, sections, toggle payloads per audio-device-picker convention). D2b chain O: 12/12 midi tests (senders arg orders per spider-server.rb:746-764, gamepad auto-start once-per-session, reset). 
 - Orchestrator verified battery exit 0 at chain-O worktree; merged b2fea77.
 Residual: D2c commands registration lands with chain H pass 2 (pending)
+
+## Correction (orchestrator)
+
+Reopened: D2c (midiDevices + gamepads commands, package.json contributes, cold-window guards, integration asserts) is NOT landed. Senders (D2b) + parser (D2a) stand verified; the feature closes when the pickers exist as commands and the wire asserts pass.
