@@ -1,10 +1,12 @@
 ---
 # sonic-pi-wmae
 title: 'Bug: plays silent + empty logs after attached daemon dies (window never notices)'
-status: in-progress
+status: completed
 type: bug
+priority: normal
 created_at: 2026-11-08T14:05:41Z
-updated_at: 2026-11-08T14:05:41Z
+updated_at: 2026-11-16T12:21:49Z
+parent: sonic-pi-u71o
 ---
 
 # Bug (user, 2026-11-08 15:04): 'any play does not work and NO sonic pi logs'
@@ -25,3 +27,40 @@ Press 'Sonic Pi: Restart Server' (now safely boots fresh) or reload the window t
 
 ## Notes
 This is the THIRD manifestation of the dead-daemon silent-send class (after adopt-keepalive + restart raced-attach). Design rule going in: daemon liveness must be a first-class state, not an assumption.
+
+## Skills for coder (worker contract)
+
+- Read fully before editing: /home/blaze/.agents/skills/coding-rules/SKILL.md
+- TDD mandatory: red-first named-case tests. No narration comments.
+- Honest fixes only: no suppressions (@ts-ignore/eslint-disable), no config loosening. Suppression grep is a standing gate.
+- Worktree: parent creates per-worker worktree from dev2. One writer per worktree.
+
+## Scope (this bean, from the verified root cause)
+
+1. DAEMON LIVENESS: keepalive send failures (OscSender errorbacks) must surface; N consecutive failures => daemon considered dead => reset server state so next play takes the cold path (scanner -> managed boot). The liveness check gates ensureServerReady.
+2. PER-RUN STOP: listen to /run/started + /run/ended + /runs/all-completed pushes (job ids); cell Stop sends /stop-job(token, jobId) for THAT cell's job instead of /stop-all-jobs. Fallback: unknown job id -> stop-all (current behavior).
+3. E2E (gate): integration test - attached window's fake daemon dies -> next play re-boots (no silent dead-send). Plus a per-run stop test: two cells running, stop cell A, cell B keeps playing.
+
+## Acceptance criteria
+
+- [ ] Unit: keepalive errorback -> state reset -> next play boots fresh daemon
+- [ ] Integration: daemon-death e2e (play after death works, log channel receives run output)
+- [ ] Integration: per-run stop keeps the other cell playing
+- [ ] npm test green (lint + format + unit + all integration labels + vsix smoke)
+- [ ] No suppression comments; no lint config changes
+
+## Out of scope
+
+- Mute/unmute loops (F2) - future feature bean after 818h Phase B picks
+- Audio recovery / EADDRINUSE paths (already covered by existing tests)
+
+## Proof of Work (2026-11-16, parent finished the leaf after the worker timed out mid-research)
+
+Commands run + observed:
+- for f in test/unit/*.test.js; do node $f; done -> all green (incl. 2 new suites: daemon-liveness, per-run-stop)
+- npm test (lint + prettier + build + unit chain incl. the new suites + vsix smoke) -> exit 0, 0 not ok
+- npx vscode-test (3 labels) -> extension label 20 passing incl. NEW daemon-death e2e; attach/takeover skipped (real Sonic Pi server running on this machine - documented skip, CI unaffected)
+- Suppression grep: 0 hits; lint config untouched
+- Merged to dev2 (ec4ce2d), post-merge npm test re-run green
+
+Residual: none for the bug scope. Mute/unmute loops (F2) intentionally out of scope -> feature bean after 818h Phase B.

@@ -34,28 +34,33 @@ import { Main } from './main'
 import { Config } from './config'
 import { computeBeautifyEdit } from '../beautify'
 import { flashPaintFor, notebookFlashMap } from '../cell-flash-map'
-import { SonicPiCodeLensProvider } from '../codelenses'
+import { SonicPiCodeLensProvider, cellKeyFor } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
+import { MuteRegistry } from '../loop-mute'
+import { CueStore } from '../cue-store'
+import { CueInspector } from '../cue-inspector'
+import { linkBpmInputValue } from '../link-label'
+import { runDevicePicker, DeviceNames } from '../audio-device-picker'
 
 let main: Main
 let config: Config
 
-export const scriptRunEnsuresServer = async (code: string, offset = 0) => {
+export const scriptRunEnsuresServer = async (code: string, offset = 0, cells: string[] = []) => {
 	// Command-Palette/editor Run must survive a cold window: a play before any boot went
 	// to unbound ports and vanished without feedback (user: 'no logs, no feedback').
 	if (!main.serverStarted && config.launchSonicPiServerAutomatically() !== 'never') {
 		await main.startServer()
 	}
-	main.runCode(code, offset)
+	main.runCode(code, offset, cells)
 }
 
-export const runScript = (code: string) => {
+export const runScript = (code: string, cells: string[] = []) => {
 	if (!main) {
 		throw Error('Runner not initialized')
 	}
-	main.runCode(code)
+	main.runCode(code, 0, cells)
 }
 
 export const onRunStarted = (listener: (num: number) => void) => {
@@ -70,8 +75,18 @@ export const onServerRestart = (listener: () => void) => {
 	return main.onServerRestart.event(listener)
 }
 
+export const onCue = (
+	listener: (cue: { time: number; id: number; address: string; args: string }) => void,
+) => {
+	return main.onCue.event(listener)
+}
+
 export const onFlash = (listener: (flash: { workspace: string; line: number }) => void) => {
 	return main.onFlash.event(listener)
+}
+
+export const onMixerSettings = (listener: (settings: { drive: number; volume: number }) => void) => {
+	return main.onMixerSettings.event(listener)
 }
 
 export const stopAllScripts = () => {
@@ -79,6 +94,49 @@ export const stopAllScripts = () => {
 		throw Error('Runner not initialized')
 	}
 	main.stopAllJobs()
+}
+
+// Per-run stop: kill the daemon job(s) that belong to the given cells. Unknown or
+// finished cells fall back to the whole-session stop inside main.
+export const liveJobWorkspaceFor = (cellKey: string) => main.liveJobWorkspaceFor(cellKey)
+export const stopCellByKeys = (cellKeys: string[]) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.stopCell(cellKeys)
+}
+
+// Test seam (integration only): the mixer popover's Drive dispatch is unit-covered, so the
+// integration suite proves the drive sender reaches the daemon through this direct hook.
+export const setDriveForTest = (amp: number) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.setDrive(amp)
+}
+
+// Mute/unmute a cell: mute stops its job and records the last-run code; unmute re-runs
+// that code without replacing the session, so other loops keep playing.
+const muteRegistry = new MuteRegistry()
+
+export const muteCellByKeys = (cellKeys: string[], code: string) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.stopCell(cellKeys)
+	muteRegistry.mute(cellKeys, code)
+}
+
+export const unmuteCellByKeys = (cellKeys: string[]) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	const entry = muteRegistry.unmute(cellKeys)
+	if (!entry) {
+		return undefined
+	}
+	main.runCode(entry.code, 0, entry.cells, { replaceSession: false })
+	return entry
 }
 
 // Notebook plays cannot ride on the 'ruby' launch mode: a notebook editor never shows up as a
@@ -89,9 +147,75 @@ export const isReceiving = () => main.isReceiving()
 export const notebookRunsWholeSong = () => config.notebookRunsWholeSong()
 export const takeOverConnection = () => main.takeOverConnection()
 
+export const onLinkBpm = (listener: (bpm: number) => void) => {
+	return main.onLinkBpm.event(listener)
+}
+export const onLinkPeers = (listener: (peers: number) => void) => {
+	return main.onLinkPeers.event(listener)
+}
+export const setLinkBpm = (bpm: number) => main.setLinkBpm(bpm)
+
 export const startServer = () => main.startServer()
+export const sendTestCue = (address: string, args: string[]) => main.sendTestCue(address, args)
 
 export const launchServerAutomatically = () => config.launchSonicPiServerAutomatically()
+
+export const onSupersonicDevices = (
+	listener: (devices: { kind: 'output' | 'input' | 'table'; names: string[] }) => void,
+) => main.onSupersonicDevices.event(listener)
+export const requestAudioDevices = () => main.requestAudioDevices()
+export const switchAudioDevice = (key: string) => main.switchAudioDevice(key)
+export const switchAudioDriver = (driver: string) => main.switchAudioDriver(driver)
+export const reopenAudioDevice = () => main.reopenAudioDevice()
+
+// The device picker rides on the daemon's device pushes: request them, then gather what
+// arrives within a short window (all three pushes land on one request round-trip per the
+// daemon-audio spike). A no-server window must not open a modal - callers guard first.
+export const showAudioDevicePicker = async () => {
+	const received: DeviceNames[] = []
+	const subscription = main.onSupersonicDevices.event((devices) => received.push(devices))
+	try {
+		main.requestAudioDevices()
+		await new Promise((resolve) => setTimeout(resolve, 300))
+		await runDevicePicker(main, received, {
+			showQuickPick: vscode.window.showQuickPick,
+			showWarningMessage: vscode.window.showWarningMessage,
+		})
+	} finally {
+		subscription.dispose()
+	}
+}
+
+export const confirmThenReopenAudioDevice = async () => {
+	// Reopen-only path: the picker builder supplies the reopen entry, so reuse its dispatcher
+	// with a reopen-only pick and the same running-code confirm.
+	await runDevicePicker(
+		{
+			requestAudioDevices: () => {},
+			switchAudioDevice: () => {},
+			reopenAudioDevice: () => main.reopenAudioDevice(),
+		},
+		[],
+		{
+			showQuickPick: async (items) => items.find((i) => i.action === 'reopen'),
+			showWarningMessage: vscode.window.showWarningMessage,
+		},
+	)
+}
+let playingLines: PlayingLineHighlighter
+let isRecording = false
+
+// A stopped run says nothing more about playing lines or playing cells.
+const clearPlaying = () => {
+	playingLines.clear()
+	notebookFlashMap.clear()
+}
+
+// A file run reports the lines of that file, so a notebook's joined-script offsets stop applying.
+const runFileCode = (code: string, offset: number = 0) => {
+	notebookFlashMap.clear()
+	main.runCode(code, offset)
+}
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Ruby detected. Sonic Pi editor extension active!')
@@ -101,7 +225,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	main.checkSonicPiPath()
 
-	const playingLines = new PlayingLineHighlighter({
+	playingLines = new PlayingLineHighlighter({
 		config,
 		editor: () => vscode.window.activeTextEditor,
 		flashTarget: (workspace, line) =>
@@ -112,27 +236,187 @@ export function activate(context: vscode.ExtensionContext) {
 				line,
 			),
 	})
-	// A stopped run says nothing more about playing lines or playing cells.
-	const clearPlaying = () => {
-		playingLines.clear()
-		notebookFlashMap.clear()
-	}
 	context.subscriptions.push(main.onServerRestart.event(() => clearPlaying()))
+	// A fresh daemon knows nothing about muted loops; their stored codes could never be
+	// soundly re-run, so the mute memory dies with the server generation.
+	context.subscriptions.push(main.onServerRestart.event(() => muteRegistry.clear()))
+	if (config.launchSonicPiServerAutomatically() === 'start') {
+		main.startServerReported()
+	}
+
+	registerStatusBar(context)
+	registerCueInspector(context)
+	registerLastEditorClose(context)
+	registerEditorCommands(context)
+}
+
+// Status bar wiring: the popover actions dispatch to the runner and the server state,
+// version, mixer and Link events update the displayed items. Cold-window dispatch of the
+// modal commands stays a silent no-op (a modal there hangs the activation gate).
+const registerStatusBar = (context: vscode.ExtensionContext) => {
 	const statusBar = new SonicPiStatusBar({
 		sendVersionRequest: () => main.requestVersion(),
 		sendMasterVolume: (value) => main.setMasterVolume(value),
+		setDrive: (value) => main.setDrive(value),
+		setLpf: (freq) => main.setLpf(freq),
+		setHpf: (freq) => main.setHpf(freq),
+		setStereo: (stereo) => (stereo ? main.mixerStereoMode() : main.mixerMonoMode()),
+		setInvert: (invert) => (invert ? main.mixerInvertStereo() : main.mixerStandardStereo()),
 	})
 	statusBar.setServerState('starting')
 	if (!main.serverStarted) statusBar.setServerState('stopped')
 	context.subscriptions.push(
 		main.onServerState.event((state) => statusBar.setServerState(state)),
 		main.onVersion.event((version) => statusBar.setVersion(version)),
-		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () =>
-			statusBar.showVolumeQuickPick(),
+		// The receiver flips between deaf and receiving outside the server state machine: hook it
+		// directly, or the deafness indicator would outlive the takeover that healed the window.
+		main.onReceiverFailed.event(() => statusBar.setReceiving(false)),
+		main.onReceiverOpened.event(() => statusBar.setReceiving(true)),
+		main.onMixerSettings.event((settings) => statusBar.setMixerSettings(settings)),
+		vscode.commands.registerCommand('vscode-sonic-pi.logsElsewhere', () =>
+			vscode.window.showInformationMessage(
+				'Another program or window owns the reply port: it shows the run logs, this window ' +
+					"can't. Press Play again to take over the connection and bring the logs here.",
+			),
 		),
+		// Cold-window dispatch: the activation suite fires every command without a server, and
+		// a modal (input box or QuickPick) there hangs the dispatch loop. Silent no-op - the
+		// statusbar items are hidden when stopped anyway, so this path is unreachable for users.
+		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () => {
+			if (!main.serverStarted) return
+			void statusBar.showVolumeQuickPick()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.mixer', () => {
+			if (!main.serverStarted) return
+			void statusBar.showMixerQuickPick()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.audioDevices', () => {
+			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
+			if (!main.serverStarted) return
+			void showAudioDevicePicker()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.reopenAudioDevice', () => {
+			if (!main.serverStarted) return
+			void confirmThenReopenAudioDevice()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.setLinkBpm', async () => {
+			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
+			if (!main.serverStarted) return
+			const input = await vscode.window.showInputBox({
+				prompt: 'Link BPM (20-999)',
+				value: linkBpmInputValue(statusBar.getCurrentBpm()),
+			})
+			if (input === undefined) return
+			const bpm = parseFloat(input)
+			if (!Number.isFinite(bpm)) {
+				void vscode.window.showErrorMessage('Link BPM must be a number from 20 to 999')
+				return
+			}
+			main.setLinkBpm(bpm)
+		}),
+		main.onLinkBpm.event((bpm) => statusBar.setLinkData({ bpm })),
+		main.onLinkPeers.event((peers) => statusBar.setLinkData({ peers })),
 		{ dispose: () => statusBar.dispose() },
 	)
+}
 
+// Cue Inspector: TreeView over the live cue store plus its view/palette commands.
+const registerCueInspector = (context: vscode.ExtensionContext) => {
+	// Cue Inspector: TreeView over the cue store
+	const cueStore = new CueStore()
+	const cueInspector = new CueInspector(cueStore)
+	const cueTreeView = vscode.window.createTreeView('sonic-pi.cues', {
+		treeDataProvider: cueInspector,
+		showCollapseAll: true,
+	})
+	cueTreeView.title = 'Cues'
+
+	// Wire the daemon's onCue emitter to the store
+	context.subscriptions.push(main.onCue.event((cue) => cueStore.add(cue)))
+
+	// View title commands: _filter, _pause, _clear
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._filter', async () => {
+			// Cold-window dispatch: a modal there hangs the activation gate; silent no-op.
+			if (!main.serverStarted) return
+			const filter = await vscode.window.showInputBox({
+				prompt: 'Filter cues by address substring (empty to clear)',
+				value: cueInspector.getFilter() || '',
+			})
+			if (filter !== undefined) {
+				cueInspector.setFilter(filter || undefined)
+				cueTreeView.title = filter ? `Cues (filtered: ${filter})` : 'Cues'
+			}
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._pause', () => {
+			const paused = !cueInspector.isPaused()
+			cueInspector.setPaused(paused)
+			cueTreeView.title = paused
+				? 'Cues (paused)'
+				: cueInspector.getFilter()
+					? `Cues (filtered: ${cueInspector.getFilter()})`
+					: 'Cues'
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._clear', () => {
+			cueInspector.clear()
+			cueTreeView.title = 'Cues'
+		}),
+	)
+
+	// Palette command: insert sync :address at cursor
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.cueInsertSync', async () => {
+			const cues = cueInspector.getChildren()
+			if (cues.length === 0) {
+				void vscode.window.showInformationMessage('No cues to insert')
+				return
+			}
+			// Pick the most recent cue (first in the list is newest)
+			const cue = cues[0]
+			await cueInspector.insertSync(cue)
+		}),
+	)
+
+	// View/title command: send test cue - prompts for address and args
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.cueSendTest', async () => {
+			if (!main.serverStarted) return
+			const address = await vscode.window.showInputBox({
+				prompt: 'OSC address (e.g. /foo/orca)',
+				placeHolder: '/foo/orca',
+			})
+			if (!address) return
+			const argsInput = await vscode.window.showInputBox({
+				prompt: 'Space-separated arguments (e.g. 1 2.5 x)',
+				placeHolder: '1 2.5 x',
+				value: '',
+			})
+			const args = argsInput ? argsInput.trim().split(/\s+/) : []
+			try {
+				await sendTestCue(address, args)
+				void vscode.window.showInformationMessage(`Sent test cue: ${address} ${args.join(' ')}`)
+			} catch (error) {
+				void vscode.window.showErrorMessage(
+					`Failed to send test cue: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+		}),
+	)
+}
+
+// When the user opts in, closing the last Sonic Pi editor shuts the server down.
+// Only a Sonic Pi editor closing says anything about Sonic Pi editors: closing the
+// settings file or a README of an otherwise Sonic Pi-free window must not kill the server.
+// The count is sampled after the close event, so it sees the editors that remain: open
+// editor tabs, not every document the extension host still holds open (a document can
+// outlive its tab) and not a notebook's Sonic Pi cell documents, which have no tab of
+// their own - closing a notebook tab closes the notebook, never its cells one by one.
+// Tab events, not document events: a closed tab's document can linger in the host, so
+// onDidCloseTextDocument either fires late or never for the last editor.
+// The decision is debounced: while tabs switch, VS Code can transiently report zero
+// open Sonic Pi tabs even though another one is about to activate, and stopping the
+// daemon on that transient would kill a session mid-play.
+const registerLastEditorClose = (context: vscode.ExtensionContext) => {
 	// When the user opts in, closing the last Sonic Pi editor shuts the server down.
 	// Only a Sonic Pi editor closing says anything about Sonic Pi editors: closing the
 	// settings file or a README of an otherwise Sonic Pi-free window must not kill the server.
@@ -180,19 +464,11 @@ export function activate(context: vscode.ExtensionContext) {
 		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),
 		{ dispose: () => playingLines.dispose() },
 	)
+}
 
-	if (config.launchSonicPiServerAutomatically() === 'start') {
-		main.startServerReported()
-	}
-
-	let isRecording = false
-
-	// A file run reports the lines of that file, so a notebook's joined-script offsets stop applying.
-	const runFileCode = (code: string, offset: number = 0) => {
-		notebookFlashMap.clear()
-		main.runCode(code, offset)
-	}
-
+// Register the editor commands. For now, run, stop and recording. Those should be enough for
+// some initial fun...
+const registerEditorCommands = (context: vscode.ExtensionContext) => {
 	// Register the editor commands. For now, run, stop and recording. Those should be enough for
 	// some initial fun...
 	context.subscriptions.push(
@@ -228,10 +504,61 @@ export function activate(context: vscode.ExtensionContext) {
 			// A Run cell sends only its block, so pass the block's editor line: runCode pads the text
 			// up to that line and the daemon then reports file-absolute flash lines. A cold-window
 			// cell play must boot the server first (Option B takeover-on-play).
-			void scriptRunEnsuresServer(code, blockLine ?? 0).then(() => notebookFlashMap.clear())
+			// The block's line+text also become its cell key, so the daemon's /run/started workspace
+			// maps this run to the block - that is what makes per-run mute/stop-job work for
+			// editor Run cells, not just notebook cells.
+			const cells = blockLine === undefined ? [] : [cellKeyFor(blockLine, code)]
+			void scriptRunEnsuresServer(code, blockLine ?? 0, cells).then(() => notebookFlashMap.clear())
 		}),
 	)
 
+	registerRunSelectedCommand(context)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.stop', () => {
+			main.stopAllJobs()
+			clearPlaying()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.restartserver', () => {
+			void main.restartServer()
+		}),
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.togglerecording', () => {
+			isRecording = !isRecording
+			if (isRecording) {
+				main.startRecording()
+			} else {
+				main.stopRecording()
+				void vscode.window.showSaveDialog({ filters: { 'Wave file': ['wav'] } }).then((uri) => {
+					if (uri) {
+						main.saveRecording(uri.fsPath)
+					} else {
+						main.deleteRecording()
+					}
+				})
+			}
+		}),
+	)
+
+	registerBeautifyCommand(context)
+
+	// The lens provider owns the mute registry so a mute flips its lens title; the command
+	// handlers below route through it. Cold-window dispatch must stay silent (see the
+	// masterVolume guard above): muting without a server would throw on the uninitialized runner.
+	const codeLensProvider = new SonicPiCodeLensProvider()
+	context.subscriptions.push(
+		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, codeLensProvider),
+	)
+}
+
+// Beautify: send the active Sonic Pi document to the daemon's /buffer-beautify and
+// apply the returned aligned text as a whole-document edit, cursor best-effort.
+const registerRunSelectedCommand = (context: vscode.ExtensionContext) => {
 	context.subscriptions.push(
 		vscode.commands.registerTextEditorCommand('vscode-sonic-pi.runselected', (textEditor) => {
 			let doc = textEditor.document
@@ -288,40 +615,9 @@ export function activate(context: vscode.ExtensionContext) {
 			runFileCode(code, textEditor.selection.start.line)
 		}),
 	)
+}
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscode-sonic-pi.stop', () => {
-			main.stopAllJobs()
-			clearPlaying()
-		}),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscode-sonic-pi.restartserver', () => {
-			void main.restartServer()
-		}),
-	)
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('vscode-sonic-pi.togglerecording', () => {
-			isRecording = !isRecording
-			if (isRecording) {
-				main.startRecording()
-			} else {
-				main.stopRecording()
-				void vscode.window.showSaveDialog({ filters: { 'Wave file': ['wav'] } }).then((uri) => {
-					if (uri) {
-						main.saveRecording(uri.fsPath)
-					} else {
-						main.deleteRecording()
-					}
-				})
-			}
-		}),
-	)
-
-	// Beautify: send the active Sonic Pi document to the daemon's /buffer-beautify and
-	// apply the returned aligned text as a whole-document edit, cursor best-effort.
+const registerBeautifyCommand = (context: vscode.ExtensionContext) => {
 	context.subscriptions.push(
 		vscode.commands.registerTextEditorCommand('vscode-sonic-pi.beautify', (textEditor) => {
 			const doc = textEditor.document
@@ -366,10 +662,6 @@ export function activate(context: vscode.ExtensionContext) {
 					void vscode.window.showErrorMessage('Beautify failed: ' + error.message)
 				})
 		}),
-	)
-
-	context.subscriptions.push(
-		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, new SonicPiCodeLensProvider()),
 	)
 }
 

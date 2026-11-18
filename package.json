@@ -22,7 +22,9 @@
 		"lint": "eslint src",
 		"format:check": "prettier --check src",
 		"format": "prettier --write src",
-		"test": "npm run lint && npm run format:check && npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/receiver-recovery.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js && node test/vsix-smoke.test.js",
+		"prepare": "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+		"test": "npm run lint && npm run format:check && npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/receiver-recovery.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js && node test/unit/daemon-liveness.test.js && node test/unit/per-run-stop.test.js && node test/unit/mixer.test.js && node test/unit/mixer-panel.test.js && node test/unit/cue-bench.test.js node test/unit/run-replaces.test.js node test/unit/audio-devices.test.js node test/unit/loop-mute.test.js node test/unit/cue-inspector.test.js node test/unit/cue-store.test.js node test/unit/link-status.test.js node test/unit/link-label.test.js && node test/vsix-smoke.test.js",
+		"test:unit": "npm run build && node test/unit/attach.test.js && node test/unit/token-parse.test.js && node test/unit/daemon-start-guard.test.js && node test/unit/receiver-recovery.test.js && node test/unit/audio-recovery.test.js && node test/unit/editor-close.test.js && node test/unit/codelenses.test.js && node test/unit/cell-flash-map.test.js && node test/unit/playing-lines.test.js && node test/unit/docs-browser.test.js && node test/unit/midi.test.js && node test/unit/statusbar.test.js && node test/unit/beautify.test.js && node test/unit/oscsender.test.js && node test/unit/activation.test.js && node test/unit/notebook.test.js && node test/unit/daemon-liveness.test.js && node test/unit/per-run-stop.test.js && node test/unit/mixer.test.js && node test/unit/mixer-panel.test.js && node test/unit/cue-bench.test.js node test/unit/run-replaces.test.js node test/unit/audio-devices.test.js node test/unit/loop-mute.test.js node test/unit/cue-inspector.test.js node test/unit/cue-store.test.js node test/unit/link-status.test.js node test/unit/link-label.test.js",
 		"test:integration": "npm run build && vscode-test",
 		"test:e2e": "npm run build && node test/e2e/protocol.js"
 	},
@@ -49,6 +51,16 @@
 		"onCommand:vscode-sonic-pi.runCell",
 		"onCommand:vscode-sonic-pi.runselected",
 		"onCommand:vscode-sonic-pi.newNotebook",
+		"onCommand:vscode-sonic-pi.cues._clear",
+		"onCommand:vscode-sonic-pi.cues._pause",
+		"onCommand:vscode-sonic-pi.cues._filter",
+		"onCommand:vscode-sonic-pi.cueInsertSync",
+		"onCommand:vscode-sonic-pi.cueSendTest",
+		"onCommand:vscode-sonic-pi.mixer",
+		"onCommand:vscode-sonic-pi.audioDevices",
+		"onCommand:vscode-sonic-pi.reopenAudioDevice",
+		"onCommand:vscode-sonic-pi.muteLoop",
+		"onCommand:vscode-sonic-pi.unmuteLoop",
 		"onNotebook:sonic-pi-book"
 	],
 	"main": "./out/extension.js",
@@ -191,6 +203,16 @@
 				"category": "Sonic Pi"
 			},
 			{
+				"command": "vscode-sonic-pi.muteLoop",
+				"title": "Mute Loop",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.unmuteLoop",
+				"title": "Unmute Loop",
+				"category": "Sonic Pi"
+			},
+			{
 				"command": "vscode-sonic-pi.stopNotebook",
 				"title": "Stop Notebook",
 				"category": "Sonic Pi"
@@ -208,6 +230,46 @@
 			{
 				"command": "vscode-sonic-pi.beautify",
 				"title": "Beautify",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._filter",
+				"title": "Filter",
+				"icon": "$(filter)"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._pause",
+				"title": "Pause",
+				"icon": "$(debug-pause)"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._clear",
+				"title": "Clear",
+				"icon": "$(clear-all)"
+			},
+			{
+				"command": "vscode-sonic-pi.cueInsertSync",
+				"title": "Cue: Insert Sync",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.cueSendTest",
+				"title": "Send Test Cue",
+				"icon": "$(send)"
+			},
+			{
+				"command": "vscode-sonic-pi.mixer",
+				"title": "Mixer",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.audioDevices",
+				"title": "Audio Devices",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.reopenAudioDevice",
+				"title": "Reset Audio Device",
 				"category": "Sonic Pi"
 			}
 		],
@@ -327,7 +389,7 @@
 				"vscode-sonic-pi.runReplacesSession": {
 					"type": "boolean",
 					"default": true,
-					"description": "A play stops the previous jobs first (per-cell replace, matching the Sonic Pi app's Run). Turn off to layer runs on top of each other."
+					"description": "A play stops the previous jobs first (per-cell replace, matching the Sonic Pi app's Run button). Turn off to layer runs on top of each other."
 				},
 				"vscode-sonic-pi.notebookRunsWholeSong": {
 					"type": "boolean",
@@ -338,6 +400,11 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Stop the Sonic Pi server when the last Sonic Pi editor is closed. Off by default: a running server survives your editing session."
+				},
+				"vscode-sonic-pi.oscCuesPort": {
+					"type": "number",
+					"default": 0,
+					"description": "Override the OSC cues port. 0 discovers the port from the daemon stdout."
 				},
 				"vscode-sonic-pi.logAutoscroll": {
 					"type": "boolean",
@@ -382,7 +449,24 @@
 				"scopeName": "source.sonic-pi",
 				"path": "./syntaxes/sonic-pi.tmLanguage.json"
 			}
-		]
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "sonic-pi",
+					"title": "Sonic Pi",
+					"icon": "img/sonic-pi.png"
+				}
+			]
+		},
+		"views": {
+			"sonic-pi": [
+				{
+					"id": "sonic-pi.cues",
+					"name": "Cues"
+				}
+			]
+		}
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

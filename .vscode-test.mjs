@@ -36,6 +36,7 @@ export default defineConfig([
 		files: [
 			'test/integration/suite/activation.integration.js',
 			'test/integration/suite/server-lifecycle.integration.js',
+			'test/integration/suite/cue-inspector.integration.js',
 			'test/integration/suite/editor-controls.integration.js',
 			'test/integration/suite/notebook-run.integration.js',
 			'test/integration/suite/media-docs.integration.js',

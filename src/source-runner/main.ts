@@ -28,65 +28,89 @@ import * as path from 'path'
 import OSC from 'osc-js'
 import * as utf8 from 'utf8'
 import { OscSender } from './oscsender'
-import { parseDaemonStdout } from './daemonstdout'
+import { CueBenchSender } from '../cue-bench'
+import { parseDaemonStdout, resolveOscCuesPort } from './daemonstdout'
 import { Config } from './config'
 import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } from '../attach'
+import { classifyReplyPortHolder, holderSubject } from '../port-holder'
 import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
+import { registerOscHandlers } from './osc-handlers'
 
 // OSC payloads from the Sonic Pi daemon: integer fields and text fields.
 type OscArg = number | string
 type OscMessage = { args: OscArg[] }
 
 export class Main {
-	private receiving = true
-	rootPath: string
-	rubyPath: string
-	daemonLauncherPath: string
-	samplePath: string
-	spUserPath: string
-	spUserTmpPath: string
-	logPath: string
-	serverErrorLogPath: string
-	serverOutputLogPath: string
-	guiLogPath: string
-	processLogPath: string
-	scsynthLogPath: string
+	receiving = true
+	rootPath!: string
+	rubyPath!: string
+	daemonLauncherPath!: string
+	samplePath!: string
+	spUserPath!: string
+	spUserTmpPath!: string
+	logPath!: string
+	serverErrorLogPath!: string
+	serverOutputLogPath!: string
+	guiLogPath!: string
+	processLogPath!: string
+	scsynthLogPath!: string
 
+	onCue = new vscode.EventEmitter<{ time: number; id: number; address: string; args: string }>()
 	onRunStarted = new vscode.EventEmitter<number>()
 	onRunEnded = new vscode.EventEmitter<number>()
 	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
 	onServerRestart = new vscode.EventEmitter<void>()
 	onReceiverFailed = new vscode.EventEmitter<void>()
+	onReceiverOpened = new vscode.EventEmitter<void>()
 	onServerState = new vscode.EventEmitter<'stopped' | 'starting' | 'running'>()
 
 	// Outstanding /buffer-beautify request: buffer id and the promise resolving with
 	// the daemon's /buffer/replace reply. One request at a time (beautify is modal).
-	private pendingBeautify:
+	pendingBeautify:
 		| {
 				bufferId: string
 				resolve: (reply: { content: string; line: number; index: number }) => void
 		  }
 		| undefined
 	onVersion = new vscode.EventEmitter<string>()
+	onMixerSettings = new vscode.EventEmitter<{ drive: number; volume: number }>()
+	onSupersonicDevices = new vscode.EventEmitter<{ kind: 'output' | 'input' | 'table'; names: string[] }>()
+	onLinkBpm = new vscode.EventEmitter<number>()
+	onLinkPeers = new vscode.EventEmitter<number>()
 
-	guiSendToServerPort: number
-	daemonPort: number
-	guiListenToServerPort: number
-	serverListenToGuiPort: number
-	serverOscCuesPort: number
-	serverSendToGuiPort: number
-	scsynthPort: number
-	scsynthSendPort: number
+	guiSendToServerPort!: number
+	daemonPort!: number
+	guiListenToServerPort!: number
+	serverListenToGuiPort!: number
+	serverOscCuesPort!: number
+	serverSendToGuiPort!: number
+	scsynthPort!: number
+	scsynthSendPort!: number
 
 	portsInitalized: Promise<OscSender>
 	portsInitalizedResolver!: (sender: OscSender) => void
 	keepAliveTimer: ReturnType<typeof setInterval> | undefined
+	private keepAliveFailures = 0
+	// The daemon-audio routes need their own socket: the keepalive sender is a lifecycle
+	// object (errors there declare the daemon dead) and must never carry audio traffic.
+	// Cached per daemon port: a re-boot changes the port, so the cache must not survive it.
+	private daemonSender: OscSender | undefined
+	private daemonSenderPort = -1
+	private cueBenchSender: CueBenchSender | undefined
+	// Raw /supersonic/device-table args, kept unparsed: the picker task decides the shape.
+	lastDeviceTable: OscArg[] = []
+	// Consecutive keepalive send errors before the daemon is declared dead. One ICMP
+	// hiccup is not death; three in a row means the destination port refuses everything.
+	private static readonly KEEPALIVE_FAILURE_LIMIT = 3
+	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
+	// to the cells that produced it (we send joined cell keys as the workspace).
+	liveJobs = new Map<number, string>()
 
-	logOutput: vscode.OutputChannel
-	cuesOutput: vscode.OutputChannel
+	logOutput!: vscode.OutputChannel
+	cuesOutput!: vscode.OutputChannel
 
-	serverStarted: boolean
+	serverStarted!: boolean
 	midiAutoStartSent: boolean = false
 	daemonProcess: child_process.ChildProcess | undefined
 	restartInProgress = false
@@ -99,9 +123,9 @@ export class Main {
 	// the burst of reconnect lines the daemon prints per audio outage.
 	lastAudioLossNotifiedAt = 0
 
-	platform: string
-	guiUuid: number
-	config: Config
+	platform!: string
+	guiUuid!: number
+	config!: Config
 	spiderServerScanner: () => SpiderPorts | undefined = findRunningSpiderServer
 
 	errorHighlightDecorationType = vscode.window.createTextEditorDecorationType({
@@ -109,7 +133,22 @@ export class Main {
 	})
 
 	constructor() {
-		// Set up path defaults based on platform
+		this.initializePaths()
+
+		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
+
+		this.initializeOutputChannels()
+		this.registerAutoLaunchWatchers()
+	}
+
+	private initializeOutputChannels() {
+		this.cuesOutput = vscode.window.createOutputChannel('Sonic Pi Cues')
+		this.logOutput = vscode.window.createOutputChannel('Sonic Pi Log')
+		this.cuesOutput.show()
+		this.logOutput.show()
+	}
+
+	private initializePaths() {
 		this.platform = os.platform()
 		if (this.platform === 'win32') {
 			this.rootPath = 'C:/Program Files/Sonic Pi'
@@ -127,8 +166,6 @@ export class Main {
 		if (this.config.sonicPiRootDirectory()) {
 			this.rootPath = this.config.sonicPiRootDirectory()
 		}
-
-		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
 
 		if (this.config.commandPath()) {
 			this.rubyPath = this.config.commandPath()
@@ -173,19 +210,12 @@ export class Main {
 			fs.mkdirSync(this.logPath, { recursive: true })
 		}
 
-		this.cuesOutput = vscode.window.createOutputChannel('Sonic Pi Cues')
-		this.logOutput = vscode.window.createOutputChannel('Sonic Pi Log')
-		this.cuesOutput.show()
-		this.logOutput.show()
-
 		this.serverStarted = false
 		this.midiAutoStartSent = false
-
-		// this.oscSender = new OscSender()
-
-		// create an uuid for the editor
 		this.guiUuid = -1
+	}
 
+	private registerAutoLaunchWatchers() {
 		// watch to see if the user opens a ruby or custom file and we need to start the server
 		vscode.window.onDidChangeVisibleTextEditors((editors) => {
 			const launchAuto = this.config.launchSonicPiServerAutomatically()
@@ -320,6 +350,9 @@ export class Main {
 		this.serverOscCuesPort = ports.oscCuesPort
 		this.guiUuid = ports.token
 		this.portsInitalizedResolver(new OscSender(ports.sendToServerPort))
+		if (this.serverOscCuesPort > 0) {
+			this.cueBenchSender = new CueBenchSender(this.serverOscCuesPort)
+		}
 		// An adopted daemon has no child process here, so the booter log is the only place its
 		// keep-alive port can come from. Without it no keep-alive is sent and the daemon's kill
 		// switch stops the audio of a playing set a hundred seconds after attaching.
@@ -350,226 +383,85 @@ export class Main {
 	// This is where the incoming OSC messages are processed.
 	// We are processing most of the incoming OSC messages, but not everything yet.
 	setupOscReceiver() {
-		// exclusive: true -> a second window's bind fails with EADDRINUSE instead of
-		// (SO_REUSEADDR) both binding and Linux flipping packet delivery between
-		// binders mid-session. Ownership becomes deterministic and detectable.
-		const pluginOptions = {
-			type: 'udp4',
-			open: { port: this.guiListenToServerPort, host: '127.0.0.1', exclusive: true },
-		}
-		const osc = new OSC({ plugin: new OSC.DatagramPlugin(pluginOptions) })
-		osc.on('open', () => {
-			// A fresh receiver that bound owns the reply port again: a later takeover or restart
-			// must clear the deafness an earlier window's bind failure left behind, or every
-			// following play would take the server over again and kill this window's own daemon.
-			this.receiving = true
-		})
-		osc.open()
-		// Another VS Code window attached to the same server wins the reply-port bind
-		// (EADDRINUSE). This host would send runs that execute but never see replies.
-		osc.on('error', (error: Error & { code?: string }) => {
-			if (error.code !== 'EADDRINUSE') return
-			this.receiving = false
-			this.logOutput.appendLine(
-				'Another VS Code window is connected to this Sonic Pi server, so IT will show the run ' +
-					"logs and this window won't. Your window's Play will still sound - the server takes " +
-					'every run it is sent.',
-			)
-			this.logOutput.appendLine(
-				'To move the logs to THIS window: close the other window (or its Sonic Pi tab), ' +
-					'then press Play to take over the connection.',
-			)
-			this.logOutput.appendLine(
-				'(technical detail: reply port ' + this.guiListenToServerPort + ' was already bound)',
-			)
-			this.onReceiverFailed.fire()
-		})
-
-		osc.on('/version', (message: OscMessage) => {
-			const version = message.args[0]
-			if (typeof version === 'string' && version) {
-				this.onVersion.fire(version)
-			}
-		})
-
-		osc.on('/log/info', (message: OscMessage) => {
-			// this.logOutput.appendLine('Got /log/info' + ' -> ' + message.args[0] + ', ' + message.args[1])
-			const line = String(message.args[1])
-			const parse = /(Completed|Starting) run (\d+)/.exec(line)
-			if (parse) {
-				const num = +parse[2]
-				if (parse[1] === 'Completed') this.onRunEnded.fire(num)
-				else if (parse[1] === 'Starting') this.onRunStarted.fire(num)
-			}
-			this.log(line)
-		})
-
-		osc.on('/incoming/osc', (message: OscMessage) => {
-			// console.log(
-			//  	'Got /incoming/osc' +
-			//  		' -> ' +
-			//  		message.args[0] +
-			//  		', ' +
-			//  		message.args[1] +
-			//  		', ' +
-			//  		message.args[2] +
-			//  		', ' +
-			//  		message.args[3],
-			//  )
-			this.cueLog(message.args[2] + ': ' + message.args[3])
-		})
-
-		osc.on('/log/multi_message', (message: OscMessage) => {
-			// console.log('Got /log/multi_message')
-			this.processMultiMessage(message)
-		})
-
-		osc.on('/syntax_error', (message: OscMessage) => {
-			// console.log(
-			// 	'Got /syntax_error' +
-			// 		message.args[0] +
-			// 		', ' +
-			// 		message.args[1] +
-			// 		', ' +
-			// 		message.args[2] +
-			// 		', ' +
-			// 		message.args[3] +
-			// 		', ' +
-			// 		message.args[4],
-			// )
-			this.processSyntaxError(message)
-		})
-
-		osc.on('/error', (message: OscMessage) => {
-			// console.log('Got /error')
-			this.processError(message)
-		})
-
-		osc.on('/flash', (message: OscMessage) => {
-			const workspace = message.args[1]
-			const line = message.args[2]
-			if (typeof workspace !== 'string' || typeof line !== 'number') return
-			this.onFlash.fire({ workspace, line })
-		})
-
-		// Reply to /buffer-beautify: the daemon drains its message queue and answers with
-		// gui.send("/buffer/replace", buf_id, content, line, index, first_line) — same
-		// address the Qt GUI consumes for buffer replacements (spider-server.rb:1035).
-		osc.on('/buffer/replace', (message: OscMessage) => {
-			const bufferId = message.args[0]
-			const pending = this.pendingBeautify
-			if (!pending || bufferId !== pending.bufferId) {
-				return
-			}
-			const content = message.args[1]
-			const line = message.args[2]
-			const index = message.args[3]
-			if (typeof content !== 'string' || typeof line !== 'number' || typeof index !== 'number') {
-				return
-			}
-			this.pendingBeautify = undefined
-			pending.resolve({ content, line, index })
-		})
-
-		//osc.on('*', (message: {address: string}) => {
-		//    this.logOutput.appendLine("Got message of type: " + message.address);
-		//});
+		registerOscHandlers(this)
 	}
 
-	// Show information about the syntax error to the user
-	processSyntaxError(message: OscMessage) {
-		const job_id = message.args[0]
-		const desc = message.args[1]
-		const error_line = message.args[2]
-		const line = Number(message.args[3])
-
-		void vscode.window
-			.showErrorMessage(
-				'Syntax error on Ajob ' + job_id + ': ' + desc + '\nLine ' + line + ': ' + error_line,
-				'Goto error',
-			)
-			.then((item) => {
-				if (item) {
-					const errorHighlight: vscode.DecorationOptions[] = []
-					const editor = vscode.window.activeTextEditor!
-					const range = editor.document.lineAt(line - 1).range
-					editor.selection = new vscode.Selection(range.start, range.end)
-					editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport)
-					errorHighlight.push({ range })
-					editor.setDecorations(this.errorHighlightDecorationType, errorHighlight)
-				}
-			})
+	private getDaemonSender() {
+		if (!this.daemonSender || this.daemonSenderPort !== this.daemonPort) {
+			this.daemonSenderPort = this.daemonPort
+			this.daemonSender = new OscSender(this.daemonPort)
+		}
+		return this.daemonSender
 	}
 
-	// Show information about the error to the user
-	processError(message: OscMessage) {
-		const job_id = message.args[0]
-		const desc = message.args[1]
-		const backtrace = message.args[2]
-		const line = Number(message.args[3])
-
-		this.logOutput.appendLine(
-			'Error on job ' + job_id + ': ' + desc + '\nLine ' + line + ': ' + backtrace,
-		)
-		//void vscode.window
-		//	.showErrorMessage(
-		//		'Error on job ' + job_id + ': ' + desc + '\nLine ' + line + ': ' + backtrace,
-		//		'Goto error',
-		//	)
-		//	.then((item) => {
-		//		if (item) {
-		const errorHighlight: vscode.DecorationOptions[] = []
-		const editor = vscode.window.activeTextEditor!
-		const range = editor.document.lineAt(line - 1).range
-		editor.selection = new vscode.Selection(range.start, range.end)
-		editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport)
-		errorHighlight.push({ range })
-		editor.setDecorations(this.errorHighlightDecorationType, errorHighlight)
-		//		}
-		//	})
+	private sendDaemonAudio(address: string, ...args: OscArg[]) {
+		this.getDaemonSender().send(new OSC.Message(address, this.guiUuid, ...args))
 	}
 
-	// Process an incoming multi-message
-	processMultiMessage(message: OscMessage) {
-		const job_id = message.args[0]
-		const thread_name = message.args[1]
-		const runtime = message.args[2]
-		const count = Number(message.args[3])
+	requestAudioDevices() {
+		this.sendDaemonAudio('/daemon/audio/request-devices')
+	}
 
-		let toShow = '{run: ' + job_id + ', time: ' + runtime
-		if (thread_name) {
-			toShow += ', thread: ' + thread_name
+	switchAudioDevice(key: string) {
+		this.sendDaemonAudio('/daemon/audio/switch-device', key)
+	}
+
+	switchAudioDriver(driver: string) {
+		this.sendDaemonAudio('/daemon/audio/switch-driver', driver)
+	}
+
+	reopenAudioDevice() {
+		this.sendDaemonAudio('/daemon/audio/reopen-device')
+	}
+
+	// The daemon forwards the engine's device pushes to gui-listen (daemon.rb device
+	// forwarding). Payloads are flat arrays; non-strings (a stray leading number in
+	// /supersonic/input-devices) are filtered so consumers only see display names.
+	fireSupersonicDevices(address: string, args: OscArg[]) {
+		if (address === '/supersonic/device-table') {
+			this.lastDeviceTable = args
 		}
-		toShow += '}'
-		this.logOutput.appendLine(toShow)
-
-		for (let i = 0; i < count; i++) {
-			//let type = message.args[4 + (2*i)];
-			const str = String(message.args[4 + 1 + 2 * i])
-			const lines = str.split(/\r?\n/)
-			if (!str) {
-				toShow = ' |'
-			} else if (i === count - 1) {
-				toShow = ' └─ '
-			} else {
-				toShow = ' ├─ '
-			}
-			this.logOutput.append(toShow)
-
-			lines.forEach((line: string) => {
-				this.logOutput.appendLine(line)
-			})
-		}
+		const kind =
+			address === '/supersonic/devices'
+				? 'output'
+				: address === '/supersonic/input-devices'
+					? 'input'
+					: 'table'
+		this.onSupersonicDevices.fire({ kind, names: args.filter((a) => typeof a === 'string') })
 	}
 
 	startKeepAlive() {
 		this.clearKeepAlive()
+		this.keepAliveFailures = 0
 		const daemonSender = new OscSender(this.daemonPort)
+		daemonSender.onError(() => {
+			this.keepAliveFailures++
+			if (this.keepAliveFailures >= Main.KEEPALIVE_FAILURE_LIMIT) {
+				this.daemonDied()
+			}
+		})
 		this.log(`Keep-alive started: pinging daemon port ${this.daemonPort} with /daemon/keep-alive`)
 		this.keepAliveTimer = setInterval(() => {
 			const message = new OSC.Message('/daemon/keep-alive', this.guiUuid)
 			daemonSender.send(message)
 		}, 1000)
+	}
+
+	// The daemon is gone (kill switch, crash, machine sleep). Without this the window keeps
+	// claiming a live server and every later play lands on a dead port: silently lost, empty
+	// log channel (user report: 'plays do nothing, no logs'). Reset so the next play takes
+	// the cold path: the server-alive claim drops, scanner finds nothing, managed boot
+	// brings a fresh daemon up. No auto-reboot here: a daemon that dies repeatedly must not
+	// become a boot loop in the background.
+	private daemonDied() {
+		if (!this.serverStarted && !this.keepAliveTimer) {
+			return
+		}
+		this.clearKeepAlive()
+		this.serverStarted = false
+		this.liveJobs.clear()
+		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
+		this.log('Lost contact with the Sonic Pi daemon - the next play boots a fresh server.')
 	}
 
 	private clearKeepAlive(): boolean {
@@ -579,6 +471,27 @@ export class Main {
 		clearInterval(this.keepAliveTimer)
 		this.keepAliveTimer = undefined
 		return true
+	}
+
+	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
+	// to the cells that produced it (we send joined cell keys as the workspace).
+	private registerRunTrackingHandlers(osc: OSC) {
+		osc.on('/run/started', (message: OscMessage) => {
+			const jobId = Number(message.args[0])
+			const workspace = typeof message.args[1] === 'string' ? message.args[1] : ''
+			if (Number.isFinite(jobId) && workspace) {
+				this.liveJobs.set(jobId, workspace)
+			}
+		})
+
+		osc.on('/run/ended', (message: OscMessage) => {
+			const jobId = Number(message.args[0])
+			this.liveJobs.delete(jobId)
+		})
+
+		osc.on('/runs/all-completed', () => {
+			this.liveJobs.clear()
+		})
 	}
 
 	// This is the main part of launching Sonic Pi's backend
@@ -608,8 +521,15 @@ export class Main {
 				this.daemonPort = ports.daemonPort
 				this.guiListenToServerPort = ports.guiListenToServerPort
 				this.serverSendToGuiPort = ports.serverSendToGuiPort
+				this.serverOscCuesPort = resolveOscCuesPort(
+					this.config.oscCuesPortOverride(),
+					ports.oscCuesPort,
+				)
 				this.guiUuid = ports.token
 				this.portsInitalizedResolver(new OscSender(this.serverSendToGuiPort))
+				if (this.serverOscCuesPort > 0) {
+					this.cueBenchSender = new CueBenchSender(this.serverOscCuesPort)
+				}
 
 				resolve() // Assume stuff is ok instantly....
 
@@ -765,9 +685,39 @@ export class Main {
 		return path.join(os.homedir(), '.sonic-pi', 'log', 'daemon.log')
 	}
 
+	// Another VS Code window attached to the same server wins the reply-port bind
+	// (EADDRINUSE). This host would send runs that execute but never see replies.
+	private onReplyPortTaken() {
+		this.receiving = false
+		const subject = holderSubject(classifyReplyPortHolder(this.guiListenToServerPort))
+		this.logOutput.appendLine(
+			subject +
+				" is showing the run logs. Your window's Play will still sound. To bring the logs here: " +
+				'press Play again - it takes over the connection.',
+		)
+		this.logOutput.appendLine(
+			'To move the logs to THIS window: close ' +
+				(subject === 'The Sonic Pi app'
+					? 'the Sonic Pi app (or restart its connection)'
+					: 'the other ' +
+						(subject === 'Another VS Code window' ? 'window (or its Sonic Pi tab)' : 'program') +
+						', then press Play to take over the connection.'),
+		)
+		this.logOutput.appendLine(
+			'(technical detail: reply port ' + this.guiListenToServerPort + ' was already bound)',
+		)
+		this.onReceiverFailed.fire()
+	}
+
 	// The daemon numbers a fragment run's flashes and errors from the first line it was given, so the
 	// code is padded with a comment line per editor line above it: the run then reports file lines.
-	runCode(code: string, offset: number = 0) {
+	runCode(
+		code: string,
+		offset: number = 0,
+		cells: string[] = [],
+		opts: { replaceSession?: boolean; silent?: boolean } = {},
+	) {
+		const replaceSession = opts.replaceSession !== false
 		// The offset is the editor line the code starts on, and 0 when the whole buffer goes out.
 		// The safe-mode prefix is compensated by the runtime's firstline, so the padding lands
 		// one-to-one on the editor lines.
@@ -780,7 +730,7 @@ export class Main {
 		// Per-cell mental model: a play replaces the session's sound (matching the Sonic Pi
 		// app's Run button). testReplacesSession=false keeps Sonic Pi's stack-and-layer
 		// semantics for users who want overlapping runs.
-		if (this.config.runReplacesSession()) {
+		if (replaceSession && this.config.runReplacesSession()) {
 			this.stopAllJobs()
 		}
 		if (this.config.safeMode()) {
@@ -792,7 +742,21 @@ export class Main {
 			this.midiAutoStartSent = true
 		}
 		this.clearErrorHighlight()
-		const message = new OSC.Message('/run-code', this.guiUuid, code)
+		// The workspace argument rides the run through the daemon and comes back on
+		// /run/started, which is how a job id maps back to the cells that own it.
+		// Omitted entirely for plain editor runs (the daemon defaults the workspace).
+		// A 4th /run-code arg of 1 asks the daemon to run silently (no log/flash echo) - it is
+		// only honored when a workspace argument is also present.
+		const message =
+			cells.length > 0
+				? new OSC.Message(
+						'/run-code',
+						this.guiUuid,
+						code,
+						cells.join('|'),
+						...(opts.silent ? [1] : []),
+					)
+				: new OSC.Message('/run-code', this.guiUuid, code)
 		this.sendOsc(message)
 	}
 
@@ -857,60 +821,139 @@ export class Main {
 		return new Range(editor.selection.anchor, editor.selection.active)
 	}
 
+	// set_link_bpm! only touches Link's tempo: the run must NOT replace the session. The
+	// daemon honors the silent flag (args[3]=1) only when a workspace argument is present,
+	// so the run always carries the 'link-bpm-set' workspace - it suppresses the log flash.
+	setLinkBpm(bpm: number) {
+		const MIN_BPM = 20
+		const MAX_BPM = 999
+		if (!Number.isFinite(bpm) || bpm < MIN_BPM || bpm > MAX_BPM) {
+			void vscode.window.showWarningMessage(
+				`Sonic Pi: Link BPM ${bpm} is outside the daemon's accepted range ${MIN_BPM}-${MAX_BPM}. Nothing was sent.`,
+			)
+			this.log('Rejected set_link_bpm out of range: ' + bpm)
+			return
+		}
+		this.runCode(`set_link_bpm! ${bpm}`, 0, ['link-bpm-set'], { replaceSession: false, silent: true })
+	}
+
 	stopAllJobs() {
-		const message = new OSC.Message('/stop-all-jobs', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/stop-all-jobs', this.guiUuid))
 	}
 
 	startRecording() {
-		const message = new OSC.Message('/start-recording', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/start-recording', this.guiUuid))
 	}
 
 	stopRecording() {
-		const message = new OSC.Message('/stop-recording', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/stop-recording', this.guiUuid))
 	}
 
 	saveRecording(path: string) {
-		const message = new OSC.Message('/save-recording', this.guiUuid, path)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/save-recording', this.guiUuid, path))
 	}
 
 	deleteRecording() {
-		const message = new OSC.Message('/delete-recording', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/delete-recording', this.guiUuid))
 	}
 
 	mixerInvertStereo() {
-		const message = new OSC.Message('/mixer-invert-stereo', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/mixer-invert-stereo', this.guiUuid))
 	}
 
 	mixerStandardStereo() {
-		const message = new OSC.Message('/mixer-standard-stereo', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/mixer-standard-stereo', this.guiUuid))
 	}
 
 	mixerMonoMode() {
-		const message = new OSC.Message('/mixer-mono-mode', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/mixer-mono-mode', this.guiUuid))
 	}
 
 	mixerStereoMode() {
-		const message = new OSC.Message('/mixer-stereo-mode', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/mixer-stereo-mode', this.guiUuid))
+	}
+
+	// Pre-limiter gain. The daemon expects /mixer-drive(token, amp, silent); silent=1
+	// keeps the level change out of the cue log.
+	setDrive(amp: number) {
+		this.sendOsc(new OSC.Message('/mixer-drive', this.guiUuid, amp, 1))
+	}
+
+	setLpf(freq: number | 'off') {
+		this.sendOsc(
+			freq === 'off'
+				? new OSC.Message('/mixer-lpf-disable', this.guiUuid)
+				: new OSC.Message('/mixer-lpf-enable', this.guiUuid, freq),
+		)
+	}
+
+	setHpf(freq: number | 'off') {
+		this.sendOsc(
+			freq === 'off'
+				? new OSC.Message('/mixer-hpf-disable', this.guiUuid)
+				: new OSC.Message('/mixer-hpf-enable', this.guiUuid, freq),
+		)
 	}
 
 	// Master fader after the limiter; the server clamps the passed amp to 0..1.
 	setMasterVolume(volumePercent: number) {
-		const message = new OSC.Message('/mixer-output-volume', this.guiUuid, volumePercent / 100)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/mixer-output-volume', this.guiUuid, volumePercent / 100))
 	}
 
 	requestVersion() {
-		const message = new OSC.Message('/version', this.guiUuid)
-		this.sendOsc(message)
+		this.sendOsc(new OSC.Message('/version', this.guiUuid))
+	}
+
+	// Per-run stop: kill only the job(s) a cell belongs to. Falls back to the whole-session
+	// stop when the cell's run is unknown or already finished - that keeps the notebook
+	// interrupt path correct even without run tracking.
+	// Read-only peek at the tracked runs: the integration suite waits for the workspace of a
+	// run to appear here before muting, so the mute deterministically maps to the job.
+	liveJobWorkspaceFor(cellKey: string): string | undefined {
+		for (const [, workspace] of this.liveJobs) {
+			if (workspace.split('|').includes(cellKey)) {
+				return workspace
+			}
+		}
+		return undefined
+	}
+
+	stopCell(cells: string[]) {
+		const wanted = new Set(cells)
+		const matching = [...this.liveJobs.entries()].filter(([, workspace]) =>
+			workspace.split('|').some((key) => wanted.has(key)),
+		)
+		if (matching.length === 0) {
+			this.stopAllJobs()
+			return
+		}
+		for (const [jobId] of matching) {
+			const message = new OSC.Message('/stop-job', this.guiUuid, jobId)
+			this.sendOsc(message)
+		}
+	}
+
+	async sendTestCue(address: string, args: string[]): Promise<void> {
+		if (!this.cueBenchSender) {
+			throw new Error('Cue bench sender not initialized (no cue port)')
+		}
+		await this.cueBenchSender.sendTestCue(address, args)
+	}
+
+	cuePortStart() {
+		this.sendOsc(new OSC.Message('/cue-port-start', this.guiUuid))
+	}
+
+	cuePortStop() {
+		this.sendOsc(new OSC.Message('/cue-port-stop', this.guiUuid))
+	}
+
+	cuePortExternal() {
+		this.sendOsc(new OSC.Message('/cue-port-external', this.guiUuid))
+	}
+
+	cuePortInternal() {
+		this.sendOsc(new OSC.Message('/cue-port-internal', this.guiUuid))
 	}
 
 	// Remove the error highlight

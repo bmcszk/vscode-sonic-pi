@@ -28,6 +28,13 @@ jobs:
 
       - run: npm ci
 
+      # Pinned to the exact 1.42.3 binary release for reproducible CI.
+      - name: Install just
+        run: |
+          curl -fsSL https://github.com/casey/just/releases/download/1.42.3/just-1.42.3-x86_64-unknown-linux-musl.tar.gz -o just.tar.gz
+          tar -xzf just.tar.gz just
+          sudo install just /usr/local/bin/just
+
       - run: npm run build
 
       # `npm test` compiles again before running the unit suites; the second
@@ -36,6 +43,10 @@ jobs:
       # daemon over OSC and GitHub-hosted runners have no Sonic Pi installed.
       # Lint gate: zero findings required (honest fixes only - no suppressions in repo).
       - name: Lint (eslint + prettier, fail-fast)
-        run: npm run lint && npm run format:check
+        run: just lint
 
-      - run: npm test
+      - run: just test-unit
+
+      # Artifact-level gate (kept out of test:unit on purpose: it packages the real vsix
+      # through the registry), so CI keeps proving the artifact loads its own module graph.
+      - run: node test/vsix-smoke.test.js

@@ -14,6 +14,10 @@ class FakeOscSender {
 		this.port = port
 		this.sent = []
 		oscSenders.push(this)
+		this.errorHandlers = []
+	}
+	onError(callback) {
+		this.errorHandlers.push(callback)
 	}
 	send(message) {
 		this.sent.push(message)

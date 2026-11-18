@@ -55,4 +55,151 @@ suite('Server lifecycle', () => {
 			(message) => Math.abs(message.args[1] - 1) < 1e-6,
 		)
 	})
+
+	test('a mixer settings push shows in the item and the popover drive sends /mixer-drive', async () => {
+		const mixerItem = host.statusBarItem(98)
+		assert.ok(mixerItem, 'the mixer statusbar item exists')
+
+		const pushMark = host.mark()
+		await host.sendControl('mixer-settings', ['1.5', '0.6'])
+		await host.waitUntil(
+			() => mixerItem.text.includes('drive 1.5') && mixerItem.text.includes('vol 60%'),
+			'the mixer item to show the pushed drive and volume',
+		)
+
+		// The popover's Drive dispatch is unit-covered (mixer-panel.test.js asserts the
+		// /mixer-drive send per picked action). Driving a QuickPick headlessly is flaky:
+		// the integration test pins the push->item half plus the drive SENDER reaching the
+		// daemon via the setDriveForTest seam (real OSC wire + statusbar item + fake handling).
+		const driveMark = host.mark()
+		host.extensionModule('source-runner/extension.js').setDriveForTest(1.5)
+		await host.waitForMessage(
+			'/mixer-drive',
+			driveMark,
+			(message) => Math.abs(message.args[1] - 1.5) < 1e-6 && message.args[2] === 1,
+		)
+	})
+
+	test('requestAudioDevices reaches the daemon as /daemon/audio/request-devices and the picker shows the pushed devices', async () => {
+		const mark = host.mark()
+		host.extensionModule('source-runner/extension.js').requestAudioDevices()
+		await host.waitForMessage('/daemon/audio/request-devices', mark, (message) => message.args.length === 1)
+	})
+	test('Link pushes update the statusbar item and click-to-set sends the silent bpm run', async () => {
+		const linkItem = host.statusBarItem(97)
+		assert.ok(linkItem, 'the link statusbar item exists')
+
+		await host.sendControl('link-bpm', ['122.5'])
+		await host.sendControl('link-peers', ['3'])
+		await host.waitUntil(
+			() => linkItem.text.includes('122.5') && linkItem.text.includes('⇄3'),
+			'the link item to show the pushed bpm and peer count',
+		)
+
+		// The prompt opens at the pushed bpm (122.5), so accepting it is one keystroke and
+		// the suite never has to type into a DOM input box (same drive as the volume test).
+		const bpmMark = host.mark()
+		const prompted = vscode.commands.executeCommand('vscode-sonic-pi.setLinkBpm')
+		await host.delay(500)
+		await vscode.commands.executeCommand('quickInput.accept')
+		await prompted
+		await host.waitForMessage(
+			'/run-code',
+			bpmMark,
+			(message) =>
+				message.args.length > 3 &&
+				message.args[2] === 'link-bpm-set' &&
+				message.args[3] === 1 &&
+				String(message.args[1]).includes('set_link_bpm! 122.5'),
+		)
+	})
+
+	test('a play after the daemon dies boots a fresh server instead of dying silently', async () => {
+		// The user-facing failure: the window stayed 'connected' to a dead daemon and every
+		// play went to a dead port with an empty log channel. The keepalive error signal must
+		// drop the server-alive claim so the next play takes the cold-boot path.
+		const firstBoot = host.lastBoot()
+		assert.ok(firstBoot, 'precondition: a daemon is running from the earlier test')
+
+		await host.sendControl('exit')
+
+		// The dead daemon is noticed through keepalive send errors (three strikes at 1s per
+		// ping). The loss line is the user-visible half of that; it must land BEFORE the
+		// next play so the play takes the cold path.
+		await host.waitUntil(
+			() =>
+				host
+					.logLines('Sonic Pi Log')
+					.some((line) => line.includes('Lost contact with the Sonic Pi daemon')),
+			'the window to declare the daemon dead',
+			15000,
+		)
+
+		// No background auto-boot: a repeatedly dying daemon must not become a boot loop.
+		// The recovery happens on the user's next play, which takes the cold-boot path.
+		const deathMark = host.mark()
+		await vscode.commands.executeCommand('vscode-sonic-pi.runWithText', 'play :e5')
+
+		await host.waitUntil(
+			() => host.boots(deathMark).length >= 1,
+			'the play after daemon death to boot a fresh daemon',
+			30000,
+		)
+		const secondBoot = host.lastBoot()
+		assert.notStrictEqual(secondBoot.pid, firstBoot.pid, 'the fresh daemon is a new process')
+		await host.waitForMessage('/run-code', deathMark, (message) => message.args[1].endsWith('play :e5'))
+	})
+
+	test('a cell interrupt stops the exact daemon job the run started announced', async () => {
+		// The notebook's kernel interrupt must map back to the daemon job id the fake announced
+		// on /run/started; liveJobs stays empty without that push and the window falls back to
+		// the job-blind /stop-all-jobs.
+		host.writeSpec({ holdRuns: true })
+		const restartMark = host.mark()
+		await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+		await host.waitUntil(() => host.boots(restartMark)[0], 'the held-run daemon to boot')
+		try {
+			host.writeFixture('lifecycle.pibook', ['# Held', '', '```', 'play :c4', '```'].join('\n'))
+			const notebook = await host.openNotebook('lifecycle.pibook')
+			const cell = notebook.getCells().find((c) => c.kind === vscode.NotebookCellKind.Code)
+
+			const runMark = host.mark()
+			void vscode.commands.executeCommand('notebook.cell.execute', {
+				ranges: [
+					{ start: notebook.getCells().indexOf(cell), end: notebook.getCells().indexOf(cell) + 1 },
+				],
+				document: notebook.uri,
+			})
+			await host.waitForMessage('/run-code', runMark, (message) => message.args[1].includes('play :c4'))
+			const started = await host.waitUntil(
+				() =>
+					host
+						.sinceMark(runMark)
+						.find((entry) => entry.event === 'push' && entry.address === '/run/started'),
+				'the fake to push /run/started with the workspace',
+			)
+			assert.ok(
+				typeof started.args[1] === 'string' && started.args[1].length > 0,
+				'the /run/started push carries the workspace the run was sent with',
+			)
+			const jobId = started.args[0]
+
+			const stopMark = host.mark()
+			await vscode.commands.executeCommand('notebook.interruptExecution')
+			await host.waitForMessage('/stop-job', stopMark, (message) => message.args[1] === jobId)
+			assert.deepStrictEqual(
+				host
+					.sinceMark(stopMark)
+					.filter((entry) => entry.event === 'message' && entry.address === '/stop-all-jobs'),
+				[],
+				'a single-cell interrupt must not fall back to the job-blind stop',
+			)
+		} finally {
+			await host.sendControl('stop-all')
+			host.writeSpec({})
+			const restoreMark = host.mark()
+			await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+			await host.waitUntil(() => host.boots(restoreMark)[0], 'the restored daemon to boot')
+		}
+	})
 })

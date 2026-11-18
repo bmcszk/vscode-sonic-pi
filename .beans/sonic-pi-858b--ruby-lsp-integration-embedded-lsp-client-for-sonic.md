@@ -5,7 +5,8 @@ status: todo
 type: epic
 priority: normal
 created_at: 2026-11-05T21:20:27Z
-updated_at: 2026-11-08T12:44:52Z
+updated_at: 2026-11-16T13:19:20Z
+parent: sonic-pi-u71o
 ---
 
 sonic-pi-858b  todo   epic  [normal]                                                         
@@ -76,3 +77,7 @@ docs/research/ruby-lsp-integration.md rewritten (merged c355b3b):
 - Load-bearing fact promoted to section 1 and VERIFIED ON DISK against the installed gem: server.rb:382-391 + store.rb:29-36 (ruby-lsp 0.26.10, /usr/lib/ruby/gems/3.4.0) - the else -> :ruby default means sonic-pi files are served as Ruby with zero server-side changes.
 - Shopify VS Code extension demoted to 'avoid this path' appendix.
 - Spike-first 5-phase plan; NO code changes until user greenlights.
+
+## Un-parked (2026-11-16, user verbatim: 'i agree with lsp')
+
+Green-lit for implementation. Sequenced after the 818h top-5 wave. Research docs complete and version-accurate (docs/research/ruby-lsp-integration.md): spike-first plan, installed gem verified on disk.

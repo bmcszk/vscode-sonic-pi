@@ -24,6 +24,10 @@ let spawnedServer
 class FakeOscSender {
 	constructor(port) {
 		this.port = port
+		this.errorHandlers = []
+	}
+	onError(callback) {
+		this.errorHandlers.push(callback)
 	}
 }
 
@@ -40,10 +44,7 @@ const vscodeStub = {
 			dispose() {},
 		}),
 		createTextEditorDecorationType: () => ({}),
-		createStatusBarItem: () => ({
-			show() {},
-			dispose() {},
-		}),
+		createStatusBarItem: () => ({ show() {}, hide() {}, dispose() {} }),
 		showErrorMessage: async (message) => {
 			errorsShown.push(message)
 			return undefined

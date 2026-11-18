@@ -37,8 +37,9 @@ const vscodeStub = {
 	Uri: { joinPath: (...parts) => ({ fsPath: parts.join('/') }) },
 	window: {
 		createOutputChannel: () => ({ append() {}, appendLine() {}, show() {}, dispose() {} }),
+		createTreeView: (viewId, options) => ({ dispose() {} }),
 		createTextEditorDecorationType: () => ({}),
-		createStatusBarItem: () => ({ show() {}, dispose() {} }),
+		createStatusBarItem: () => ({ show() {}, hide() {}, dispose() {} }),
 		showErrorMessage: async (message) => {
 			errorMessages.push(message)
 		},
@@ -118,6 +119,12 @@ class FakeMain {
 		this.onVersion = new StubEventEmitter()
 		this.onServerRestart = new StubEventEmitter()
 		this.onReceiverFailed = new StubEventEmitter()
+		this.onReceiverOpened = new StubEventEmitter()
+		this.onCue = new StubEventEmitter()
+		this.onMixerSettings = new StubEventEmitter()
+		this.onLinkBpm = new StubEventEmitter()
+		this.onLinkPeers = new StubEventEmitter()
+		this.onSupersonicDevices = new StubEventEmitter()
 		this.receiving = true
 		this.serverStarted = false
 		this.restartInProgress = false
@@ -132,6 +139,44 @@ class FakeMain {
 	stopAllJobs() {
 		this.events.push('stopAll')
 	}
+	stopCell(cells) {
+		this.events.push('stopCell:' + cells.join(','))
+	}
+	setDrive(amp) {
+		this.events.push('setDrive:' + amp)
+	}
+	setLpf(freq) {
+		this.events.push('setLpf:' + freq)
+	}
+	setHpf(freq) {
+		this.events.push('setHpf:' + freq)
+	}
+	mixerStereoMode() {
+		this.events.push('stereo')
+	}
+	mixerMonoMode() {
+		this.events.push('mono')
+	}
+	mixerInvertStereo() {
+		this.events.push('invert')
+	}
+	mixerStandardStereo() {
+		this.events.push('standard')
+	}
+	requestAudioDevices() {}
+	switchAudioDevice(key) {}
+	switchAudioDriver(driver) {}
+	reopenAudioDevice() {}
+	setLinkBpm(bpm) {
+		this.events.push('setLinkBpm:' + bpm)
+	}
+	sendTestCue(address, args) {
+		this.events.push('sendTestCue:' + address)
+	}
+	cuePortStart() {}
+	cuePortStop() {}
+	cuePortExternal() {}
+	cuePortInternal() {}
 	stopServer() {}
 	// Boots asynchronously like the real one, which only resolves once the daemon is ready.
 	startServer() {
@@ -201,7 +246,7 @@ const makeNotebook = (cells) => ({
 
 const executionOf = (cell) => executions.get(cell.document.uri.toString())
 
-function openController() {
+function openController(existingCells = []) {
 	runner.activate({
 		subscriptions: [],
 		extensionUri: { fsPath: '/tmp' },
@@ -212,7 +257,13 @@ function openController() {
 	createdHandlers.length = 0
 	const cellFlashes = new CellFlashMap()
 	const controller = new NotebookController('test-kernel', 'sonic-pi-book', 'Sonic Pi Player', cellFlashes)
-	return { main, controller, cellFlashes, handler: createdHandlers[0], notebook: makeNotebook([]) }
+	return {
+		main,
+		controller,
+		cellFlashes,
+		handler: createdHandlers[0],
+		notebook: makeNotebook(existingCells),
+	}
 }
 
 const tests = {
@@ -271,8 +322,8 @@ const tests = {
 	},
 
 	async 'play while another window owns the reply port: this window takes over and plays'() {
-		const { main, handler, notebook } = openController()
 		const cells = [makeCell('c1', 'play 61')]
+		const { main, handler, notebook } = openController(cells)
 		main.receiving = false
 		main.serverStarted = true
 
@@ -289,8 +340,8 @@ const tests = {
 	},
 
 	async 'the taken-over window keeps owning: further plays need no second takeover'() {
-		const { main, handler, notebook } = openController()
 		const cells = [makeCell('c1', 'play 61'), makeCell('c2', 'play 62')]
+		const { main, handler, notebook } = openController(cells)
 		main.receiving = false
 		main.serverStarted = true
 
@@ -546,7 +597,7 @@ const tests = {
 		)
 		settings.launchSonicPiServerAutomatically = 'ruby'
 	},
-	async 'stopping a cell stops the sound: interrupt handler ends executions and stops all jobs'() {
+	async 'stopping a cell stops the sound: interrupt ends the execution and kills that run'() {
 		const { main, handler, notebook } = openController()
 		const cells = [makeCell('c1', 'live_loop :probe do\n  play 60\n  sleep 1\nend')]
 		main.serverStarted = true
@@ -562,8 +613,9 @@ const tests = {
 		await controllerObject.interruptHandler(notebook)
 
 		assert.ok(
-			main.events.includes('stopAll'),
-			'interrupt must stop all running jobs - otherwise the sound continues',
+			main.events.some((event) => event.startsWith('stopCell:c1')),
+			'interrupt must kill the interrupted cell run - otherwise the sound continues, got: ' +
+				main.events.join(','),
 		)
 	},
 }

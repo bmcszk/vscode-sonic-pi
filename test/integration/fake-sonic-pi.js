@@ -37,6 +37,9 @@ const completeDelayMs = spec.completeDelayMs ?? 10
 let sendPort = 0
 let guiListenPort = 0
 let runId = 0
+let cueId = 0
+let cuePort = 0
+let cueSocket = null
 
 function readSpec() {
 	try {
@@ -89,6 +92,7 @@ function writeBootLog(daemonPort) {
 
 function completeRun(socket, id) {
 	sendToGui(socket, '/log/info', [0, `Completed run ${id}`])
+	sendToGui(socket, '/run/ended', [id])
 }
 
 async function main() {
@@ -117,6 +121,10 @@ async function main() {
 		if (address === '/run-code') {
 			const id = runId++
 			sendToGui(socket, '/log/info', [0, `Starting run ${id}`])
+			// The daemon reports each job's workspace back to the GUI, so a run maps to the
+			// cells that own it (main.ts keys liveJobs by it for per-cell stops).
+			sendToGui(socket, '/run/started', [id, args[2] ?? 'eval'])
+			record({ event: 'push', address: '/run/started', args: [id, args[2] ?? 'eval'] })
 			if (holdRuns) {
 				pending.set(id, true)
 			} else {
@@ -129,6 +137,13 @@ async function main() {
 				completeRun(socket, id)
 			}
 			pending.clear()
+		} else if (address === '/stop-job') {
+			// spider-server.rb:1081-1083: a killed job is deleted from the pending table and
+			// reports its /run/ended like any completed run.
+			const id = args[1]
+			if (pending.delete(id)) {
+				completeRun(socket, id)
+			}
 		} else if (address === '/buffer-beautify') {
 			const [, bufferId, code, line, index] = args
 			const aligned = String(code)
@@ -157,6 +172,25 @@ async function main() {
 			sendToGui(commandSocket, '/version', [args[0]])
 		} else if (name === 'exit') {
 			shutdown(commandSocket, 'control-exit')
+		} else if (name === 'mixer-settings') {
+			sendToGui(commandSocket, '/mixer/settings', [args[0], args[1]])
+		} else if (name === 'link-bpm') {
+			sendToGui(commandSocket, '/link-bpm', [args[0]])
+		} else if (name === 'link-peers') {
+			sendToGui(commandSocket, '/link-num-peers', [args[0]])
+		} else if (name === 'request-audio-devices') {
+			// The real daemon answers one request with three pushes (daemon-audio spike,
+			// bean sonic-pi-1zc3): outputs, inputs, device-table - flat name arrays.
+			sendToGui(commandSocket, '/supersonic/devices', ['system', 'System Default', 'Dock Audio'])
+			sendToGui(commandSocket, '/supersonic/input-devices', ['System Default', 'Mic'])
+			sendToGui(commandSocket, '/supersonic/device-table', ['PipeWire', '', 2, 'ALSA', 20])
+		} else if (name === 'cue') {
+			sendToGui(commandSocket, '/incoming/osc', [
+				Date.now() / 1000,
+				cueId++,
+				args[0],
+				args.slice(1).join(' '),
+			])
 		}
 	}
 
@@ -166,6 +200,13 @@ async function main() {
 			socket.close()
 		} catch {
 			// already closed
+		}
+		if (cueSocket) {
+			try {
+				cueSocket.close()
+			} catch {
+				// already closed
+			}
 		}
 		process.exit(0)
 	}
@@ -180,9 +221,44 @@ async function main() {
 		record({ event: 'message', address: decoded.address, args: decoded.args })
 		if (decoded.address === '/daemon/exit') {
 			shutdown(commandSocket, 'daemon-exit')
+		} else if (decoded.address === '/daemon/audio/request-devices') {
+			// The real daemon answers one request with three pushes (daemon-audio spike,
+			// bean sonic-pi-1zc3): outputs, inputs, device-table - flat name arrays.
+			sendToGui(daemonSocket, '/supersonic/devices', ['system', 'System Default', 'Dock Audio'])
+			sendToGui(daemonSocket, '/supersonic/input-devices', ['System Default', 'Mic'])
+			sendToGui(daemonSocket, '/supersonic/device-table', ['PipeWire', '', 2, 'ALSA', 20])
+		} else if (decoded.address === '/daemon/audio/switch-device') {
+			// no-op for integration - the switch-device message is recorded in events.ndjson
+		} else if (decoded.address === '/daemon/audio/switch-driver') {
+			// no-op
+		} else if (decoded.address === '/daemon/audio/reopen-device') {
+			// no-op
 		}
 	})
 	commandSocket.on('message', (message) => onCommand(commandSocket, message))
+
+	// Optional cue socket (spec.ports.cues): the machine's osc-cues UDP listener. Packets
+	// arriving there are both recorded (so suites can assert on the cue wire) and echoed to
+	// the GUI as the /incoming/osc push shape main.ts consumes.
+	if (spec.ports?.cues !== undefined) {
+		cueSocket = dgram.createSocket('udp4')
+		cuePort = await bind(cueSocket, spec.ports.cues)
+		cueSocket.on('message', (message) => {
+			let decoded
+			try {
+				decoded = decodeMessage(message)
+			} catch {
+				return
+			}
+			record({ event: 'cue', address: decoded.address, args: decoded.args })
+			sendToGui(commandSocket, '/incoming/osc', [
+				Date.now() / 1000,
+				cueId++,
+				decoded.address,
+				decoded.args.join(' '),
+			])
+		})
+	}
 
 	process.on('SIGTERM', () => shutdown(commandSocket, 'sigterm'))
 
@@ -197,7 +273,7 @@ async function main() {
 	writeBootLog(daemonPort)
 	// Exactly one stdout line: the extension parses every chunk and aborts on a non-numeric
 	// final token.
-	process.stdout.write(`${daemonPort} ${guiListenPort} ${sendPort} 4560 4562 ${guiUuid}\n`)
+	process.stdout.write(`${daemonPort} ${guiListenPort} ${sendPort} 4560 ${cuePort || 4562} ${guiUuid}\n`)
 }
 
 main().catch((error) => {
