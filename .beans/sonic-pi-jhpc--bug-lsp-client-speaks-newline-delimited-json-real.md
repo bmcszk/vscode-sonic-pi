@@ -1,11 +1,11 @@
 ---
 # sonic-pi-jhpc
 title: 'Bug: LSP client speaks newline-delimited JSON, real servers require Content-Length framing'
-status: in-progress
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-18T14:41:44Z
-updated_at: 2026-11-18T14:41:57Z
+updated_at: 2026-11-18T14:57:44Z
 parent: sonic-pi-858b
 ---
 
@@ -28,3 +28,10 @@ src/lsp/client.ts (ce06) encodes every message as `JSON.stringify(message) + '\n
 ## Skills for coder
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/.agents/skills/coding-rules/SKILL.md
+
+## Proof of Work
+
+- RED: lsp-client suite against the spec-conformant fake failed at 'timeout waiting for initialize reply' (framed server, NDJSON client). GREEN after: encodeMessage emits Content-Length framing; onServerStdout parses header/body with a Buffer accumulator. 14/14 client tests (incl. 2 new framing tests: captured stdin bytes carry the header; initialize completes under real framing).
+- Real-server smoke passes: missing-end -> 2 Prism items, clean -> 0 (proves wire compatibility with ruby-lsp 0.26.10 end-to-end).
+- jhpc ACs: framed requests unit-proven, framed replies unit-proven, red-before-fix, all 12 original ce06 tests updated to real framing and green.
+Residual: none
