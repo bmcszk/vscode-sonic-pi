@@ -36,6 +36,8 @@ import { classifyReplyPortHolder, holderSubject } from '../port-holder'
 import { shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
 import { registerOscHandlers } from './osc-handlers'
+import * as senders from './senders'
+import * as events from './main-events'
 
 // OSC payloads from the Sonic Pi daemon: integer fields and text fields.
 type OscArg = number | string
@@ -56,15 +58,6 @@ export class Main {
 	processLogPath!: string
 	scsynthLogPath!: string
 
-	onCue = new vscode.EventEmitter<{ time: number; id: number; address: string; args: string }>()
-	onRunStarted = new vscode.EventEmitter<number>()
-	onRunEnded = new vscode.EventEmitter<number>()
-	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
-	onServerRestart = new vscode.EventEmitter<void>()
-	onReceiverFailed = new vscode.EventEmitter<void>()
-	onReceiverOpened = new vscode.EventEmitter<void>()
-	onServerState = new vscode.EventEmitter<'stopped' | 'starting' | 'running'>()
-
 	// Outstanding /buffer-beautify request: buffer id and the promise resolving with
 	// the daemon's /buffer/replace reply. One request at a time (beautify is modal).
 	pendingBeautify:
@@ -73,11 +66,20 @@ export class Main {
 				resolve: (reply: { content: string; line: number; index: number }) => void
 		  }
 		| undefined
-	onVersion = new vscode.EventEmitter<string>()
-	onMixerSettings = new vscode.EventEmitter<{ drive: number; volume: number }>()
-	onSupersonicDevices = new vscode.EventEmitter<{ kind: 'output' | 'input' | 'table'; names: string[] }>()
-	onLinkBpm = new vscode.EventEmitter<number>()
-	onLinkPeers = new vscode.EventEmitter<number>()
+
+	onCue = events.onCue
+	onRunStarted = events.onRunStarted
+	onRunEnded = events.onRunEnded
+	onFlash = events.onFlash
+	onMixerSettings = events.onMixerSettings
+	onServerState = events.onServerState
+	onServerRestart = events.onServerRestart
+	onReceiverOpened = events.onReceiverOpened
+	onReceiverFailed = events.onReceiverFailed
+	onVersion = events.onVersion
+	onLinkBpm = events.onLinkBpm
+	onLinkPeers = events.onLinkPeers
+	onSupersonicDevices = events.onSupersonicDevices
 
 	guiSendToServerPort!: number
 	daemonPort!: number
@@ -106,6 +108,11 @@ export class Main {
 	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
 	// to the cells that produced it (we send joined cell keys as the workspace).
 	liveJobs = new Map<number, string>()
+
+	// Senders take the queued send fn and the daemon token, never Main itself.
+	private senderContext(): senders.SenderContext {
+		return { send: (message) => this.sendOsc(message), token: this.guiUuid }
+	}
 
 	logOutput!: vscode.OutputChannel
 	cuesOutput!: vscode.OutputChannel
@@ -841,64 +848,18 @@ export class Main {
 		this.sendOsc(new OSC.Message('/stop-all-jobs', this.guiUuid))
 	}
 
-	startRecording() {
-		this.sendOsc(new OSC.Message('/start-recording', this.guiUuid))
-	}
-
-	stopRecording() {
-		this.sendOsc(new OSC.Message('/stop-recording', this.guiUuid))
-	}
-
-	saveRecording(path: string) {
-		this.sendOsc(new OSC.Message('/save-recording', this.guiUuid, path))
-	}
-
-	deleteRecording() {
-		this.sendOsc(new OSC.Message('/delete-recording', this.guiUuid))
-	}
-
-	mixerInvertStereo() {
-		this.sendOsc(new OSC.Message('/mixer-invert-stereo', this.guiUuid))
-	}
-
-	mixerStandardStereo() {
-		this.sendOsc(new OSC.Message('/mixer-standard-stereo', this.guiUuid))
-	}
-
-	mixerMonoMode() {
-		this.sendOsc(new OSC.Message('/mixer-mono-mode', this.guiUuid))
-	}
-
-	mixerStereoMode() {
-		this.sendOsc(new OSC.Message('/mixer-stereo-mode', this.guiUuid))
-	}
-
-	// Pre-limiter gain. The daemon expects /mixer-drive(token, amp, silent); silent=1
-	// keeps the level change out of the cue log.
-	setDrive(amp: number) {
-		this.sendOsc(new OSC.Message('/mixer-drive', this.guiUuid, amp, 1))
-	}
-
-	setLpf(freq: number | 'off') {
-		this.sendOsc(
-			freq === 'off'
-				? new OSC.Message('/mixer-lpf-disable', this.guiUuid)
-				: new OSC.Message('/mixer-lpf-enable', this.guiUuid, freq),
-		)
-	}
-
-	setHpf(freq: number | 'off') {
-		this.sendOsc(
-			freq === 'off'
-				? new OSC.Message('/mixer-hpf-disable', this.guiUuid)
-				: new OSC.Message('/mixer-hpf-enable', this.guiUuid, freq),
-		)
-	}
-
-	// Master fader after the limiter; the server clamps the passed amp to 0..1.
-	setMasterVolume(volumePercent: number) {
-		this.sendOsc(new OSC.Message('/mixer-output-volume', this.guiUuid, volumePercent / 100))
-	}
+	startRecording = () => senders.startRecording(this.senderContext())
+	stopRecording = () => senders.stopRecording(this.senderContext())
+	saveRecording = (path: string) => senders.saveRecording(this.senderContext(), path)
+	deleteRecording = () => senders.deleteRecording(this.senderContext())
+	mixerInvertStereo = () => senders.mixerInvertStereo(this.senderContext())
+	mixerStandardStereo = () => senders.mixerStandardStereo(this.senderContext())
+	mixerMonoMode = () => senders.mixerMonoMode(this.senderContext())
+	mixerStereoMode = () => senders.mixerStereoMode(this.senderContext())
+	setDrive = (amp: number) => senders.setDrive(this.senderContext(), amp)
+	setLpf = (freq: number | 'off') => senders.setLpf(this.senderContext(), freq)
+	setHpf = (freq: number | 'off') => senders.setHpf(this.senderContext(), freq)
+	setMasterVolume = (volumePercent: number) => senders.setMasterVolume(this.senderContext(), volumePercent)
 
 	requestVersion() {
 		this.sendOsc(new OSC.Message('/version', this.guiUuid))
@@ -940,21 +901,13 @@ export class Main {
 		await this.cueBenchSender.sendTestCue(address, args)
 	}
 
-	cuePortStart() {
-		this.sendOsc(new OSC.Message('/cue-port-start', this.guiUuid))
-	}
+	cuePortStart = () => senders.cuePortStart(this.senderContext())
 
-	cuePortStop() {
-		this.sendOsc(new OSC.Message('/cue-port-stop', this.guiUuid))
-	}
+	cuePortStop = () => senders.cuePortStop(this.senderContext())
 
-	cuePortExternal() {
-		this.sendOsc(new OSC.Message('/cue-port-external', this.guiUuid))
-	}
+	cuePortExternal = () => senders.cuePortExternal(this.senderContext())
 
-	cuePortInternal() {
-		this.sendOsc(new OSC.Message('/cue-port-internal', this.guiUuid))
-	}
+	cuePortInternal = () => senders.cuePortInternal(this.senderContext())
 
 	// Remove the error highlight
 	clearErrorHighlight() {
