@@ -1,11 +1,11 @@
 ---
 # sonic-pi-jg86
 title: Hover/definition pass-through, static completions kept client-side (858b)
-status: todo
+status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-16T13:32:00Z
-updated_at: 2026-11-18T14:15:03Z
+updated_at: 2026-11-18T15:04:28Z
 parent: sonic-pi-858b
 blocked_by:
     - sonic-pi-ce06
