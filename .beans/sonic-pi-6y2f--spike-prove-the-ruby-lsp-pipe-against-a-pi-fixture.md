@@ -1,10 +1,11 @@
 ---
 # sonic-pi-6y2f
 title: 'Spike: prove the ruby-lsp pipe against a .pi fixture (858b)'
-status: draft
+status: in-progress
 type: task
+priority: normal
 created_at: 2026-11-16T13:32:00Z
-updated_at: 2026-11-16T13:32:00Z
+updated_at: 2026-11-18T13:39:57Z
 parent: sonic-pi-858b
 ---
 

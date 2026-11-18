@@ -1,11 +1,11 @@
 ---
 # sonic-pi-858b
 title: 'Ruby LSP integration: embedded LSP client for sonic-pi files (error highlighting as you type)'
-status: todo
+status: in-progress
 type: epic
 priority: normal
 created_at: 2026-11-05T21:20:27Z
-updated_at: 2026-11-16T13:19:20Z
+updated_at: 2026-11-18T13:39:57Z
 parent: sonic-pi-u71o
 ---
 
@@ -81,3 +81,8 @@ docs/research/ruby-lsp-integration.md rewritten (merged c355b3b):
 ## Un-parked (2026-11-16, user verbatim: 'i agree with lsp')
 
 Green-lit for implementation. Sequenced after the 818h top-5 wave. Research docs complete and version-accurate (docs/research/ruby-lsp-integration.md): spike-first plan, installed gem verified on disk.
+
+
+
+## Unparked (user directive, this session)
+User said 'continue on dev3 branch' with stacked PRs - the epic is active again. Spike sonic-pi-6y2f claimed; work happens on feat/ruby-lsp-spike (worktree .worktrees/ruby-lsp-spike), stack: dev3 -> dev2 -> dev (PR #2 is the dev2->dev link).
