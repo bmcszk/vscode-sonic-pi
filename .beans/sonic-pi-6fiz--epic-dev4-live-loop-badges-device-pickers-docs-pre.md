@@ -1,11 +1,11 @@
 ---
 # sonic-pi-6fiz
 title: 'Epic: dev4 — live-loop badges, device pickers, docs preview, run-state hardening'
-status: in-progress
+status: completed
 type: epic
 priority: normal
 created_at: 2026-11-18T17:06:15Z
-updated_at: 2026-11-18T17:06:33Z
+updated_at: 2026-11-18T17:54:38Z
 parent: sonic-pi-u71o
 ---
 
@@ -29,3 +29,12 @@ Every task AC names assertion counts or an observed events.ndjson message. Full 
 - /home/blaze/.agents/skills/coding-rules/SKILL.md (read fully before editing)
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
+
+## Proof of Work (end-to-end)
+
+- All 7 children completed with PoW (D0 extraction, D1a-d badges, D2a-c pickers, D3a-b run-state, D4a-c command pack, D5a-b docs preview, D6a auto-run-save).
+- Honest correction in the ledger: 09v2 + fz82 were prematurely completed mid-wave and reopened; final wiring landed in 2407142 with red-first tests per leaf.
+- E2e at 2407142: node test/run-unit.js 49 suites exit 0; npm test exit 0 (lint+format+build+units+vsix smoke); integration device-telemetry suite 42 passing 0 failing (fake pushes: live-loop-scope/scope-ended, midi-ports, gamepads, spider-ready, exited); cue-port 4 real wire asserts; activation gate green (cold dispatch of every new command).
+- Lint budgets hold: main.ts 976/1000, extension.ts 865/1000, all functions <100; zero suppressions; both hooks live-fired on every commit in the line.
+- Stacking: dev4 pushed on top of dev3 (PR #3, unmerged); PR #4 (dev4->dev3) opens after merge.
+Residual: badge legibility visual check at next live session (cosmetic)

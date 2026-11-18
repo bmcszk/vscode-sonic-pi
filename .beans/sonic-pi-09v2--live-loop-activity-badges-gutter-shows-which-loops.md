@@ -1,11 +1,11 @@
 ---
 # sonic-pi-09v2
 title: 'Live-loop activity badges: gutter shows which loops are alive (D1)'
-status: in-progress
+status: completed
 type: feature
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:38:25Z
+updated_at: 2026-11-18T17:54:03Z
 parent: sonic-pi-6fiz
 ---
 
@@ -41,3 +41,10 @@ Residual: D1d integration comment - decorations live-verified in W3c (wave 3) - 
 ## Correction (orchestrator)
 
 Reopened: my previous completion was premature - D1d (badge registration in extension.ts + restart clear + integration) is NOT landed; chain H pass 1 covered only D4a+D6a. The pure half (D1a/D1b) and handler half (D1c) stand verified; the feature closes when the badge is user-visible and integration-proven.
+
+## Proof of Work (final)
+
+- D1d landed: LiveLoopBadgeDecorator (one decoration type, refresh/clearAll/dispose) + registerLiveLoopBadges wiring onLiveLoopScope/onLiveLoopScopeEnded/onDidChangeVisibleTextEditors/onServerRestart (store clear + badge wipe). 6 wiring unit tests red-first ('LiveLoopBadgeDecorator is not a constructor' -> green).
+- Integration: fake push live-loop-scope -> store entry asserted via extensionModule; scope-ended -> removed; restart clears. Badge paint ranges unit-proven against a fake editor (visual check recommended at next live session).
+- Orchestrator gates at 2407142: run-unit 49 suites exit 0; npm test exit 0 (incl. vsix smoke); integration 42 passing 0 failing; lint/prettier clean; zero suppressions.
+Residual: visual badge legibility confirmed at next live session (cosmetic)

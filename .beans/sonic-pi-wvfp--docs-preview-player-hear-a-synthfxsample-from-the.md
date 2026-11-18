@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:20:10Z
+updated_at: 2026-11-18T17:54:03Z
 parent: sonic-pi-6fiz
 ---
 
@@ -29,3 +29,10 @@ After picking a docs entry: second-step QuickPick 'Open docs / Preview sound'. P
 - /home/blaze/.agents/skills/coding-rules/SKILL.md (read fully before editing)
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
+
+## Proof of Work (final)
+
+- D5b landed: showDocsBrowser gained optional playPreview parameter (existing flow untouched when absent - original test passes unchanged); second-step QuickPick 'Open docs / Preview sound', skipped for kind==='command'; previewEntry seam sends buildPreviewCode(entry) as silent no-replace run under docs-preview workspace; serverIsRunning guard.
+- Integration: preview -> /run-code args[2]==='docs-preview', args[3]===1, NO /stop-all-jobs between mark and message; 4 entry unit tests + 2 docs-browser tests red-first.
+- Orchestrator gates at 2407142: all green.
+Residual: none

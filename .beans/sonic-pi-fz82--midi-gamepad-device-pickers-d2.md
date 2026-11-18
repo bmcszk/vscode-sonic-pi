@@ -1,11 +1,11 @@
 ---
 # sonic-pi-fz82
 title: MIDI + gamepad device pickers (D2)
-status: in-progress
+status: completed
 type: feature
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:38:25Z
+updated_at: 2026-11-18T17:54:03Z
 parent: sonic-pi-6fiz
 ---
 
@@ -40,3 +40,10 @@ Residual: D2c commands registration lands with chain H pass 2 (pending)
 ## Correction (orchestrator)
 
 Reopened: D2c (midiDevices + gamepads commands, package.json contributes, cold-window guards, integration asserts) is NOT landed. Senders (D2b) + parser (D2a) stand verified; the feature closes when the pickers exist as commands and the wire asserts pass.
+
+## Proof of Work (final)
+
+- D2c landed: Main.lastMidiInPorts/OutPorts/lastGamepads cached from pushes (registerDeviceListHandlers); runMidiPortPicker/runGamepadPicker with injected QuickPick, refresh -> /midi-reset; commands vscode-sonic-pi.midiDevices/.gamepads with cold-window guards; 9 unit tests red-first ('no handler for /midi/in-ports' -> green).
+- Integration: fake push midi-ports -> cache updated; pick via pickMidiPortForTest seam -> /midi-port-enable with flipped enabled on the wire ledger.
+- Orchestrator gates at 2407142: same as 09v2 (all green).
+Residual: none

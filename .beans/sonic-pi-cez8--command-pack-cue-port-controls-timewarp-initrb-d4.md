@@ -5,7 +5,7 @@ status: completed
 type: feature
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:20:10Z
+updated_at: 2026-11-18T17:54:03Z
 parent: sonic-pi-6fiz
 ---
 
@@ -27,3 +27,10 @@ parent: sonic-pi-6fiz
 - /home/blaze/.agents/skills/coding-rules/SKILL.md (read fully before editing)
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
+
+## Proof of Work (final)
+
+- D4b landed: Main.setGlobalTimewarp (0-5 guard, warn+log reject, silent no-replace run, timewarp-set workspace) + command with numeric input validation; 3 unit tests red-first. Integration: dispatch -> /set-global-timewarp on ledger.
+- D4a + D4c PoW see earlier; init.rb command opens/seeds per ensureInitFile unit proof; 4 real cue-port wire asserts green.
+- Orchestrator gates at 2407142: all green (see 09v2 PoW).
+Residual: none
