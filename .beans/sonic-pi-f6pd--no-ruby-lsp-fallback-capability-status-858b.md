@@ -5,7 +5,7 @@ status: in-progress
 type: task
 priority: normal
 created_at: 2026-11-16T13:32:00Z
-updated_at: 2026-11-18T15:14:33Z
+updated_at: 2026-11-18T15:33:57Z
 parent: sonic-pi-858b
 blocked_by:
     - sonic-pi-ce06
@@ -40,3 +40,13 @@ Defines what the user experiences when the LSP surface is unavailable, how avail
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
 Do not touch: src/completionItems.ts, src/source-runner/main.ts. client.ts only for public state getters (<10 lines, disclosed).
+
+## Proof of Work
+
+- Orchestrator-verified at dev3 (worker skipped PoW - a gate violation, corrected here; its red->green narrative is in the run artifact 29f76b8f).
+- Shared client: both registrars get ONE instance, factory ran once, client started exactly once, two .pi opens boot once (test/unit/lsp-shared-client.test.js, spawn-counting fake).
+- absent binary: ONE info message (never error), zero spawn attempts, no retries, message-once flag proven.
+- degraded: respawn-exhausted fake -> status surfaced via getLspCapabilityStatus + 'Sonic Pi' channel log, no crash, diagnostics stay silent.
+- client.ts untouched (0 lines - capability exposed in shared-client.ts, smaller than the allowed 10).
+- Gates re-run by orchestrator: run-unit.js 35 suites exit 0; npm test exit 0 (incl. vsix smoke); lint exit 0; prettier clean; zero suppressions; budgets hold (shared-client.ts 107 lines).
+Residual: none

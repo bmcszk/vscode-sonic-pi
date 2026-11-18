@@ -5,7 +5,7 @@ status: todo
 type: bug
 priority: normal
 created_at: 2026-11-18T15:13:50Z
-updated_at: 2026-11-18T15:14:33Z
+updated_at: 2026-11-18T15:33:57Z
 parent: sonic-pi-858b
 ---
 
@@ -28,3 +28,10 @@ parent: sonic-pi-858b
 ## Skills for coder
 - /home/blaze/.agents/skills/coding-rules/SKILL.md
 - /home/blaze/.agents/skills/tdd/SKILL.md
+
+## Proof of Work
+
+- Fixed inside sonic-pi-f6pd: per-registrar boot listeners deleted (hover.ts -16 net, extension.ts -19 net); ensureLspClient() is the single boot-once owner.
+- Unit-proven: 'both registrars get the same client instance and it starts exactly once'; 'opening two .pi documents boots the shared client once, not once per registrar' (spawn-counting fake, factory-count assertions).
+- Orchestrator re-ran full battery at dev3: 35 suites exit 0.
+Residual: none
