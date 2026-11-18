@@ -1,11 +1,11 @@
 ---
 # sonic-pi-40uj
 title: 'Epic: repo hygiene - just recipes, lint budgets, hooks, worktree law, dev2->dev PR'
-status: in-progress
+status: completed
 type: epic
 priority: normal
 created_at: 2026-11-18T11:26:55Z
-updated_at: 2026-11-18T11:27:40Z
+updated_at: 2026-11-18T12:16:36Z
 parent: sonic-pi-u71o
 ---
 
@@ -25,14 +25,22 @@ Cleanup (orchestrator): merge z8p8 branch into dev2, sweep worktrees/branches pe
 Worker tasks below. One commit at the end on dev2, green; draft PR dev2->dev (base `dev`, head `dev2`).
 
 ## Acceptance criteria
-- [ ] No worktrees outside `.worktrees/`; merged/stale branches deleted with empty-diff proof; remote z8p8 branch gone after merge.
-- [ ] `just lint`, `just test`, `just test-unit` work from clean checkout.
-- [ ] `.githooks/pre-commit` runs `just lint`; `.githooks/pre-push` runs `just test-unit`; installed via `core.hooksPath`.
-- [ ] ci.yml runs `just lint` + `just test-unit` (pinned just install).
-- [ ] eslint: max-lines 1000 + max-lines-per-function 100; `npm run lint` zero findings; only documented override is the generated `src/builtins/generate-builtins.ts`.
-- [ ] z8p8 stale-sender bug fixed with red-first unit test; full integration battery green.
-- [ ] Draft PR dev2 -> dev exists, URL reported to user.
+- [x] No worktrees outside `.worktrees/`; merged/stale branches deleted with empty-diff proof; remote z8p8 branch gone after merge.
+- [x] `just lint`, `just test`, `just test-unit` work from clean checkout.
+- [x] `.githooks/pre-commit` runs `just lint`; `.githooks/pre-push` runs `just test-unit`; installed via `core.hooksPath`.
+- [x] ci.yml runs `just lint` + `just test-unit` (pinned just install).
+- [x] eslint: max-lines 1000 + max-lines-per-function 100; `npm run lint` zero findings; only documented override is the generated `src/builtins/generate-builtins.ts`.
+- [x] z8p8 stale-sender bug fixed with red-first unit test; full integration battery green.
+- [x] Draft PR dev2 -> dev exists, URL reported to user.
 
 ## Skills for coder
 - /home/blaze/.agents/skills/git/SKILL.md (worktree + branch laws - read fully before editing)
 - /home/blaze/.agents/skills/coding-rules/SKILL.md (read fully before editing)
+
+## Proof of Work (end-to-end)
+
+- Draft PR dev2 -> dev open with green CI on head 7370186: https://github.com/bmcszk/vscode-sonic-pi/pull/2 ('Build and test' completed success: npm ci -> build -> pinned just -> just lint -> just test-unit -> vsix smoke). 86 commits, 97 files, +6771/-488.
+- Worktree law: git worktree list shows only the root checkout during the sweep; wave worktrees lived in .worktrees/ and were removed after merge; branch list is dev/dev2/master; remote z8p8-device-picker deleted after content-verified merge.
+- Hooks proven live: pre-commit (just lint) fired during the ci.yml commit; pre-push (just test-unit) fired during the PR push.
+- All four children completed with PoW: sonic-pi-y71r (stale daemonSender fix, 31/0 integration), sonic-pi-4txq (just+hooks+GHA), sonic-pi-x34b (lint budgets 1000/100 + honest splits + chain gate repair), sonic-pi-x21o (draft PR).
+Residual: none for the epic; human merge of PR #2 is the user gate.
