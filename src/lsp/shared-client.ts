@@ -2,7 +2,12 @@ import * as vscode from 'vscode'
 import { LspClient, resolveRubyLspPathFromConfig } from './client'
 
 export type LspCapability =
-	'starting' | 'ready' | 'unavailable:no-binary' | 'unavailable:no-bundler' | 'degraded:respawn-exhausted'
+	| 'starting'
+	| 'ready'
+	| 'off'
+	| 'unavailable:no-binary'
+	| 'unavailable:no-bundler'
+	| 'degraded:respawn-exhausted'
 
 export interface SharedLspClientOptions {
 	createClient?: () => LspClient
@@ -75,10 +80,18 @@ const bootSharedClient = (context: vscode.ExtensionContext, client: LspClient): 
 // One LspClient per window: the first .pi open boots it once; both registrars consume the
 // same instance through onLspClientReady and the shared boot listener lives here, so the
 // per-registrar listeners from diagnostics/hover are gone.
+const rubyLspEnabled = (): boolean =>
+	vscode.workspace.getConfiguration('vscode-sonic-pi').get('rubyLsp.enabled') ?? true
+
 export const ensureLspClient = (context: vscode.ExtensionContext, options: SharedLspClientOptions = {}) => {
 	if (!outputChannel) outputChannel = vscode.window.createOutputChannel(OUTPUT_CHANNEL_NAME)
 	const onFirstPiDocument = vscode.workspace.onDidOpenTextDocument((document) => {
 		if (started || document.languageId !== 'sonic-pi') return
+		if (!rubyLspEnabled()) {
+			started = true
+			logTransition('off')
+			return
+		}
 		let client: LspClient | undefined
 		if (options.createClient) {
 			client = options.createClient()

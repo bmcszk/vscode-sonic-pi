@@ -2,6 +2,13 @@
 
 All settings use the `vscode-sonic-pi.` prefix and can be set in your user or workspace settings.
 
+## Language server (ruby-lsp)
+
+| Setting | Default | What it does |
+| ------- | ------- | ------------ |
+| `vscode-sonic-pi.rubyLsp.enabled` | `true` | Boots the ruby-lsp language server for Sonic Pi buffers (diagnostics squiggles, hover, go to definition). Set to `false` to disable; takes effect after a window reload. |
+| `vscode-sonic-pi.rubyLspPath` | empty | Full path to the `ruby-lsp` executable. Empty looks it up on `PATH`. Takes effect after a window reload. |
+
 ## Server
 
 | Setting | Default | What it does |

@@ -7,6 +7,17 @@ Sonic Pi 5 server.
 Fork of [s00500/vscode-sonic-pi](https://github.com/s00500/vscode-sonic-pi), targeting Sonic Pi 5.
 Linux is the tested platform. See [Fork notes](#fork-notes).
 
+## Language server (ruby-lsp)
+
+When a `.pi` file opens and the `ruby-lsp` executable is available (it needs Ruby and the
+`bundler` gem), the extension boots a [ruby-lsp](https://github.com/Shopify/ruby-lsp) language
+server for Sonic Pi buffers. You get live diagnostics as squiggles under problematic lines and
+rich hover and go-to-definition information where ruby-lsp can resolve symbols. If the executable
+is missing you get a one-time hint and the extension falls back to static language features only.
+Set `vscode-sonic-pi.rubyLspPath` if ruby-lsp is not on your `PATH`, and
+`vscode-sonic-pi.rubyLsp.enabled` to `false` to turn the server off entirely (reload the window
+after changing either). See [Settings](docs/SETTINGS.md).
+
 ## Requirements
 
 - VS Code 1.144 or newer.
