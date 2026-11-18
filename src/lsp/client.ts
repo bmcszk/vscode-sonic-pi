@@ -52,7 +52,12 @@ interface JsonRpcMessage {
 	result?: unknown
 }
 
-const encodeMessage = (message: JsonRpcMessage): string => JSON.stringify(message) + '\n'
+const encodeMessage = (message: JsonRpcMessage): string => {
+	// LSP base protocol: every message is prefixed with an ASCII header block ending in
+	// \r\n\r\n; the body length is in BYTES, not characters.
+	const body = JSON.stringify(message)
+	return `Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`
+}
 
 const initializeParams = (workspaceUri: string) => ({
 	processId: process.pid,
@@ -78,7 +83,6 @@ export class LspClient {
 	> &
 		LspClientOptions
 	private server: ChildProcess | undefined
-	private stdoutBuffer = ''
 	private killTimer: ReturnType<typeof setTimeout> | undefined
 	private resolveDisposed: (() => void) | undefined
 	private stopRequested = false
@@ -140,6 +144,10 @@ export class LspClient {
 		this.sendNotification('initialized', {})
 	}
 
+	request(method: string, params: unknown): Promise<unknown> {
+		return this.sendRequest(method, params)
+	}
+
 	private sendRequest(method: string, params: unknown): Promise<unknown> {
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => reject(new Error(`timeout waiting for ${method} reply`)), 5000)
@@ -154,7 +162,7 @@ export class LspClient {
 	private pendingReplies: Array<(result: unknown) => void> = []
 	private nextRequestId = 1
 
-	private sendNotification(method: string, params: unknown): void {
+	sendNotification(method: string, params: unknown): void {
 		this.writeMessage({ method, params })
 	}
 
@@ -162,14 +170,26 @@ export class LspClient {
 		this.server?.stdin?.write(encodeMessage(message))
 	}
 
+	private stdoutBuffer = Buffer.alloc(0)
+
 	private onServerStdout(chunk: Buffer): void {
-		this.stdoutBuffer += chunk.toString()
-		let newlineIndex: number
-		while ((newlineIndex = this.stdoutBuffer.indexOf('\n')) >= 0) {
-			const line = this.stdoutBuffer.slice(0, newlineIndex)
-			this.stdoutBuffer = this.stdoutBuffer.slice(newlineIndex + 1)
-			if (!line.trim()) continue
-			this.dispatchMessage(JSON.parse(line) as JsonRpcMessage)
+		this.stdoutBuffer = Buffer.concat([this.stdoutBuffer, chunk])
+		for (;;) {
+			const separator = this.stdoutBuffer.indexOf('\r\n\r\n')
+			if (separator < 0) break
+			const header = this.stdoutBuffer.slice(0, separator).toString()
+			const match = header.match(/Content-Length: (\d+)/i)
+			if (!match) {
+				this.stdoutBuffer = this.stdoutBuffer.slice(separator + 4)
+				continue
+			}
+			const length = parseInt(match[1], 10)
+			const bodyStart = separator + 4
+			if (this.stdoutBuffer.length < bodyStart + length) break
+			const body = this.stdoutBuffer.slice(bodyStart, bodyStart + length).toString()
+			this.stdoutBuffer = this.stdoutBuffer.slice(bodyStart + length)
+			if (!body.trim()) continue
+			this.dispatchMessage(JSON.parse(body) as JsonRpcMessage)
 		}
 	}
 

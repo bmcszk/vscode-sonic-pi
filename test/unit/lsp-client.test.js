@@ -37,6 +37,7 @@ const makeServerScript = (opts = {}) => {
 	const lines = [
 		'#!/usr/bin/env node',
 		`const MARKER_DIR = ${JSON.stringify(markerDir)}`,
+		`const CAPTURE_RAW = ${opts.captureRaw ? 'true' : 'false'}`,
 		`const EXIT_AFTER_INIT = ${JSON.stringify(opts.exitAfterInit || null)}`,
 		`const IGNORE_SIGTERM = ${opts.ignoreSigterm ? 'true' : 'false'}`,
 		`const BUNDLER_MISSING = ${opts.bundlerMissing ? 'true' : 'false'}`,
@@ -47,7 +48,8 @@ const makeServerScript = (opts = {}) => {
 		'  process.exit(1)',
 		'}',
 		'marker("spawn", { pid: process.pid, cwd: process.cwd(), bundleGemfile: process.env.BUNDLE_GEMFILE })',
-		'let buffer = ""',
+		'if (CAPTURE_RAW) process.stdin.on("data", (chunk) => marker("raw", { head: chunk.toString().slice(0, 80) }))',
+		'let buffer = Buffer.alloc(0)',
 		'const reply = (msg) => {',
 		'  if (msg.method === "initialize") {',
 		'    marker("initialize", msg.params)',
@@ -56,25 +58,43 @@ const makeServerScript = (opts = {}) => {
 		'    marker("initialized", {})',
 		'  }',
 		'}',
-		'const send = (msg) => process.stdout.write(JSON.stringify(msg) + "\\n")',
+		// REAL LSP stdio framing (LSP spec base protocol): Content-Length header + \r\n\r\n + body.
+		'const send = (msg) => {',
+		'  const body = JSON.stringify(msg)',
+		'  process.stdout.write(`Content-Length: ${Buffer.byteLength(body)}\\r\\n\\r\\n${body}`)',
+		'}',
 		'process.stdin.on("data", (chunk) => {',
-		'  buffer += chunk',
-		'  let idx',
-		'  while ((idx = buffer.indexOf("\\n")) >= 0) {',
-		'    const line = buffer.slice(0, idx)',
-		'    buffer = buffer.slice(idx + 1)',
-		'    if (line.trim()) reply(JSON.parse(line))',
+		'  buffer = Buffer.concat([buffer, chunk])',
+		'  for (;;) {',
+		'    const sep = buffer.indexOf("\\r\\n\\r\\n")',
+		'    if (sep < 0) break',
+		'    const header = buffer.slice(0, sep).toString()',
+		'    const match = header.match(/Content-Length: (\\d+)/i)',
+		'    if (!match) { buffer = buffer.slice(sep + 4); continue }',
+		'    const length = parseInt(match[1], 10)',
+		'    const bodyStart = sep + 4',
+		'    if (buffer.length < bodyStart + length) break',
+		'    const body = buffer.slice(bodyStart, bodyStart + length).toString()',
+		'    buffer = buffer.slice(bodyStart + length)',
+		'    reply(JSON.parse(body))',
 		'  }',
 		'})',
 		'if (IGNORE_SIGTERM) process.on("SIGTERM", () => marker("sigterm-ignored", {}))',
 	]
 	// exit-after-init: schedule a delayed exit once the handshake completes
 	if (opts.exitAfterInit) {
-		lines.splice(lines.length - 2, 0,
+		lines.splice(
+			lines.length - 2,
+			0,
 			'  if (msg.method === "initialized" && EXIT_AFTER_INIT) {',
 			`    setTimeout(() => process.exit(${opts.exitAfterInit}), EXIT_AFTER_INIT_DELAY_MS || 5)`,
-			'  }')
-		lines.splice(lines.length - 4, 0, `const EXIT_AFTER_INIT_DELAY_MS = ${opts.exitAfterInitDelayMs || 5}`)
+			'  }',
+		)
+		lines.splice(
+			lines.length - 4,
+			0,
+			`const EXIT_AFTER_INIT_DELAY_MS = ${opts.exitAfterInitDelayMs || 5}`,
+		)
 	}
 	fs.writeFileSync(script, lines.join('\n'))
 	fs.chmodSync(script, 0o755)
@@ -106,6 +126,23 @@ const mkdirWithRubyLsp = () => {
 }
 
 const tests = {
+	async 'requests carry the Content-Length header the LSP spec requires'() {
+		const { script, markerDir } = makeServerScript({ captureRaw: true })
+		const client = new LspClient({ serverPath: script, workspaceFolderUri: tmpRoot })
+		await client.start()
+		const raw = readMarker(markerDir, 'raw')
+		assert.ok(raw, 'server received bytes')
+		assert.match(raw.head, /Content-Length: \d+\r\n\r\n/, 'request bytes are header-framed')
+		await client.dispose()
+	},
+	async 'parses Content-Length-framed replies from a spec-conformant server'() {
+		// The harness send() speaks real framing; reaching ready proves the parser reads it.
+		const { script, markerDir } = makeServerScript()
+		const client = new LspClient({ serverPath: script, workspaceFolderUri: tmpRoot })
+		await client.start()
+		assert.ok(readMarker(markerDir, 'initialize'), 'initialize completed under real framing')
+		await client.dispose()
+	},
 	async 'discovery honors the rubyLspPath setting override'() {
 		const binDir = mkdirWithRubyLsp()
 		const override = path.join(binDir, 'ruby-lsp')
@@ -155,7 +192,10 @@ const tests = {
 		assert.ok(params, 'initialize reached the server')
 		assert.strictEqual(params.workspaceFolders[0].uri, 'file://' + encodeUriPath(workspace))
 		assert.deepStrictEqual(params.documentSelector, [{ language: 'sonic-pi', scheme: 'file' }])
-		assert.ok(fs.existsSync(path.join(markerDir, 'initialized.json')), 'initialized notification followed the reply')
+		assert.ok(
+			fs.existsSync(path.join(markerDir, 'initialized.json')),
+			'initialized notification followed the reply',
+		)
 		await client.dispose()
 	},
 

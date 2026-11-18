@@ -37,6 +37,8 @@ import { flashPaintFor, notebookFlashMap } from '../cell-flash-map'
 import { SonicPiCodeLensProvider, cellKeyFor } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
+import { LspClient, resolveRubyLspPathFromConfig } from '../lsp/client'
+import { LspDiagnosticsController } from '../lsp/diagnostics'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
 import { MuteRegistry } from '../loop-mute'
 import { CueStore } from '../cue-store'
@@ -248,6 +250,7 @@ export function activate(context: vscode.ExtensionContext) {
 	registerCueInspector(context)
 	registerLastEditorClose(context)
 	registerEditorCommands(context)
+	registerLspDiagnostics(context)
 }
 
 // Status bar wiring: the popover actions dispatch to the runner and the server state,
@@ -318,6 +321,43 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 		main.onLinkPeers.event((peers) => statusBar.setLinkData({ peers })),
 		{ dispose: () => statusBar.dispose() },
 	)
+}
+
+// Ruby LSP diagnostics: squiggles as you type on .pi documents. The client lifecycle
+// (lsp/client) owns spawn/respawn; this registrar owns only the editor surface. The
+// controller starts on the first .pi document (opening one boots the server) and already-
+// open editors replay through handleOpenedDocument once the client is ready.
+// A no-op client stand-in until the real server is resolved and ready: pulls resolve
+// undefined (silent), notifications are dropped.
+class NullLspClient {
+	request(): Promise<undefined> {
+		return Promise.resolve(undefined)
+	}
+	sendNotification(): void {}
+}
+
+const registerLspDiagnostics = (context: vscode.ExtensionContext) => {
+	const controller = new LspDiagnosticsController(new NullLspClient())
+	context.subscriptions.push(controller)
+	let booted = false
+	const bootForFirstPiDocument = vscode.workspace.onDidOpenTextDocument((document) => {
+		if (booted || document.languageId !== 'sonic-pi') return
+		const serverPath = resolveRubyLspPathFromConfig()
+		const workspaceFolderUri = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+		if (!serverPath || !workspaceFolderUri) return
+		booted = true
+		const client = new LspClient({ serverPath, workspaceFolderUri })
+		context.subscriptions.push({ dispose: () => void client.dispose() })
+		void client.start().then(() => {
+			controller.swapClient(client)
+			controller.start()
+			for (const editor of vscode.window.visibleTextEditors) {
+				if (editor.document.languageId === 'sonic-pi')
+					controller.handleOpenedDocument(editor.document)
+			}
+		})
+	})
+	context.subscriptions.push(bootForFirstPiDocument)
 }
 
 // Cue Inspector: TreeView over the live cue store plus its view/palette commands.
