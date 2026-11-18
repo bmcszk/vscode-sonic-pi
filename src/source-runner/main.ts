@@ -93,7 +93,9 @@ export class Main {
 	private keepAliveFailures = 0
 	// The daemon-audio routes need their own socket: the keepalive sender is a lifecycle
 	// object (errors there declare the daemon dead) and must never carry audio traffic.
+	// Cached per daemon port: a re-boot changes the port, so the cache must not survive it.
 	private daemonSender: OscSender | undefined
+	private daemonSenderPort = -1
 	private cueBenchSender: CueBenchSender | undefined
 	// Raw /supersonic/device-table args, kept unparsed: the picker task decides the shape.
 	lastDeviceTable: OscArg[] = []
@@ -648,7 +650,8 @@ export class Main {
 	}
 
 	private getDaemonSender() {
-		if (!this.daemonSender) {
+		if (!this.daemonSender || this.daemonSenderPort !== this.daemonPort) {
+			this.daemonSenderPort = this.daemonPort
 			this.daemonSender = new OscSender(this.daemonPort)
 		}
 		return this.daemonSender

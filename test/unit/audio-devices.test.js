@@ -164,6 +164,26 @@ const tests = {
 		assert.strictEqual(oscSenders.length, countBefore, 'one daemon sender, created once')
 		assert.deepStrictEqual(keepaliveSender().sent.at(-1).args, [1], 'reopen: token only')
 	},
+	async 'after a re-boot the daemon sender follows the new daemon port'() {
+		oscSenders.length = 0
+		const main = new Main()
+		main.daemonPort = 4557
+		main.guiUuid = 1
+		main.requestAudioDevices()
+		const oldSender = keepaliveSender()
+		assert.strictEqual(oldSender.port, 4557)
+
+		main.daemonPort = 4567
+		main.requestAudioDevices()
+		await flush()
+
+		const newSender = keepaliveSender()
+		assert.strictEqual(newSender.port, 4567, 'next send comes from a sender bound to the new port')
+		assert.notStrictEqual(newSender, oldSender, 'sender must be re-created for the new port')
+		assert.strictEqual(oldSender.sent.length, 1, 'old-port sender got only the first send')
+		assert.strictEqual(newSender.sent.length, 1, 'new-port sender got the post-reboot send')
+		assert.strictEqual(newSender.sent[0].address, '/daemon/audio/request-devices')
+	},
 	async 'supersonic devices push fires string-only output names'() {
 		const main = new Main()
 		main.setupOscReceiver()
