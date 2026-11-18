@@ -42,6 +42,7 @@ import { MuteRegistry } from '../loop-mute'
 import { CueStore } from '../cue-store'
 import { CueInspector } from '../cue-inspector'
 import { linkBpmInputValue } from '../link-label'
+import { runDevicePicker, DeviceNames } from '../audio-device-picker'
 
 let main: Main
 let config: Config
@@ -167,6 +168,41 @@ export const switchAudioDevice = (key: string) => main.switchAudioDevice(key)
 export const switchAudioDriver = (driver: string) => main.switchAudioDriver(driver)
 export const reopenAudioDevice = () => main.reopenAudioDevice()
 
+// The device picker rides on the daemon's device pushes: request them, then gather what
+// arrives within a short window (all three pushes land on one request round-trip per the
+// daemon-audio spike). A no-server window must not open a modal - callers guard first.
+export const showAudioDevicePicker = async () => {
+	const received: DeviceNames[] = []
+	const subscription = main.onSupersonicDevices.event((devices) => received.push(devices))
+	try {
+		main.requestAudioDevices()
+		await new Promise((resolve) => setTimeout(resolve, 300))
+		await runDevicePicker(main, received, {
+			showQuickPick: vscode.window.showQuickPick,
+			showWarningMessage: vscode.window.showWarningMessage,
+		})
+	} finally {
+		subscription.dispose()
+	}
+}
+
+export const confirmThenReopenAudioDevice = async () => {
+	// Reopen-only path: the picker builder supplies the reopen entry, so reuse its dispatcher
+	// with a reopen-only pick and the same running-code confirm.
+	await runDevicePicker(
+		{
+			requestAudioDevices: () => {},
+			switchAudioDevice: () => {},
+			reopenAudioDevice: () => main.reopenAudioDevice(),
+		},
+		[],
+		{
+			showQuickPick: async (items) => items.find((i) => i.action === 'reopen'),
+			showWarningMessage: vscode.window.showWarningMessage,
+		},
+	)
+}
+
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Ruby detected. Sonic Pi editor extension active!')
 
@@ -230,6 +266,15 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('vscode-sonic-pi.mixer', () => {
 			if (!main.serverStarted) return
 			void statusBar.showMixerQuickPick()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.audioDevices', () => {
+			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
+			if (!main.serverStarted) return
+			void showAudioDevicePicker()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.reopenAudioDevice', () => {
+			if (!main.serverStarted) return
+			void confirmThenReopenAudioDevice()
 		}),
 		vscode.commands.registerCommand('vscode-sonic-pi.setLinkBpm', async () => {
 			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).

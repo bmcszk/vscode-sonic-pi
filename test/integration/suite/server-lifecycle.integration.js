@@ -80,6 +80,11 @@ suite('Server lifecycle', () => {
 		)
 	})
 
+	test('requestAudioDevices reaches the daemon as /daemon/audio/request-devices and the picker shows the pushed devices', async () => {
+		const mark = host.mark()
+		host.extensionModule('source-runner/extension.js').requestAudioDevices()
+		await host.waitForMessage('/daemon/audio/request-devices', mark, (message) => message.args.length === 1)
+	})
 	test('Link pushes update the statusbar item and click-to-set sends the silent bpm run', async () => {
 		const linkItem = host.statusBarItem(97)
 		assert.ok(linkItem, 'the link statusbar item exists')

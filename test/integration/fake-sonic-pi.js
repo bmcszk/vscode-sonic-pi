@@ -178,6 +178,12 @@ async function main() {
 			sendToGui(commandSocket, '/link-bpm', [args[0]])
 		} else if (name === 'link-peers') {
 			sendToGui(commandSocket, '/link-num-peers', [args[0]])
+		} else if (name === 'request-audio-devices') {
+			// The real daemon answers one request with three pushes (daemon-audio spike,
+			// bean sonic-pi-1zc3): outputs, inputs, device-table - flat name arrays.
+			sendToGui(commandSocket, '/supersonic/devices', ['system', 'System Default', 'Dock Audio'])
+			sendToGui(commandSocket, '/supersonic/input-devices', ['System Default', 'Mic'])
+			sendToGui(commandSocket, '/supersonic/device-table', ['PipeWire', '', 2, 'ALSA', 20])
 		} else if (name === 'cue') {
 			sendToGui(commandSocket, '/incoming/osc', [
 				Date.now() / 1000,
@@ -215,6 +221,18 @@ async function main() {
 		record({ event: 'message', address: decoded.address, args: decoded.args })
 		if (decoded.address === '/daemon/exit') {
 			shutdown(commandSocket, 'daemon-exit')
+		} else if (decoded.address === '/daemon/audio/request-devices') {
+			// The real daemon answers one request with three pushes (daemon-audio spike,
+			// bean sonic-pi-1zc3): outputs, inputs, device-table - flat name arrays.
+			sendToGui(daemonSocket, '/supersonic/devices', ['system', 'System Default', 'Dock Audio'])
+			sendToGui(daemonSocket, '/supersonic/input-devices', ['System Default', 'Mic'])
+			sendToGui(daemonSocket, '/supersonic/device-table', ['PipeWire', '', 2, 'ALSA', 20])
+		} else if (decoded.address === '/daemon/audio/switch-device') {
+			// no-op for integration - the switch-device message is recorded in events.ndjson
+		} else if (decoded.address === '/daemon/audio/switch-driver') {
+			// no-op
+		} else if (decoded.address === '/daemon/audio/reopen-device') {
+			// no-op
 		}
 	})
 	commandSocket.on('message', (message) => onCommand(commandSocket, message))

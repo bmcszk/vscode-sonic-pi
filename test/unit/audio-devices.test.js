@@ -71,6 +71,7 @@ class FakeOscSender {
 FakeOscSender.prototype.errorHandlers = []
 
 const vscodeStub = {
+	QuickPickItemKind: { Separator: 1, Default: 0 },
 	EventEmitter: class extends EventEmitter {
 		fire(value) {
 			this.emit('event', value)
@@ -103,6 +104,11 @@ Module._load = function (request) {
 }
 
 const { Main } = require('../../out/source-runner/main.js')
+const {
+	buildDeviceQuickPickItems,
+	runDevicePicker,
+	RUNNING_CODE_CONFIRM,
+} = require('../../out/audio-device-picker.js')
 
 const keepaliveSender = () => oscSenders[oscSenders.length - 1]
 const flush = () => new Promise((resolve) => setTimeout(resolve, 10))
@@ -200,6 +206,105 @@ const tests = {
 		main.fireSupersonicDevices('/supersonic/device-table', raw)
 		assert.deepStrictEqual(events, [{ kind: 'table', names: raw.filter((a) => typeof a === 'string') }])
 		assert.deepStrictEqual(main.lastDeviceTable, raw, 'raw table kept for later parsing')
+	},
+
+	async 'picker items list outputs, inputs, and the reopen entry'() {
+		const items = buildDeviceQuickPickItems({
+			kind: 'output',
+			names: ['system', 'Dock Audio'],
+		})
+		assert.deepStrictEqual(
+			items.filter((i) => i.kind === vscodeStub.QuickPickItemKind.Separator).length,
+			1,
+			'one separator',
+		)
+		const picks = items.filter((i) => i.kind !== vscodeStub.QuickPickItemKind.Separator)
+		assert.deepStrictEqual(
+			picks.map((i) => i.label),
+			['system', 'Dock Audio', 'Reset audio device'],
+		)
+		assert.deepStrictEqual(
+			picks.slice(0, 2).map((i) => i.action),
+			['switch', 'switch'],
+		)
+		assert.strictEqual(picks[2].action, 'reopen')
+	},
+
+	async 'switch flow: confirmed modal sends switchAudioDevice with the picked name'() {
+		let modalText = ''
+		vscodeStub.window.showWarningMessage = async (message) => {
+			modalText = message
+			return 'Continue'
+		}
+		const sent = []
+		await runDevicePicker(
+			{
+				requestAudioDevices: () => {},
+				switchAudioDevice: (key) => sent.push(key),
+				reopenAudioDevice: () => {},
+			},
+			[{ kind: 'output', names: ['Dock Audio'] }],
+			{
+				showQuickPick: async (items) => items.find((i) => i.action === 'switch'),
+				showWarningMessage: vscodeStub.window.showWarningMessage,
+			},
+		)
+		assert.match(modalText, /restarts your running code/)
+		assert.deepStrictEqual(sent, ['Dock Audio'])
+	},
+
+	async 'switch flow: cancelled confirm sends nothing'() {
+		vscodeStub.window.showWarningMessage = async () => undefined
+		const sent = []
+		await runDevicePicker(
+			{
+				requestAudioDevices: () => {},
+				switchAudioDevice: (key) => sent.push(key),
+				reopenAudioDevice: () => sent.push('reopen'),
+			},
+			[{ kind: 'output', names: ['Dock Audio'] }],
+			{
+				showQuickPick: async (items) => items.find((i) => i.action === 'switch'),
+				showWarningMessage: vscodeStub.window.showWarningMessage,
+			},
+		)
+		assert.deepStrictEqual(sent, [], 'cancelled confirm must not switch')
+	},
+
+	async 'reopen entry: confirmed modal sends reopenAudioDevice'() {
+		vscodeStub.window.showWarningMessage = async () => 'Continue'
+		const sent = []
+		await runDevicePicker(
+			{
+				requestAudioDevices: () => {},
+				switchAudioDevice: () => {},
+				reopenAudioDevice: () => sent.push('reopen'),
+			},
+			[{ kind: 'output', names: ['Dock Audio'] }],
+			{
+				showQuickPick: async (items) => items.find((i) => i.action === 'reopen'),
+				showWarningMessage: vscodeStub.window.showWarningMessage,
+			},
+		)
+		assert.deepStrictEqual(sent, ['reopen'])
+	},
+
+	async 'reopen entry: cancelled confirm sends nothing'() {
+		vscodeStub.window.showWarningMessage = async () => undefined
+		const sent = []
+		await runDevicePicker(
+			{
+				requestAudioDevices: () => {},
+				switchAudioDevice: () => {},
+				reopenAudioDevice: () => sent.push('reopen'),
+			},
+			[{ kind: 'output', names: ['Dock Audio'] }],
+			{
+				showQuickPick: async (items) => items.find((i) => i.action === 'reopen'),
+				showWarningMessage: vscodeStub.window.showWarningMessage,
+			},
+		)
+		assert.deepStrictEqual(sent, [], 'cancelled confirm must not reopen')
 	},
 }
 
