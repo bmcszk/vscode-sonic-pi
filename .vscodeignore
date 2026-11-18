@@ -3,6 +3,9 @@
 .agents/**
 .claude/**
 .beans/**
+.worktrees/
+# Stale build artifacts tracked long ago must never ship inside the artifact.
+*.vsix
 skills-lock.json
 # Development surface - only out/ + examples/ + img/ + node_modules deps ship.
 src/**

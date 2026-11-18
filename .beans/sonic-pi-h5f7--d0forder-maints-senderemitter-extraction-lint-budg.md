@@ -1,11 +1,11 @@
 ---
 # sonic-pi-h5f7
 title: 'D0: main.ts sender/emitter extraction (lint-budget headroom)'
-status: todo
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:06:54Z
+updated_at: 2026-11-18T17:20:10Z
 parent: sonic-pi-6fiz
 ---
 

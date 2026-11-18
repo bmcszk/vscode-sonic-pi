@@ -1,11 +1,11 @@
 ---
 # sonic-pi-09v2
 title: 'Live-loop activity badges: gutter shows which loops are alive (D1)'
-status: todo
+status: completed
 type: feature
 priority: normal
 created_at: 2026-11-18T17:06:03Z
-updated_at: 2026-11-18T17:07:08Z
+updated_at: 2026-11-18T17:20:10Z
 parent: sonic-pi-6fiz
 ---
 
