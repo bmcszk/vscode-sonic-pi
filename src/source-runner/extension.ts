@@ -365,8 +365,6 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 		sendVersionRequest: () => main.requestVersion(),
 		sendMasterVolume: (value) => main.setMasterVolume(value),
 		setDrive: (value) => main.setDrive(value),
-		setLpf: (freq) => main.setLpf(freq),
-		setHpf: (freq) => main.setHpf(freq),
 		setStereo: (stereo) => (stereo ? main.mixerStereoMode() : main.mixerMonoMode()),
 		setInvert: (invert) => (invert ? main.mixerInvertStereo() : main.mixerStandardStereo()),
 	})

@@ -33,10 +33,13 @@ let createdItems = []
 let inputBoxPrompt
 let inputBoxResponse
 let errorMessages = []
+let quickPickAction
+let lastQuickPickItems
 
 const vscodeStub = {
 	EventEmitter,
 	StatusBarAlignment: { Left: 1, Right: 2 },
+	QuickPickItemKind: { Separator: -1, Default: 0 },
 	window: {
 		createStatusBarItem: (alignment, priority) => {
 			createdItems.push({ alignment, priority })
@@ -52,6 +55,10 @@ const vscodeStub = {
 		showErrorMessage: (message) => {
 			errorMessages.push(message)
 			return Promise.resolve(undefined)
+		},
+		showQuickPick: (items) => {
+			lastQuickPickItems = items
+			return Promise.resolve(items.find((candidate) => candidate.action === quickPickAction))
 		},
 	},
 }
@@ -112,8 +119,6 @@ test('volume input rejects non-numeric text', () => {
 
 const mixerBridge = {
 	setDrive: () => {},
-	setLpf: () => {},
-	setHpf: () => {},
 	setStereo: () => {},
 	setInvert: () => {},
 }
@@ -225,6 +230,60 @@ test('deafness item shows while running but not receiving, clears on receiving o
 	bar.dispose()
 	assert.ok(deafItem.disposed)
 	assert.ok(mixerItem.disposed)
+})
+
+test('mixer popover toggles stereo and invert immediately and a settings push keeps them', async () => {
+	// given
+	createdItems = []
+	const bar = new SonicPiStatusBar({
+		sendVersionRequest: () => {},
+		sendMasterVolume: () => {},
+		...mixerBridge,
+	})
+	bar.setServerState('running')
+	assert.strictEqual(
+		mixerItem.text,
+		'$(tunnel-horizontal) vol 100% · drive 1.0 · stereo',
+		'the item starts from the daemon defaults',
+	)
+
+	// when
+	quickPickAction = 'stereo'
+	await bar.showMixerQuickPick()
+
+	// then
+	assert.strictEqual(
+		mixerItem.text,
+		'$(tunnel-horizontal) vol 100% · drive 1.0 · mono',
+		'the requested stereo state renders without waiting for a push',
+	)
+
+	// when the daemon pushes only drive and volume
+	bar.setMixerSettings({ drive: 1.5, volume: 0.6 })
+
+	// then
+	assert.strictEqual(
+		mixerItem.text,
+		'$(tunnel-horizontal) vol 60% · drive 1.5 · mono',
+		'the push updates its own fields without resetting the local stereo toggle',
+	)
+
+	// when
+	quickPickAction = 'invert'
+	await bar.showMixerQuickPick()
+	bar.setMixerSettings({ drive: 1.2, volume: 0.5 })
+
+	// then
+	assert.strictEqual(
+		mixerItem.text,
+		'$(tunnel-horizontal) vol 50% · drive 1.2 · mono · invert',
+		'the invert toggle also survives later pushes',
+	)
+	assert.ok(
+		lastQuickPickItems.some((item) => item.label.includes('unavailable in Sonic Pi 5.0.x')),
+		'the popover keeps the upstream-missing filters visible and honest',
+	)
+	bar.dispose()
 })
 
 let linkInputOptions
