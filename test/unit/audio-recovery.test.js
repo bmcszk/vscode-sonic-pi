@@ -15,6 +15,9 @@ class FakeVsCodeEventEmitter {
 }
 
 const CONNECTION_LOST = 'Daemon SuperSonic Conn: connection lost (EOFError: connection closed) - reconnecting'
+// The restart retires the old daemon before it boots the fresh one; the stand-in leaves on the
+// fallback kill that ends the graceful wait, so the fresh spawn only exists after the deadline.
+const GRACEFUL_DEADLINE_MS = 2000
 
 const loggedLines = []
 const errorsShown = []
@@ -29,6 +32,7 @@ class FakeOscSender {
 	onError(callback) {
 		this.errorHandlers.push(callback)
 	}
+	send() {}
 }
 
 const vscodeStub = {
@@ -62,7 +66,14 @@ const childProcessStub = {
 		const proc = new EventEmitter()
 		proc.stdout = new EventEmitter()
 		proc.stderr = new EventEmitter()
-		proc.kill = () => killCalls.push('kill')
+		// The stand-in daemon has no /exit handler, so the graceful deadline ends in the
+		// fallback kill: a signal death, the way the real child reports it.
+		proc.exitCode = null
+		proc.signalCode = null
+		proc.kill = () => {
+			killCalls.push('kill')
+			proc.emit('exit', null, 'SIGTERM')
+		}
 		spawnedServer = proc
 		return proc
 	},
@@ -146,7 +157,9 @@ const tests = {
 		])
 		const first = spawnedServer
 		const restart = main.restartServer()
-		await sleep(0)
+		// The restart retires the old daemon first: the stand-in has no /exit handler, so the
+		// fallback kill ends the graceful wait and only then does the fresh spawn happen.
+		await sleep(GRACEFUL_DEADLINE_MS)
 		const fresh = spawnedServer
 		fresh.stdout.emit('data', Buffer.from('38881 38878 38877 38879 4560 734224294'))
 		await restart

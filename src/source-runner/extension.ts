@@ -636,7 +636,7 @@ const registerLastEditorClose = (context: vscode.ExtensionContext) => {
 			sonicPiEditorsRemaining: openSonicPiTabs.length,
 		})
 		if (decision) {
-			main.stopServer()
+			void main.stopServer()
 			clearPlaying()
 		}
 	}

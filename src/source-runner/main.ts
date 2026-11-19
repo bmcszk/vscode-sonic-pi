@@ -97,13 +97,11 @@ export class Main {
 	portsInitalizedResolver!: (sender: OscSender) => void
 	keepAliveTimer: ReturnType<typeof setInterval> | undefined
 	private keepAliveFailures = 0
-	// The daemon-audio routes need their own socket: the keepalive sender is a lifecycle
-	// object (errors there declare the daemon dead) and must never carry audio traffic.
-	// Cached per daemon port: a re-boot changes the port, so the cache must not survive it.
+	// Daemon-audio needs its own socket (keepalive errors declare death), cached per port.
 	private daemonSender: OscSender | undefined
 	private daemonSenderPort = -1
 	private cueBenchSender: CueBenchSender | undefined
-	// Raw /supersonic/device-table args, kept unparsed: the picker task decides the shape.
+	// Raw /supersonic/device-table args, unparsed (the picker owns the shape).
 	lastDeviceTable: OscArg[] = []
 	// The daemon's last device-list pushes, kept as the raw 'enabled<TAB>name' wire strings:
 	// the pickers parse them on dispatch (device-ports.ts), not on arrival.
@@ -113,8 +111,10 @@ export class Main {
 	// Consecutive keepalive send errors before the daemon is declared dead. One ICMP
 	// hiccup is not death; three in a row means the destination port refuses everything.
 	private static readonly KEEPALIVE_FAILURE_LIMIT = 3
-	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
-	// to the cells that produced it (we send joined cell keys as the workspace).
+	// How long a stopped daemon gets to honour /exit before the kill fallback lands. Spider's
+	// own teardown (jobs stop, ensure blocks run) happens inside this window.
+	private static readonly GRACEFUL_EXIT_DEADLINE_MS = 2000
+	// Live daemon runs: jobId -> workspace (joined cell keys map runs back to cells).
 	liveJobs = new Map<number, string>()
 	// Job ids that already announced their start: a run id fires onRunStarted once, no matter
 	// whether the daemon's /run/started push or the /log/info line arrives first.
@@ -124,10 +124,15 @@ export class Main {
 	endedRuns = new Set<number>()
 	// The runtime announced /spider/ready for this generation: a duplicate push changes nothing.
 	runtimeReady = false
+	// A graceful /exit went out to a daemon this window still owned: its /exited push then
+	// reports a shutdown the stop or restart has already accounted for, so it fires no state.
+	daemonExitRequested = false
+	// The push during a graceful shutdown reported the stop itself: the restart's own report
+	// would be the same transition a second time.
+	private shutdownReported = false
 	// Live-loop pushes: which loops are alive right now and where their headers sit.
 	liveLoopScope = new LiveLoopScopeStore()
 
-	// Senders take the queued send fn and the daemon token, never Main itself.
 	private senderContext(): senders.SenderContext {
 		return { send: (message) => this.sendOsc(message), token: this.guiUuid }
 	}
@@ -140,9 +145,8 @@ export class Main {
 	gamepadAutoStartSent: boolean = false
 	daemonProcess: child_process.ChildProcess | undefined
 	restartInProgress = false
-	// One-shot: the next startServer must skip the attach scanner. A restart just killed the
-	// old daemon; while it dies the scanner still sees it, and attaching to a dying server
-	// makes every play after Restart Server land on a corpse.
+	// One-shot: the next startServer must skip the attach scanner. While the killed daemon
+	// dies the scanner still sees it, and attaching routes plays to a corpse.
 	forceManagedBootOnce = false
 
 	// Timestamp of the last 'connection lost' notification, to debounce
@@ -188,7 +192,6 @@ export class Main {
 		}
 		this.config = new Config()
 
-		// Override default root path if found in settings
 		if (this.config.sonicPiRootDirectory()) {
 			this.rootPath = this.config.sonicPiRootDirectory()
 		}
@@ -231,7 +234,6 @@ export class Main {
 		this.scsynthPort = -1
 		this.scsynthSendPort = -1
 
-		// attempt to create log directory
 		if (!fs.existsSync(this.logPath)) {
 			fs.mkdirSync(this.logPath, { recursive: true })
 		}
@@ -243,7 +245,6 @@ export class Main {
 	}
 
 	private registerAutoLaunchWatchers() {
-		// watch to see if the user opens a ruby or custom file and we need to start the server
 		vscode.window.onDidChangeVisibleTextEditors((editors) => {
 			const launchAuto = this.config.launchSonicPiServerAutomatically()
 			for (let i = 0; i < editors.length; i++) {
@@ -282,7 +283,6 @@ export class Main {
 			}
 		})
 
-		// Update the mixer on the server if there are configuration changes
 		vscode.workspace.onDidChangeConfiguration((event) => {
 			if (event.affectsConfiguration('sonicpieditor')) {
 				this.updateMixerSettings()
@@ -330,7 +330,6 @@ export class Main {
 		}
 		this.serverStarted = true
 
-		// Initialise the Sonic Pi server
 		this.logOutput.appendLine('Will start server')
 
 		try {
@@ -407,8 +406,6 @@ export class Main {
 		this.cuesOutput.appendLine(str)
 	}
 
-	// This is where the incoming OSC messages are processed.
-	// We are processing most of the incoming OSC messages, but not everything yet.
 	setupOscReceiver() {
 		registerOscHandlers(this)
 	}
@@ -468,10 +465,10 @@ export class Main {
 			}
 		})
 		this.log(`Keep-alive started: pinging daemon port ${this.daemonPort} with /daemon/keep-alive`)
-		this.keepAliveTimer = setInterval(() => {
-			const message = new OSC.Message('/daemon/keep-alive', this.guiUuid)
-			daemonSender.send(message)
-		}, 1000)
+		this.keepAliveTimer = setInterval(
+			() => daemonSender.send(new OSC.Message('/daemon/keep-alive', this.guiUuid)),
+			1000,
+		)
 	}
 
 	// The daemon is gone (kill switch, crash, machine sleep). Without this the window keeps
@@ -500,8 +497,6 @@ export class Main {
 		return true
 	}
 
-	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
-	// to the cells that produced it (we send joined cell keys as the workspace).
 	private registerRunTrackingHandlers(osc: OSC) {
 		osc.on('/run/started', (message: OscMessage) => {
 			const jobId = Number(message.args[0])
@@ -521,7 +516,6 @@ export class Main {
 		})
 	}
 
-	// This is the main part of launching Sonic Pi's backend
 	async startRubyServer(): Promise<void> {
 		const args: string[] = [this.daemonLauncherPath] // No need for launch args on the new daemon script
 
@@ -536,7 +530,6 @@ export class Main {
 			ruby_server.unref?.()
 			this.daemonProcess = ruby_server
 			ruby_server.stdout.on('data', (data: Buffer) => {
-				// console.log(`stdout: ${data}`)
 				this.logOutput.appendLine(`Daemon Out: ${data}`)
 				const ports = parseDaemonStdout(data.toString())
 				if (!ports) {
@@ -566,7 +559,6 @@ export class Main {
 			})
 
 			ruby_server.stderr.on('data', (data: Buffer) => {
-				// console.log(`stdserr: ${data}`)
 				this.onDaemonStderr(data.toString())
 			})
 		})
@@ -599,44 +591,77 @@ export class Main {
 		try {
 			this.onServerRestart.fire()
 			if (this.daemonProcess) {
-				this.daemonProcess.kill()
-				this.daemonProcess = undefined
+				// Flag BEFORE the first await: the old daemon's /exited push can land inside this
+				// method's first yield, so it must read as an accounted shutdown.
+				this.daemonExitRequested = true
+				await this.shutdownManagedDaemon()
 			}
 			this.serverStarted = false
-			// The old daemon's ports die with it. Re-arm the send queue: a resolved send queue
-			// would keep shipping runs to the previous generation's dead port (cells then spin
-			// forever with no /run-code on the wire).
-			this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
-			// While the killed daemon dies, the scanner still sees its spider process: attaching
-			// to it would route plays to a corpse. Force the fresh managed boot.
+			// The dying spider would otherwise be adopted: force the fresh managed boot.
 			this.forceManagedBootOnce = true
-			this.onServerState.fire('stopped')
-			this.midiAutoStartSent = false
-			this.gamepadAutoStartSent = false
-			this.runtimeReady = false
+			this.reportDaemonRetired()
 			await this.startServer()
 		} finally {
 			this.restartInProgress = false
 		}
 	}
 
-	// Shut the whole backend down: stop playing runs, then kill the daemon like restartServer
+	// Shut the whole backend down: stop playing runs, then retire the daemon like restartServer
 	// does, but without booting a fresh one.
-	stopServer() {
+	async stopServer(): Promise<void> {
 		this.stopAllJobs()
 		if (this.daemonProcess) {
-			this.daemonProcess.kill()
-			this.daemonProcess = undefined
+			await this.shutdownManagedDaemon()
 		}
 		this.serverStarted = false
-		// The stopped daemon's ports are dead. Re-arm the send queue like a restart does, or
-		// an already-resolved queue keeps shipping runs to the previous generation's port.
+		this.reportDaemonRetired()
+		this.logOutput.appendLine('Sonic Pi server stopped (last Sonic Pi editor closed)')
+	}
+
+	// The daemon this window owned is gone: re-arm the send queue (a resolved one would keep
+	// shipping runs to the dead port), clear the per-generation flags, and report the transition
+	// once - the daemon's own /exited push may already have reported it.
+	private reportDaemonRetired(): void {
 		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
-		this.onServerState.fire('stopped')
 		this.midiAutoStartSent = false
 		this.gamepadAutoStartSent = false
 		this.runtimeReady = false
-		this.logOutput.appendLine('Sonic Pi server stopped (last Sonic Pi editor closed)')
+		if (this.consumeShutdownReport()) this.onServerState.fire('stopped')
+	}
+
+	// A managed daemon leaves on its own terms: /exit(token) runs __exit, so the scheduler stops
+	// the jobs and their ensure blocks run (no clipped tails), then the at_exit pushes /exited.
+	// SIGTERM is the fallback: spider has no trap, so a daemon that never leaves would hang.
+	private async shutdownManagedDaemon(): Promise<void> {
+		const daemon = this.daemonProcess
+		if (!daemon) return
+		this.daemonExitRequested = true
+		this.shutdownReported = false
+		// /exit rides the OLD (resolved) queue: it is the last traffic the dying generation
+		// must actually receive. Re-arm BEFORE the wait - during the graceful window the old
+		// sender would deliver new traffic to the dead port (the notebook suites' lost
+		// /run-codes); the fresh promise holds runs until the next boot resolves it.
+		senders.exitGracefully(this.senderContext())
+		this.reportDaemonRetired()
+		this.daemonProcess = undefined
+		const deadline = new Promise<void>((resolve) =>
+			setTimeout(resolve, Main.GRACEFUL_EXIT_DEADLINE_MS).unref(),
+		)
+		const left = new Promise<void>((resolve) => daemon.once('exit', () => resolve()))
+		await Promise.race([left, deadline])
+		this.daemonExitRequested = false
+		if (daemon.exitCode !== null || daemon.signalCode !== null) return
+		this.logOutput.appendLine(
+			`The Sonic Pi daemon did not exit within ${Main.GRACEFUL_EXIT_DEADLINE_MS}ms - killing it`,
+		)
+		daemon.kill()
+	}
+
+	// True when no one has reported this shutdown yet; a state push can only be claimed once.
+	consumeShutdownReport(): boolean {
+		if (this.shutdownReported) return false
+		this.shutdownReported = true
+		return true
 	}
 
 	updateMixerSettings() {
@@ -710,8 +735,7 @@ export class Main {
 		return undefined
 	}
 
-	// The daemon booter writes to the shared log under the user's home; the extension
-	// already knows the log directory root from sonic pi's paths.
+	// The daemon booter's shared log under the user's home (paths.rb's log dir).
 	private daemonLogPath(): string {
 		return path.join(os.homedir(), '.sonic-pi', 'log', 'daemon.log')
 	}

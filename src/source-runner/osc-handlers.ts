@@ -34,6 +34,11 @@ export interface OscHandlerHost {
 	serverStarted: boolean
 	// Set when the runtime announced /spider/ready; a duplicate ready must be a no-op.
 	runtimeReady: boolean
+	// A stop or restart already asked this daemon to exit: its /exited push then reports a
+	// shutdown the window has accounted for, not a second transition.
+	daemonExitRequested: boolean
+	// True when nobody has reported this shutdown yet; a state push claims it once.
+	consumeShutdownReport(): boolean
 	onServerState: { fire(value: 'stopped' | 'starting' | 'running'): void }
 	lastDeviceTable: OscArg[]
 	lastMidiInPorts: string
@@ -217,16 +222,18 @@ const announceRuntimeReady = (host: OscHandlerHost): void => {
 }
 
 // One place for both exit pushes: the daemon's own reason (when it sent one) survives to the
-// log, and restartInProgress is respected so a restart's own kill is not logged as a crash.
+// log, and a stop already in flight keeps its own bookkeeping: the graceful /exit we sent is
+// followed by this push, so the window would otherwise report a second, later 'stopped'.
 const stopForRuntimeExit = (host: OscHandlerHost, push: string, reason: string): void => {
 	if (!host.serverStarted) return
 	host.serverStarted = false
+	// The generation the receiver belongs to is gone; a duplicate ready must not report it back.
 	host.runtimeReady = false
 	host.liveJobs.clear()
 	host.announcedRuns.clear()
 	host.endedRuns.clear()
 	host.log('Sonic Pi runtime left (' + push + ')' + (reason ? ': ' + reason : ''))
-	host.onServerState.fire('stopped')
+	if (host.consumeShutdownReport()) host.onServerState.fire('stopped')
 }
 
 // Device lists: the daemon pushes one 'enabled<TAB>name' string per list (runtime.rb:1949-1951)

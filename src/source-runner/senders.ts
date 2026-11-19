@@ -6,6 +6,11 @@ export type SenderContext = {
 	token: number
 }
 
+// Ask the daemon to leave on its own terms (spider-server.rb:354-362 -> runtime.rb:1445-1451):
+// the runtime stops the jobs scheduler-clean before its at_exit pushes /exited. The token is
+// what fences the call to the daemon that booted here.
+export const exitGracefully = ({ send, token }: SenderContext) => send(new OSC.Message('/exit', token))
+
 export const cuePortStart = ({ send, token }: SenderContext) =>
 	send(new OSC.Message('/cue-port-start', token))
 

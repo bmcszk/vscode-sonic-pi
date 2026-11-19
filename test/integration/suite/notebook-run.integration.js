@@ -56,8 +56,11 @@ suite('Notebook run', () => {
 		// Every run in this suite stays in flight until the suite ends it, so the states under
 		// test (playing, interrupted, replaced) exist for as long as the assertions need them.
 		host.writeSpec({ holdRuns: true })
-		const mark = host.mark()
 		await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+		// The restart retires the old daemon before it boots the held-run one, so the mark goes
+		// after the command resolves: the boot recorded before that belongs to the generation
+		// the window is still shutting down.
+		const mark = host.mark()
 		await host.waitUntil(() => host.boots(mark)[0], 'the held-run daemon to boot')
 		// A playing cell must not be the reason the daemon dies when an editor closes.
 		await host.updateSetting('stopServerOnLastEditorClose', false)

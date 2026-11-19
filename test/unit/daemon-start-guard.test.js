@@ -58,7 +58,13 @@ const vscodeStub = {
 
 const childProcessStub = {
 	spawn: () => {
-		spawnedServer = { stdout: new EventEmitter(), stderr: new EventEmitter(), kill() {} }
+		// The stand-in daemon ignores /exit, so the graceful deadline ends in the fallback kill.
+		spawnedServer = new EventEmitter()
+		spawnedServer.stdout = new EventEmitter()
+		spawnedServer.stderr = new EventEmitter()
+		spawnedServer.exitCode = null
+		spawnedServer.signalCode = null
+		spawnedServer.kill = () => spawnedServer.emit('exit', null, 'SIGTERM')
 		return spawnedServer
 	},
 }
@@ -79,6 +85,12 @@ function daemonReports(line) {
 	spawnedServer.stdout.emit('data', Buffer.from(line))
 	return { main, starting }
 }
+
+// The restart retires the old daemon before it boots the fresh one: it reports its own
+// 'stopped' once the graceful wait ends, and the stand-in daemon leaves on the fallback kill
+// that ends the wait. The fresh spawn's stdout is only read after that, so the restart's line
+// has to arrive once the retirement is over.
+const GRACEFUL_DEADLINE_MS = 2000
 
 const tests = {
 	async 'uses the token from a 6-value line for OSC'() {
@@ -109,6 +121,7 @@ const tests = {
 		await started
 
 		const restarting = main.restartServer()
+		await new Promise((resolve) => setTimeout(resolve, GRACEFUL_DEADLINE_MS))
 		spawnedServer.stdout.emit('data', Buffer.from('39990 39997 39996 39998 4560 2'))
 		await restarting
 
@@ -132,6 +145,7 @@ const tests = {
 		await started
 
 		const restarting = main.restartServer()
+		await new Promise((resolve) => setTimeout(resolve, GRACEFUL_DEADLINE_MS))
 		spawnedServer.stdout.emit('data', Buffer.from('39990 39997 39996 39998 4560 2'))
 		await restarting
 
