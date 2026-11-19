@@ -160,6 +160,8 @@ export function activate(context: vscode.ExtensionContext) {
 	// without args and resolves the focused notebook cell instead. Cold-window dispatch stays
 	// a silent no-op: a modal there hangs the activation gate (see the masterVolume guard in
 	// the runner's activate).
+	// This side owns the only lens provider for 'sonic-pi' (and with it the mute registry), so a
+	// mute flips the lens title of the row that was clicked - never of a duplicate row.
 	const codeLensProvider = new SonicPiCodeLensProvider()
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.muteLoop', (...args: unknown[]) => {
@@ -177,14 +179,13 @@ export function activate(context: vscode.ExtensionContext) {
 			if (!serverIsRunning()) return
 			const [cellKey] = args
 			if (typeof cellKey === 'string') {
-				unmuteCellByKeys([cellKey])
-				codeLensProvider.unmute(cellKey)
+				if (unmuteCellByKeys([cellKey])) codeLensProvider.unmute(cellKey)
 				return
 			}
 			const cell = focusedNotebookCell()
 			if (cell) notebookController.unmuteCell(cell)
 		}),
-		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, codeLensProvider),
+		vscode.languages.registerCodeLensProvider(selector, codeLensProvider),
 	)
 
 	context.subscriptions.push(

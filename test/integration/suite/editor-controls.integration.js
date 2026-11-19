@@ -29,18 +29,13 @@ suite('Editor controls', () => {
 		const lenses = await vscode.commands.executeCommand('vscode.executeCodeLensProvider', document.uri)
 		const titles = lenses.map((lens) => lens.command.title)
 		assert.deepStrictEqual(titles.slice(0, 2), ['$(play) Run', '$(stop) Stop'])
+		// One row set per block: a second registered lens provider would repeat every row.
 		assert.deepStrictEqual(
 			titles.filter((title) => title !== '$(play) Run' && title !== '$(stop) Stop'),
 			[
 				'$(play) Run cell',
 				'$(debug-pause) Mute',
 				'$(play) Run cell',
-				'$(debug-pause) Mute',
-				'$(play) Run cell',
-				'$(debug-pause) Mute',
-				'$(play) Run cell',
-				'$(debug-pause) Mute',
-				'$(sync) Load def',
 				'$(debug-pause) Mute',
 				'$(sync) Load def',
 				'$(debug-pause) Mute',
@@ -276,7 +271,8 @@ suite('Editor controls', () => {
 			await host.waitUntil(
 				() =>
 					typeof runnerForJobs.liveJobWorkspaceFor === 'function' &&
-					runnerForJobs.liveJobWorkspaceFor('file://0:live_loop :drums do\n  play :c4\nend') !== undefined,
+					runnerForJobs.liveJobWorkspaceFor('file://0:live_loop :drums do\n  play :c4\nend') !==
+						undefined,
 				'the extension to track the run in liveJobs',
 			)
 			const cellKey = codeLensModule.cellKeyFor(0, 'live_loop :drums do\n  play :c4\nend')

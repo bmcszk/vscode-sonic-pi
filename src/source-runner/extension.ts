@@ -34,7 +34,7 @@ import { Main } from './main'
 import { Config } from './config'
 import { computeBeautifyEdit } from '../beautify'
 import { flashPaintFor, notebookFlashMap } from '../cell-flash-map'
-import { SonicPiCodeLensProvider, cellKeyFor } from '../codelenses'
+import { cellKeyFor } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
 import { LspDiagnosticsController } from '../lsp/diagnostics'
@@ -740,14 +740,6 @@ const registerEditorCommands = (context: vscode.ExtensionContext) => {
 	)
 
 	registerBeautifyCommand(context)
-
-	// The lens provider owns the mute registry so a mute flips its lens title; the command
-	// handlers below route through it. Cold-window dispatch must stay silent (see the
-	// masterVolume guard above): muting without a server would throw on the uninitialized runner.
-	const codeLensProvider = new SonicPiCodeLensProvider()
-	context.subscriptions.push(
-		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, codeLensProvider),
-	)
 }
 
 // Beautify: send the active Sonic Pi document to the daemon's /buffer-beautify and
