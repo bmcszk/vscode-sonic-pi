@@ -44,8 +44,6 @@ export class SonicPiStatusBar {
 	private mixerState: MixerState = {
 		volume: 1.0,
 		drive: 1.0,
-		lpfFreq: 'off',
-		hpfFreq: 'off',
 		stereo: true,
 		invert: false,
 	}
@@ -123,7 +121,7 @@ export class SonicPiStatusBar {
 		const picked = await vscode.window.showQuickPick(items, {
 			placeHolder: 'Mixer settings',
 		})
-		await handleMixerQuickPick(picked, this.mixerState, this.bridge)
+		this.mixerState = await handleMixerQuickPick(picked, this.mixerState, this.bridge)
 		this.renderMixer()
 	}
 

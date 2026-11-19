@@ -1,11 +1,11 @@
 ---
 # sonic-pi-5jo6
 title: 'Bug: status bar mixer toggles (stereo/mono/invert, LPF/HPF) don''t work or give no feedback'
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-19T23:10:10Z
-updated_at: 2026-11-19T23:16:40Z
+updated_at: 2026-11-19T23:25:44Z
 parent: sonic-pi-6fiz
 ---
 
@@ -46,3 +46,12 @@ HARD VERDICT per extension-sent route, spider-server.rb add_method -> sp.XXX -> 
 - INCOMING pushes: every push the extension consumes fires in spider (live_loop/scope :1002-1004, midi/in+out :986-988, gamepad/devices-list :990, mixer/settings :996, link-bpm/:link-num-peers, run/started:ended:all-completed :1073-1082, spider/ready :1102, exited :974, flash, error, ack :462-471). All OK.
 
 Net: the sweep confirms the LPF/HPF missing-method verdict END TO END and CLEARS all other routes. The bean's fix scope (honest disabled UI for lpf/hpf + optimistic stereo/mono state) stands unchanged.
+
+## Proof of Work
+
+- Live verdicts (worker, decisive): ruby runtime probe on the installed 5.0.0 - set_mixer_lpf!/hpf!/_disable! all respond_to? false (NoMethodError confirmed; spider's UDP server rescues it into 'OSC handler exception' on stderr - udp_server.rb:99-104); set_mixer_invert_stereo!/standard/stereo/mono all true. Wire-verified senders + honest UI.
+- LPF/HPF: popover rows now non-selectable separator entries labelled 'unavailable in Sonic Pi 5.0.x - not implemented upstream', picking sends NOTHING; statusbar text drops the LPF/HPF segments; dead bridge paths removed (senders kept for the day upstream lands).
+- Stereo/mono/invert: optimistic local flip of the popover state + item re-render; /mixer/settings push merges only drive/volume (no stale push reverts a toggle).
+- Upstream issue DRAFT recorded in the run artifact (title/version/repro/expected fix incl. the four missing methods + push-extension suggestion).
+- Orchestrator re-ran at merged dev4 230b488: mixer-panel 17/17 + statusbar + codelens-single-provider suites green; 51-suite battery exit 0; npm test exit 0 incl. vsix smoke; extension integration 42 passing 0 failing; lint/prettier clean; zero suppressions.
+Residual: audio-affecting verification of stereo/mono happens at the next live session (route chain verified to node_ctl)

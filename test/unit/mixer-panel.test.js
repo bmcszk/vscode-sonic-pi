@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-// Mixer popover (QuickPick) items built from mixer state (bean sonic-pi-s155).
-// Pure formatter + onPick dispatchers. No vscode UI here, just item objects + callbacks.
-// Format: '$(tunnel-horizontal) vol 80% · drive 1.0 · LPF off · HPF off · stereo'
+// Mixer popover (QuickPick) items built from mixer state (beans sonic-pi-s155, sonic-pi-5jo6).
+// Pure formatter + pick dispatch. No vscode UI here, just item objects + callbacks.
+// Sonic Pi 5.0.0's daemon has no set_mixer_lpf!/set_mixer_hpf!, so LPF/HPF entries are
+// non-selectable separators that name the upstream gap instead of dispatching a dead route.
+// Label format: '$(tunnel-horizontal) vol 80% · drive 1.0 · stereo'
 const assert = require('assert')
 
 const Module = require('module')
 
 const vscodeStub = {
-	QuickPickItemKind: { Separator: 1, Default: 0 },
+	QuickPickItemKind: { Separator: -1, Default: 0 },
 	window: {
 		showQuickPick: () => {},
 		showInputBox: () => {},
@@ -32,270 +34,220 @@ Module._load = function (request) {
 	return load.apply(this, arguments)
 }
 
-// We'll load the compiled output
 const { buildMixerQuickPickItems, formatMixerLabel, handleMixerQuickPick } = require('../../out/mixer-panel.js')
+
+const mixerState = (overrides = {}) => ({
+	volume: 0.8,
+	drive: 1.0,
+	stereo: true,
+	invert: false,
+	...overrides,
+})
+
+const mixerBridge = (spies = {}) => ({
+	setDrive: () => {},
+	setStereo: () => {},
+	setInvert: () => {},
+	sendMasterVolume: () => {},
+	...spies,
+})
 
 const tests = []
 
 const test = (name, fn) => tests.push([name, fn])
 
-test('formatMixerLabel renders all fields with live values', () => {
-	const label = formatMixerLabel({
-		volume: 0.8,
-		drive: 1.0,
-		lpfFreq: 'off',
-		hpfFreq: 'off',
-		stereo: true,
-		invert: false,
-	})
-	assert.strictEqual(
-		label,
-		'$(tunnel-horizontal) vol 80% · drive 1.0 · LPF off · HPF off · stereo',
+test('formatMixerLabel renders volume, drive and stereo with live values', () => {
+	// given
+	const state = mixerState()
+
+	// when
+	const label = formatMixerLabel(state)
+
+	// then
+	assert.strictEqual(label, '$(tunnel-horizontal) vol 80% · drive 1.0 · stereo')
+})
+
+test('formatMixerLabel names mono and invert', () => {
+	// given
+	const state = mixerState({ volume: 0.5, drive: 1.5, stereo: false, invert: true })
+
+	// when
+	const label = formatMixerLabel(state)
+
+	// then
+	assert.strictEqual(label, '$(tunnel-horizontal) vol 50% · drive 1.5 · mono · invert')
+})
+
+test('buildMixerQuickPickItems lists volume, drive, unavailable LPF/HPF, stereo and invert', () => {
+	// given
+	const state = mixerState()
+
+	// when
+	const items = buildMixerQuickPickItems(state)
+
+	// then
+	const labels = items.map((item) => item.label)
+	assert.strictEqual(items.length, 6, 'expected six popover entries')
+	assert.ok(labels.some((label) => label.includes('Volume')), 'has Volume entry')
+	assert.ok(labels.some((label) => label.includes('Drive')), 'has Drive entry')
+	assert.ok(labels.some((label) => label.includes('LPF')), 'has LPF entry')
+	assert.ok(labels.some((label) => label.includes('HPF')), 'has HPF entry')
+	assert.ok(labels.some((label) => label.match(/Stereo|Mono/)), 'has Stereo/Mono entry')
+	assert.ok(labels.some((label) => label.includes('Invert')), 'has Invert entry')
+	assert.deepStrictEqual(
+		items.map((item) => item.action).filter(Boolean),
+		['volume', 'drive', 'stereo', 'invert'],
+		'only the implemented routes carry an action',
 	)
 })
 
-test('formatMixerLabel renders LPF/HPF frequencies when enabled', () => {
-	const label = formatMixerLabel({
-		volume: 0.5,
-		drive: 1.5,
-		lpfFreq: 120,
-		hpfFreq: 80,
-		stereo: false,
-		invert: true,
-	})
-	assert.strictEqual(
-		label,
-		'$(tunnel-horizontal) vol 50% · drive 1.5 · LPF 120 · HPF 80 · mono · invert',
+test('buildMixerQuickPickItems renders LPF/HPF as non-selectable entries naming the upstream gap', () => {
+	// given
+	const state = mixerState()
+
+	// when
+	const items = buildMixerQuickPickItems(state)
+
+	// then
+	const unavailable = items.filter((item) => item.label.includes('(unavailable in Sonic Pi 5.0.x)'))
+	assert.strictEqual(unavailable.length, 2, 'both filters state they are unavailable')
+	for (const item of unavailable) {
+		assert.strictEqual(item.kind, vscodeStub.QuickPickItemKind.Separator, 'disabled styling')
+		assert.strictEqual(item.action, undefined, 'an unavailable entry is not an action')
+	}
+	assert.ok(
+		unavailable.some((item) => item.label.includes('set_mixer_lpf! missing')),
+		'LPF names the missing daemon method',
 	)
-})
-
-test('buildMixerQuickPickItems returns Volume, Drive, LPF, HPF, Mono/Stereo, Invert items', () => {
-	const items = buildMixerQuickPickItems({
-		volume: 0.8,
-		drive: 1.0,
-		lpfFreq: 'off',
-		hpfFreq: 'off',
-		stereo: true,
-		invert: false,
-	})
-	// Should have at least 6 pickable items (Volume, Drive, LPF, HPF, Stereo/Mono, Invert)
-	assert.strictEqual(items.length, 6, 'expected 6 items')
-
-	// Check labels contain expected prefixes
-	const labels = items.map((i) => i.label)
-	assert.ok(labels.some((l) => l.includes('Volume')), 'has Volume item')
-	assert.ok(labels.some((l) => l.includes('Drive')), 'has Drive item')
-	assert.ok(labels.some((l) => l.includes('LPF')), 'has LPF item')
-	assert.ok(labels.some((l) => l.includes('HPF')), 'has HPF item')
-	assert.ok(labels.some((l) => l.match(/Stereo|Mono/)), 'has Stereo/Mono item')
-	assert.ok(labels.some((l) => l.includes('Invert')), 'has Invert item')
-
-	// Check actions are present
-	const actions = items.map((i) => i.action)
-	assert.deepStrictEqual(actions, ['volume', 'drive', 'lpf', 'hpf', 'stereo', 'invert'])
+	assert.ok(
+		unavailable.some((item) => item.label.includes('set_mixer_hpf! missing')),
+		'HPF names the missing daemon method',
+	)
 })
 
 test('handleMixerQuickPick Volume opens input box and sends setMasterVolume', async () => {
+	// given
 	let sentVolume = null
-	const bridge = {
-		setDrive: () => {},
-		setLpf: () => {},
-		setHpf: () => {},
-		setStereo: () => {},
-		setInvert: () => {},
-		sendMasterVolume: (v) => (sentVolume = v),
-	}
-
-	const items = buildMixerQuickPickItems({
-		volume: 0.8,
-		drive: 1.0,
-		lpfFreq: 'off',
-		hpfFreq: 'off',
-		stereo: true,
-		invert: false,
-	})
-	const volumeItem = items.find((i) => i.action === 'volume')
-	assert.ok(volumeItem, 'Volume item exists')
-
-	// Simulate showInputBox returning '50'
+	const state = mixerState()
+	const volumeItem = buildMixerQuickPickItems(state).find((item) => item.action === 'volume')
 	vscodeStub.window.showInputBox = async () => '50'
 
-	await handleMixerQuickPick(volumeItem, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 'off', stereo: true, invert: false }, bridge)
+	// when
+	const next = await handleMixerQuickPick(volumeItem, state, mixerBridge({ sendMasterVolume: (v) => (sentVolume = v) }))
+
+	// then
 	assert.strictEqual(sentVolume, 50)
+	assert.deepStrictEqual(next, state, 'volume waits for the daemon push')
 })
 
 test('handleMixerQuickPick Drive opens input box and sends setDrive', async () => {
+	// given
 	let sentDrive = null
-	const bridge = {
-		setDrive: (v) => (sentDrive = v),
-		setLpf: () => {},
-		setHpf: () => {},
-		setStereo: () => {},
-		setInvert: () => {},
-		sendMasterVolume: () => {},
-	}
-
-	const items = buildMixerQuickPickItems({
-		volume: 0.8,
-		drive: 1.0,
-		lpfFreq: 'off',
-		hpfFreq: 'off',
-		stereo: true,
-		invert: false,
-	})
-	const driveItem = items.find((i) => i.action === 'drive')
-	assert.ok(driveItem, 'Drive item exists')
-
+	const state = mixerState()
+	const driveItem = buildMixerQuickPickItems(state).find((item) => item.action === 'drive')
 	vscodeStub.window.showInputBox = async () => '1.5'
 
-	await handleMixerQuickPick(driveItem, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 'off', stereo: true, invert: false }, bridge)
+	// when
+	const next = await handleMixerQuickPick(driveItem, state, mixerBridge({ setDrive: (v) => (sentDrive = v) }))
+
+	// then
 	assert.strictEqual(sentDrive, 1.5)
+	assert.deepStrictEqual(next, state, 'drive waits for the daemon push')
 })
 
-test('handleMixerQuickPick LPF frequency sends setLpf with number; "off" sends "off"', async () => {
-	let sentLpf = null
-	const bridge = {
-		setDrive: () => {},
-		setLpf: (v) => (sentLpf = v),
-		setHpf: () => {},
-		setStereo: () => {},
-		setInvert: () => {},
-		sendMasterVolume: () => {},
-	}
-
-	const items = buildMixerQuickPickItems({
-		volume: 0.8,
-		drive: 1.0,
-		lpfFreq: 120,
-		hpfFreq: 'off',
-		stereo: true,
-		invert: false,
+test('handleMixerQuickPick on an unavailable LPF/HPF entry sends nothing', async () => {
+	// given
+	const state = mixerState()
+	const calls = []
+	const bridge = mixerBridge({
+		setLpf: (v) => calls.push(['setLpf', v]),
+		setHpf: (v) => calls.push(['setHpf', v]),
+		setDrive: (v) => calls.push(['setDrive', v]),
+		setStereo: (v) => calls.push(['setStereo', v]),
+		setInvert: (v) => calls.push(['setInvert', v]),
+		sendMasterVolume: (v) => calls.push(['sendMasterVolume', v]),
 	})
-	const lpfItem = items.find((i) => i.action === 'lpf')
-	assert.ok(lpfItem, 'LPF item exists')
+	const unavailable = buildMixerQuickPickItems(state).filter((item) =>
+		item.label.includes('(unavailable in Sonic Pi 5.0.x)'),
+	)
 
-	vscodeStub.window.showInputBox = async () => '200'
+	// when
+	const results = []
+	for (const item of unavailable) results.push(await handleMixerQuickPick(item, state, bridge))
 
-	await handleMixerQuickPick(lpfItem, { volume: 0.8, drive: 1.0, lpfFreq: 120, hpfFreq: 'off', stereo: true, invert: false }, bridge)
-	assert.strictEqual(sentLpf, 200)
-
-	// Test "off"
-	vscodeStub.window.showInputBox = async () => 'off'
-	await handleMixerQuickPick(lpfItem, { volume: 0.8, drive: 1.0, lpfFreq: 120, hpfFreq: 'off', stereo: true, invert: false }, bridge)
-	assert.strictEqual(sentLpf, 'off')
+	// then
+	assert.deepStrictEqual(calls, [], 'no OSC route is sent for an unimplemented filter')
+	for (const next of results) assert.deepStrictEqual(next, state, 'the popover state does not move')
 })
 
-test('handleMixerQuickPick HPF frequency sends setHpf with number; "off" sends "off"', async () => {
-	let sentHpf = null
-	const bridge = {
-		setDrive: () => {},
-		setLpf: () => {},
-		setHpf: (v) => (sentHpf = v),
-		setStereo: () => {},
-		setInvert: () => {},
-		sendMasterVolume: () => {},
-	}
-
-	const items = buildMixerQuickPickItems({
-		volume: 0.8,
-		drive: 1.0,
-		lpfFreq: 'off',
-		hpfFreq: 80,
-		stereo: true,
-		invert: false,
-	})
-	const hpfItem = items.find((i) => i.action === 'hpf')
-	assert.ok(hpfItem, 'HPF item exists')
-
-	vscodeStub.window.showInputBox = async () => '100'
-
-	await handleMixerQuickPick(hpfItem, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 80, stereo: true, invert: false }, bridge)
-	assert.strictEqual(sentHpf, 100)
-
-	// Test "off"
-	vscodeStub.window.showInputBox = async () => 'off'
-	await handleMixerQuickPick(hpfItem, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 80, stereo: true, invert: false }, bridge)
-	assert.strictEqual(sentHpf, 'off')
-})
-
-test('handleMixerQuickPick Stereo toggles and sends setStereo', async () => {
+test('handleMixerQuickPick Stereo toggles the returned state and sends setStereo', async () => {
+	// given
 	let sentStereo = null
-	const bridge = {
-		setDrive: () => {},
-		setLpf: () => {},
-		setHpf: () => {},
-		setStereo: (v) => (sentStereo = v),
-		setInvert: () => {},
-		sendMasterVolume: () => {},
-	}
+	const state = mixerState()
+	const stereoItem = buildMixerQuickPickItems(state).find((item) => item.action === 'stereo')
 
-	const items = buildMixerQuickPickItems({
-		volume: 0.8,
-		drive: 1.0,
-		lpfFreq: 'off',
-		hpfFreq: 'off',
-		stereo: true,
-		invert: false,
-	})
-	const stereoItem = items.find((i) => i.action === 'stereo')
-	assert.ok(stereoItem, 'Stereo item exists')
+	// when
+	const next = await handleMixerQuickPick(stereoItem, state, mixerBridge({ setStereo: (v) => (sentStereo = v) }))
 
-	await handleMixerQuickPick(stereoItem, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 'off', stereo: true, invert: false }, bridge)
+	// then
 	assert.strictEqual(sentStereo, false)
-
-	// Test from mono to stereo
-	await handleMixerQuickPick(stereoItem, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 'off', stereo: false, invert: false }, bridge)
-	assert.strictEqual(sentStereo, true)
+	assert.deepStrictEqual(next, mixerState({ stereo: false }), 'the requested state flips immediately')
 })
 
-test('handleMixerQuickPick Invert toggles and sends setInvert', async () => {
+test('handleMixerQuickPick Stereo flips back to stereo from mono', async () => {
+	// given
+	let sentStereo = null
+	const state = mixerState({ stereo: false })
+	const stereoItem = buildMixerQuickPickItems(state).find((item) => item.action === 'stereo')
+
+	// when
+	const next = await handleMixerQuickPick(stereoItem, state, mixerBridge({ setStereo: (v) => (sentStereo = v) }))
+
+	// then
+	assert.strictEqual(sentStereo, true)
+	assert.deepStrictEqual(next, mixerState({ stereo: true }))
+})
+
+test('handleMixerQuickPick Invert toggles the returned state and sends setInvert', async () => {
+	// given
 	let sentInvert = null
-	const bridge = {
-		setDrive: () => {},
-		setLpf: () => {},
-		setHpf: () => {},
-		setStereo: () => {},
-		setInvert: (v) => (sentInvert = v),
-		sendMasterVolume: () => {},
-	}
+	const state = mixerState()
+	const invertItem = buildMixerQuickPickItems(state).find((item) => item.action === 'invert')
 
-	const items = buildMixerQuickPickItems({
-		volume: 0.8,
-		drive: 1.0,
-		lpfFreq: 'off',
-		hpfFreq: 'off',
-		stereo: true,
-		invert: false,
-	})
-	const invertItem = items.find((i) => i.action === 'invert')
-	assert.ok(invertItem, 'Invert item exists')
+	// when
+	const next = await handleMixerQuickPick(invertItem, state, mixerBridge({ setInvert: (v) => (sentInvert = v) }))
 
-	await handleMixerQuickPick(invertItem, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 'off', stereo: true, invert: false }, bridge)
+	// then
 	assert.strictEqual(sentInvert, true)
+	assert.deepStrictEqual(next, mixerState({ invert: true }))
+})
 
-	// Test from on to off
-	await handleMixerQuickPick(invertItem, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 'off', stereo: true, invert: true }, bridge)
+test('handleMixerQuickPick Invert flips back off', async () => {
+	// given
+	let sentInvert = null
+	const state = mixerState({ invert: true })
+	const invertItem = buildMixerQuickPickItems(state).find((item) => item.action === 'invert')
+
+	// when
+	const next = await handleMixerQuickPick(invertItem, state, mixerBridge({ setInvert: (v) => (sentInvert = v) }))
+
+	// then
 	assert.strictEqual(sentInvert, false)
+	assert.deepStrictEqual(next, mixerState({ invert: false }))
 })
 
 test('handleMixerQuickPick with undefined pick does nothing', async () => {
-	let sentVolume = null
-	const bridge = {
-		setDrive: () => {},
-		setLpf: () => {},
-		setHpf: () => {},
-		setStereo: () => {},
-		setInvert: () => {},
-		sendMasterVolume: (v) => (sentVolume = v),
-	}
+	// given
+	const state = mixerState()
+	const calls = []
+	const bridge = mixerBridge({ sendMasterVolume: (v) => calls.push(v) })
 
-	await handleMixerQuickPick(undefined, { volume: 0.8, drive: 1.0, lpfFreq: 'off', hpfFreq: 'off', stereo: true, invert: false }, bridge)
-	assert.strictEqual(sentVolume, null)
-})
+	// when
+	const next = await handleMixerQuickPick(undefined, state, bridge)
 
-test('cold-window dispatch: calling vscode-sonic-pi.mixer command does not throw', () => {
-	// This is tested by the command existing and being callable without initialization
-	assert.ok(true, 'command registration tested in integration')
+	// then
+	assert.deepStrictEqual(calls, [])
+	assert.deepStrictEqual(next, state)
 })
 
 ;(async () => {

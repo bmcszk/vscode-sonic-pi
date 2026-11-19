@@ -3,8 +3,6 @@ import * as vscode from 'vscode'
 export type MixerState = {
 	volume: number
 	drive: number
-	lpfFreq: number | 'off'
-	hpfFreq: number | 'off'
 	stereo: boolean
 	invert: boolean
 }
@@ -12,82 +10,63 @@ export type MixerState = {
 export const formatMixerLabel = (state: MixerState): string => {
 	const volumePct = Math.round(state.volume * 100)
 	const driveStr = state.drive.toFixed(1)
-	const lpfStr = state.lpfFreq === 'off' ? 'off' : String(state.lpfFreq)
-	const hpfStr = state.hpfFreq === 'off' ? 'off' : String(state.hpfFreq)
 	const stereoStr = state.stereo ? 'stereo' : 'mono'
 	const invertStr = state.invert ? ' · invert' : ''
-	return `$(tunnel-horizontal) vol ${volumePct}% · drive ${driveStr} · LPF ${lpfStr} · HPF ${hpfStr} · ${stereoStr}${invertStr}`
+	return `$(tunnel-horizontal) vol ${volumePct}% · drive ${driveStr} · ${stereoStr}${invertStr}`
 }
 
 export type MixerBridge = {
 	setDrive: (value: number) => void
-	setLpf: (freq: number | 'off') => void
-	setHpf: (freq: number | 'off') => void
 	setStereo: (stereo: boolean) => void
 	setInvert: (invert: boolean) => void
 	sendMasterVolume: (value: number) => void
 }
 
+export type MixerAction = 'volume' | 'drive' | 'stereo' | 'invert'
+
 export type MixerQuickPickItem = vscode.QuickPickItem & {
-	action: 'volume' | 'drive' | 'lpf' | 'hpf' | 'stereo' | 'invert'
+	action?: MixerAction
 }
 
-export const buildMixerQuickPickItems = (state: MixerState): MixerQuickPickItem[] => {
-	const items: MixerQuickPickItem[] = []
-
-	// Volume
-	items.push({
+export const buildMixerQuickPickItems = (state: MixerState): MixerQuickPickItem[] => [
+	{
 		label: `$(pulse) Volume: ${Math.round(state.volume * 100)}%`,
 		description: 'Master output volume (0-100%)',
 		action: 'volume',
-	})
-
-	// Drive
-	items.push({
+	},
+	{
 		label: `$(dash) Drive: ${state.drive.toFixed(1)}`,
 		description: 'Pre-limiter gain',
 		action: 'drive',
-	})
-
-	// LPF
-	const lpfLabel = state.lpfFreq === 'off' ? 'LPF: off' : `LPF: ${state.lpfFreq} Hz`
-	items.push({
-		label: `$(filter) ${lpfLabel}`,
-		description: 'Low-pass filter frequency (or "off")',
-		action: 'lpf',
-	})
-
-	// HPF
-	const hpfLabel = state.hpfFreq === 'off' ? 'HPF: off' : `HPF: ${state.hpfFreq} Hz`
-	items.push({
-		label: `$(filter) ${hpfLabel}`,
-		description: 'High-pass filter frequency (or "off")',
-		action: 'hpf',
-	})
-
-	// Stereo/Mono toggle
-	items.push({
+	},
+	unavailableFilterItem('LPF', 'set_mixer_lpf!'),
+	unavailableFilterItem('HPF', 'set_mixer_hpf!'),
+	{
 		label: `$(speaker) ${state.stereo ? 'Stereo' : 'Mono'}`,
 		description: state.stereo ? 'Click to switch to Mono' : 'Click to switch to Stereo',
 		action: 'stereo',
-	})
-
-	// Invert toggle
-	items.push({
+	},
+	{
 		label: `$(arrow-swap) Invert: ${state.invert ? 'On' : 'Off'}`,
 		description: state.invert ? 'Click to disable stereo invert' : 'Click to enable stereo invert',
 		action: 'invert',
-	})
+	},
+]
 
-	return items
-}
+// Sonic Pi 5.0.0's /mixer-lpf-* and /mixer-hpf-* handlers call set_mixer_lpf!/set_mixer_hpf!,
+// which its Ruby lib does not define: every send raises NoMethodError inside the daemon.
+// A separator is VS Code's only non-selectable QuickPickItemKind, so the gap is stated, not clickable.
+const unavailableFilterItem = (name: 'LPF' | 'HPF', missingMethod: string): MixerQuickPickItem => ({
+	label: `$(filter) ${name} (unavailable in Sonic Pi 5.0.x) — not implemented upstream: ${missingMethod} missing in Sonic Pi 5.0.0 daemon`,
+	kind: vscode.QuickPickItemKind.Separator,
+})
 
 export const handleMixerQuickPick = async (
 	picked: MixerQuickPickItem | undefined,
 	state: MixerState,
 	bridge: MixerBridge,
-): Promise<void> => {
-	if (!picked) return
+): Promise<MixerState> => {
+	if (!picked) return state
 
 	switch (picked.action) {
 		case 'volume': {
@@ -95,75 +74,40 @@ export const handleMixerQuickPick = async (
 				prompt: 'Master volume (0-100)',
 				value: String(Math.round(state.volume * 100)),
 			})
-			if (input === undefined) return
+			if (input === undefined) return state
 			const match = /^\s*([+-]?\d+)\s*%?\s*$/.exec(input)
 			if (!match) {
 				void vscode.window.showErrorMessage('Volume must be a number from 0 to 100')
-				return
+				return state
 			}
 			const value = Math.min(100, Math.max(0, parseInt(match[1], 10)))
 			bridge.sendMasterVolume(value)
-			break
+			return state
 		}
 		case 'drive': {
 			const input = await vscode.window.showInputBox({
 				prompt: 'Drive (e.g., 1.0, 1.5, 2.0)',
 				value: String(state.drive),
 			})
-			if (input === undefined) return
+			if (input === undefined) return state
 			const value = parseFloat(input)
 			if (Number.isNaN(value) || value < 0) {
 				void vscode.window.showErrorMessage('Drive must be a positive number')
-				return
+				return state
 			}
 			bridge.setDrive(value)
-			break
-		}
-		case 'lpf': {
-			const input = await vscode.window.showInputBox({
-				prompt: 'LPF frequency in Hz (or "off" to disable)',
-				value: state.lpfFreq === 'off' ? 'off' : String(state.lpfFreq),
-			})
-			if (input === undefined) return
-			const trimmed = input.trim().toLowerCase()
-			if (trimmed === 'off' || trimmed === '0') {
-				bridge.setLpf('off')
-			} else {
-				const freq = parseFloat(trimmed)
-				if (Number.isNaN(freq) || freq <= 0) {
-					void vscode.window.showErrorMessage('LPF frequency must be a positive number or "off"')
-					return
-				}
-				bridge.setLpf(freq)
-			}
-			break
-		}
-		case 'hpf': {
-			const input = await vscode.window.showInputBox({
-				prompt: 'HPF frequency in Hz (or "off" to disable)',
-				value: state.hpfFreq === 'off' ? 'off' : String(state.hpfFreq),
-			})
-			if (input === undefined) return
-			const trimmed = input.trim().toLowerCase()
-			if (trimmed === 'off' || trimmed === '0') {
-				bridge.setHpf('off')
-			} else {
-				const freq = parseFloat(trimmed)
-				if (Number.isNaN(freq) || freq <= 0) {
-					void vscode.window.showErrorMessage('HPF frequency must be a positive number or "off"')
-					return
-				}
-				bridge.setHpf(freq)
-			}
-			break
+			return state
 		}
 		case 'stereo': {
-			bridge.setStereo(!state.stereo)
-			break
+			const stereo = !state.stereo
+			bridge.setStereo(stereo)
+			return { ...state, stereo }
 		}
 		case 'invert': {
-			bridge.setInvert(!state.invert)
-			break
+			const invert = !state.invert
+			bridge.setInvert(invert)
+			return { ...state, invert }
 		}
 	}
+	return state
 }
