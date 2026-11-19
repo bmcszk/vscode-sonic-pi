@@ -24,6 +24,7 @@ export interface OscHandlerHost {
 	onLiveLoopScopeEnded: { fire(value: { jobid: number; name: string }): void }
 	onVersion: { fire(value: string): void }
 	onRunStarted: { fire(value: number): void }
+	onWorkspaceStarted: { fire(value: { jobId: number; workspace: string }): void }
 	onRunEnded: { fire(value: number): void }
 	onCue: { fire(value: { time: number; id: number; address: string; args: string }): void }
 	onFlash: { fire(value: { workspace: string; line: number }): void }
@@ -145,6 +146,7 @@ const registerRunTrackingHandlers = (host: OscHandlerHost, osc: OSC): void => {
 		if (!Number.isFinite(jobId)) return
 		if (workspace) {
 			host.liveJobs.set(jobId, workspace)
+			host.onWorkspaceStarted.fire({ jobId, workspace })
 		}
 		announceRunStart(host, jobId, true)
 	})

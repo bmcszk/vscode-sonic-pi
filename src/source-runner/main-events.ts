@@ -9,6 +9,9 @@ export const onCue = new vscode.EventEmitter<{
 	args: string
 }>()
 export const onRunStarted = new vscode.EventEmitter<number>()
+// The same start plus the workspace the run was sent under: a cell run sends its block's key
+// there, which is how a run maps back to the block that plays it.
+export const onWorkspaceStarted = new vscode.EventEmitter<{ jobId: number; workspace: string }>()
 export const onRunEnded = new vscode.EventEmitter<number>()
 export const onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
 export const onServerRestart = new vscode.EventEmitter<void>()

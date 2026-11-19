@@ -119,6 +119,7 @@ class FakeMain {
 	constructor() {
 		for (const name of [
 			'onRunStarted',
+			'onWorkspaceStarted',
 			'onRunEnded',
 			'onFlash',
 			'onServerState',

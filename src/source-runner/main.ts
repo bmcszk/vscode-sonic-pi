@@ -70,6 +70,7 @@ export class Main {
 
 	onCue = events.onCue
 	onRunStarted = events.onRunStarted
+	onWorkspaceStarted = events.onWorkspaceStarted
 	onRunEnded = events.onRunEnded
 	onFlash = events.onFlash
 	onMixerSettings = events.onMixerSettings
@@ -951,16 +952,10 @@ export class Main {
 
 	// Per-run stop: kill only the job(s) a cell belongs to. Falls back to the whole-session
 	// stop when the cell's run is unknown or already finished - that keeps the notebook
-	// interrupt path correct even without run tracking.
-	// Read-only peek at the tracked runs: the integration suite waits for the workspace of a
-	// run to appear here before muting, so the mute deterministically maps to the job.
-	liveJobWorkspaceFor(cellKey: string): string | undefined {
-		for (const [, workspace] of this.liveJobs) {
-			if (workspace.split('|').includes(cellKey)) {
-				return workspace
-			}
-		}
-		return undefined
+	// interrupt path correct even without run tracking. One daemon job is one run, so the
+	// lens's per-cell stop names the id it saw start; a job the daemon ended is already gone.
+	stopJob(jobId: number) {
+		if (this.liveJobs.has(jobId)) this.sendOsc(new OSC.Message('/stop-job', this.guiUuid, jobId))
 	}
 
 	stopCell(cells: string[]) {

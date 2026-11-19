@@ -41,6 +41,7 @@ import { LspDiagnosticsController } from '../lsp/diagnostics'
 import { ensureLspClient, onLspClientReady } from '../lsp/shared-client'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
 import { MuteRegistry } from '../loop-mute'
+import { LiveRuns } from '../live-runs'
 import { CueStore } from '../cue-store'
 import { CueInspector } from '../cue-inspector'
 import { linkBpmInputValue } from '../link-label'
@@ -70,6 +71,25 @@ export const runScript = (code: string, cells: string[] = []) => {
 	}
 	main.runCode(code, 0, cells)
 }
+
+// Live runs by job id -> the cell keys the run plays. The lens renders stop rows from this
+// map, and a cell stop kills the job the map names.
+const liveRuns = new LiveRuns()
+
+// The daemon's /run/started carries the workspace the run was sent with, and a cell run sends
+// its block's key as that workspace - that is how a run maps back to the block that plays it.
+const trackLiveRuns = (run: Main) =>
+	run.onWorkspaceStarted.event(({ jobId, workspace }) => {
+		for (const cellKey of workspace.split('|')) {
+			liveRuns.runStarted(jobId, cellKey)
+		}
+	})
+
+const trackRunEnds = (run: Main) => run.onRunEnded.event((jobId) => liveRuns.runEnded(jobId))
+
+// The live-run map fills from the daemon's pushes, so it is readable without a lens: the
+// integration suite waits for a run to land here before it clicks a stop.
+export const liveRunsForTest = () => liveRuns
 
 export const onRunStarted = (listener: (num: number) => void) => {
 	return main.onRunStarted.event(listener)
@@ -106,12 +126,20 @@ export const stopAllScripts = () => {
 
 // Per-run stop: kill the daemon job(s) that belong to the given cells. Unknown or
 // finished cells fall back to the whole-session stop inside main.
-export const liveJobWorkspaceFor = (cellKey: string) => main.liveJobWorkspaceFor(cellKey)
 export const stopCellByKeys = (cellKeys: string[]) => {
 	if (!main) {
 		throw Error('Runner not initialized')
 	}
 	main.stopCell(cellKeys)
+}
+
+// A playing block's stop: kill only the run that block plays. A job the daemon already ended
+// has nothing left to kill, and the session keeps playing - the file-level Stop owns that.
+export const stopRun = (jobId: number) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.stopJob(jobId)
 }
 
 // Test seam (integration only): the mixer popover's Drive dispatch is unit-covered, so the
@@ -319,8 +347,16 @@ export function activate(context: vscode.ExtensionContext) {
 	})
 	context.subscriptions.push(main.onServerRestart.event(() => clearPlaying()))
 	// A fresh daemon knows nothing about muted loops; their stored codes could never be
-	// soundly re-run, so the mute memory dies with the server generation.
-	context.subscriptions.push(main.onServerRestart.event(() => muteRegistry.clear()))
+	// soundly re-run, so the mute memory dies with the server generation. The same holds for
+	// the live runs: the new generation numbers its jobs from scratch.
+	context.subscriptions.push(
+		main.onServerRestart.event(() => {
+			muteRegistry.clear()
+			liveRuns.clear()
+		}),
+		trackLiveRuns(main),
+		trackRunEnds(main),
+	)
 	if (config.launchSonicPiServerAutomatically() === 'start') {
 		main.startServerReported()
 	}

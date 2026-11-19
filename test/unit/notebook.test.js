@@ -123,6 +123,7 @@ const createdControllers = []
 class FakeMain {
 	constructor() {
 		this.onRunStarted = new StubEventEmitter()
+		this.onWorkspaceStarted = new StubEventEmitter()
 		this.onRunEnded = new StubEventEmitter()
 		this.onFlash = new StubEventEmitter()
 		this.onServerState = new StubEventEmitter()

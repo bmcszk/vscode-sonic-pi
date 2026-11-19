@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Live-loop scope pushes: the daemon tells the GUI where each live loop's header sits,
-// both when the loop thread comes alive (/live_loop/scope, spider-server.rb:1002) and when
-// its ensure block ends it (/live_loop/scope-ended, :1004). The handlers feed the scope
-// store; the emitters exist for the badge surface.
+// Per-run wiring and live-loop scope pushes: /run/started names the workspace a run executes
+// under (spider-server.rb:1078), which is how a job maps back to the cell that plays it; the
+// scope pushes say where each live loop's header sits - /live_loop/scope (:1002) when the
+// loop thread comes alive, /live_loop/scope-ended (:1004) when its ensure block ends it.
 const assert = require('assert')
 
 const Module = require('module')
@@ -151,6 +151,32 @@ const tests = {
 			['bass'],
 		)
 		assert.deepStrictEqual(ended, [{ jobid: 1, name: 'drums' }])
+	},
+
+	async 'a run start carries its workspace and a cell stop kills only that job'() {
+		// given a started window whose ports sender is connected
+		const main = startedMain()
+		main.guiUuid = 'test-uuid'
+		main.portsInitalizedResolver(fakeOsc())
+		const started = []
+		main.onWorkspaceStarted.event((push) => started.push(push))
+		// when the daemon announces a run sent under a block's cell key
+		fakeOsc().fire('/run/started', {
+			address: '/run/started',
+			args: [12, 'file://0:live_loop :a do\n  play 60\nend'],
+		})
+		// then the workspace rides the push, and the per-run stop kills just that job
+		assert.deepStrictEqual(started, [
+			{ jobId: 12, workspace: 'file://0:live_loop :a do\n  play 60\nend' },
+		])
+		await new Promise((resolve) => setTimeout(resolve, 10))
+		fakeOsc().sent.length = 0
+		main.stopJob(12)
+		await new Promise((resolve) => setTimeout(resolve, 10))
+		assert.deepStrictEqual(
+			fakeOsc().sent.map((message) => [message.address, message.args]),
+			[['/stop-job', ['test-uuid', 12]]],
+		)
 	},
 
 	'a push without a usable name leaves the store untouched'() {

@@ -15,14 +15,18 @@ import { serializer, NotebookController } from './notebook'
 import {
 	activate as activate_runner,
 	onFlash,
+	onRunStarted,
+	onRunEnded,
 	muteCellByKeys,
 	unmuteCellByKeys,
+	stopRun,
+	liveRunsForTest,
 	serverIsRunning,
 	openInitFile,
 	previewEntry,
 } from './source-runner/extension'
 import type { DocsEntry } from './docs-browser'
-import { SonicPiCodeLensProvider } from './codelenses'
+import { SonicPiCodeLensProvider, STOP_CELL_COMMAND } from './codelenses'
 
 const selector = { language: 'sonic-pi' }
 
@@ -156,14 +160,24 @@ export function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
-	// Mute lens click: args carry the block's cell key and text. Cell toolbar dispatch comes
-	// without args and resolves the focused notebook cell instead. Cold-window dispatch stays
-	// a silent no-op: a modal there hangs the activation gate (see the masterVolume guard in
-	// the runner's activate).
 	// This side owns the only lens provider for 'sonic-pi' (and with it the mute registry), so a
-	// mute flips the lens title of the row that was clicked - never of a duplicate row.
-	const codeLensProvider = new SonicPiCodeLensProvider()
+	// mute flips the lens title of the row that was clicked - never of a duplicate row. The
+	// runner's live-run map decides which block rows are stops, so each run start and end
+	// repaints the rows instead of waiting for a document edit.
+	// Cold-window dispatch of the lens commands stays a silent no-op: a modal there hangs the
+	// activation gate (see the masterVolume guard in the runner's activate).
+	const codeLensProvider = new SonicPiCodeLensProvider(liveRunsForTest)
 	context.subscriptions.push(
+		onRunStarted(() => codeLensProvider.lensesChangedByRuns()),
+		onRunEnded(() => codeLensProvider.lensesChangedByRuns()),
+		// The playing block's stop carries the job id its lens saw start, so the click kills
+		// that run and no other.
+		vscode.commands.registerCommand(STOP_CELL_COMMAND, (jobId: unknown) => {
+			if (!serverIsRunning()) return
+			if (typeof jobId === 'number' && Number.isFinite(jobId)) stopRun(jobId)
+		}),
+		// Mute lens click: args carry the block's cell key and text. Cell toolbar dispatch comes
+		// without args and resolves the focused notebook cell instead.
 		vscode.commands.registerCommand('vscode-sonic-pi.muteLoop', (...args: unknown[]) => {
 			if (!serverIsRunning()) return
 			const [cellKey, code] = args

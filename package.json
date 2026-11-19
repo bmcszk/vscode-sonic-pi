@@ -46,6 +46,7 @@
 		"onCommand:vscode-sonic-pi.docs",
 		"onCommand:vscode-sonic-pi.stopNotebook",
 		"onCommand:vscode-sonic-pi.stop",
+		"onCommand:vscode-sonic-pi.stopCell",
 		"onCommand:vscode-sonic-pi.restartserver",
 		"onCommand:vscode-sonic-pi.checkInstall",
 		"onCommand:vscode-sonic-pi.runCell",
@@ -250,6 +251,11 @@
 			{
 				"command": "vscode-sonic-pi.stop",
 				"title": "Stop",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.stopCell",
+				"title": "Stop Cell",
 				"category": "Sonic Pi"
 			},
 			{
