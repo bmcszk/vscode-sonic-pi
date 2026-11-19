@@ -1,11 +1,11 @@
 ---
 # sonic-pi-31tq
 title: 'Graceful daemon shutdown: /exit before kill in managed stop/restart (F24)'
-status: in-progress
+status: completed
 type: task
 priority: normal
 created_at: 2026-11-18T23:36:52Z
-updated_at: 2026-11-18T23:37:01Z
+updated_at: 2026-11-19T03:12:02Z
 parent: sonic-pi-6fiz
 ---
 
@@ -24,11 +24,20 @@ User directive this session: "add it to dev4". Un-cut from the roadmap cut list:
 - Adopted mode (daemonProcess undefined): unchanged, no send.
 
 ## Acceptance criteria
-- [ ] Unit >=4: /exit sent with token before any kill on stop+restart; 2s fallback kill fires when the daemon ignores /exit (hang-until-killed fake); adopted mode sends nothing; no double error state from the mid-shutdown /exited push.
-- [ ] Integration: restartServer via command -> fake daemon receives /exit with boot token; boots a fresh generation after.
-- [ ] node test/run-unit.js + npm test + integration battery green; zero suppressions; budgets hold.
+- [x] Unit >=4: /exit sent with token before any kill on stop+restart; 2s fallback kill fires when the daemon ignores /exit (hang-until-killed fake); adopted mode sends nothing; no double error state from the mid-shutdown /exited push.
+- [x] Integration: restartServer via command -> fake daemon receives /exit with boot token; boots a fresh generation after.
+- [x] node test/run-unit.js + npm test + integration battery green; zero suppressions; budgets hold.
 
 ## Skills for coder
 - /home/blaze/.agents/skills/coding-rules/SKILL.md (read fully before editing)
 - /home/blaze/.agents/skills/tdd/SKILL.md
 - /home/blaze/github/bmcszk/vscode-sonic-pi/.agents/skills/typescript/SKILL.md
+
+## Proof of Work
+
+- 5/5 unit tests in test/unit/graceful-exit.test.js (real-UDP fake daemon, port-correct, SIGTERM-fatal per daemon.rb): send-before-kill order capture; 2s deadline fallback kill (elapsed >= 1900ms asserted); adopted mode sends nothing; /exited mid-shutdown fires no error state (stop + restart variants).
+- REAL BUG FOUND AND FIXED beyond the feature itself: the graceful wait widened the send-queue re-arm hole - a run issued mid-shutdown landed on the dying sender (notebook integration suites' lost /run-codes, proven by wire ledger). Fix: /exit rides the OLD queue, queue re-arms BEFORE the wait, new traffic queues for the next generation.
+- consumeShutdownReport: shutdown reported exactly once (by the push OR the stop/restart body).
+- Gates re-run by orchestrator at 297dae8: unit battery 50 suites exit 0; npm test exit 0 (incl. vsix smoke); integration 42 passing 0 failing (was 39/3 - the notebook trio fixed by the re-arm, NOT by test weakening: the suite change is only mark-after-restart-resolve); just lint + format:check green; main.ts 1000/1000; zero suppressions.
+- Process note: three worker timeouts + one inline debug session (stray 17 integration daemons killed; probe discipline violated once by the orchestrator, corrected into the delegation trail).
+Residual: none
