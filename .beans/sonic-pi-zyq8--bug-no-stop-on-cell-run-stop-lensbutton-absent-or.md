@@ -1,11 +1,11 @@
 ---
 # sonic-pi-zyq8
 title: 'Bug: no stop on cell run - Stop lens/button absent or inert while a cell plays'
-status: todo
+status: in-progress
 type: bug
 priority: normal
 created_at: 2026-11-19T23:06:12Z
-updated_at: 2026-11-19T23:06:50Z
+updated_at: 2026-11-19T23:21:48Z
 parent: sonic-pi-6fiz
 blocked_by:
     - sonic-pi-gqg7
