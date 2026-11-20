@@ -125,6 +125,7 @@ class FakeMain {
 		this.onRunStarted = new StubEventEmitter()
 		this.onWorkspaceStarted = new StubEventEmitter()
 		this.onRunEnded = new StubEventEmitter()
+		this.onAllRunsCompleted = new StubEventEmitter()
 		this.onFlash = new StubEventEmitter()
 		this.onServerState = new StubEventEmitter()
 		this.onVersion = new StubEventEmitter()

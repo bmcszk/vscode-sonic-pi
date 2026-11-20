@@ -13,6 +13,8 @@ export const onRunStarted = new vscode.EventEmitter<number>()
 // there, which is how a run maps back to the block that plays it.
 export const onWorkspaceStarted = new vscode.EventEmitter<{ jobId: number; workspace: string }>()
 export const onRunEnded = new vscode.EventEmitter<number>()
+// The session went quiet: every run still open ended, even the ones no end push named.
+export const onAllRunsCompleted = new vscode.EventEmitter<void>()
 export const onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
 export const onServerRestart = new vscode.EventEmitter<void>()
 export const onReceiverFailed = new vscode.EventEmitter<void>()

@@ -72,6 +72,7 @@ export class Main {
 	onRunStarted = events.onRunStarted
 	onWorkspaceStarted = events.onWorkspaceStarted
 	onRunEnded = events.onRunEnded
+	onAllRunsCompleted = events.onAllRunsCompleted
 	onFlash = events.onFlash
 	onMixerSettings = events.onMixerSettings
 	onServerState = events.onServerState

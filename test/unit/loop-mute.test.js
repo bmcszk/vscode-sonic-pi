@@ -121,6 +121,7 @@ class FakeMain {
 			'onRunStarted',
 			'onWorkspaceStarted',
 			'onRunEnded',
+			'onAllRunsCompleted',
 			'onFlash',
 			'onServerState',
 			'onVersion',
