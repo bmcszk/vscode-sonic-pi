@@ -1,11 +1,11 @@
 ---
 # sonic-pi-i7ex
 title: 'Bug: playing-line highlights flaky on multi-block files (cloud_beat.pi: partial, intermittent)'
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-19T23:06:42Z
-updated_at: 2026-11-19T23:06:42Z
+updated_at: 2026-11-20T00:16:12Z
 parent: sonic-pi-6fiz
 ---
 
@@ -29,3 +29,10 @@ User ran examples/algomancer/cloud_beat.pi: highlights work sometimes, sometimes
 - [ ] A playing block's lines stay lit for the JOB's lifetime, not a 250ms blip (unit + integration: fake /run/started -> decoration present until /run/ended)
 - [ ] Regression: cloud_beat.pi e2e-style scenario: N blocks flashing in burst -> each line gets its decoration (unit with deterministic clock)
 - [ ] npm test + run-unit + integration green; budgets hold; zero suppressions
+
+## Proof of Work
+
+- Root cause (worker probes, confirmed): file runs flash with the daemon default workspace 'eval'; paint resolved through activeTextEditor -> non-editor focus dropped flashes ('none'); 250ms TTL ate bursts ('partial'). Both fixed.
+- flash-docks.ts (96 lines, 12 green assertions): which .pi document was in front at send time -> job's workspace docks it -> /run/ended|all-completed|restart releases. playing-lines.ts: document-keyed run-lifetime claims (playing-lines suite 23 cases green; TTL stays the no-dock fallback).
+- Orchestrator finish: two stale call sites aligned to the document-based API (worker timed out mid-rename), clean rebuild verified, gates re-run: 53-suite unit battery exit 0; npm test exit 0 incl. vsix smoke; extension integration 43 passing 0 failing; lint/prettier clean; main.ts 996/1000; zero suppressions; stray processes killed (4).
+- Residual (disclosed per contract): two editors of the same document -> active-editor behavior (B-scope limitation); visual burst feel verified at next live session.
