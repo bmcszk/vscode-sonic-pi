@@ -125,6 +125,12 @@ async function main() {
 			// cells that own it (main.ts keys liveJobs by it for per-cell stops).
 			sendToGui(socket, '/run/started', [id, args[2] ?? 'eval'])
 			record({ event: 'push', address: '/run/started', args: [id, args[2] ?? 'eval'] })
+			// spider-server.rb:994-996 pushes /use-bpm when a run changes the session tempo.
+			const bpm = spec.useBpm
+			if (bpm !== undefined) {
+				sendToGui(socket, '/use-bpm', [bpm])
+				record({ event: 'push', address: '/use-bpm', args: [bpm] })
+			}
 			if (holdRuns) {
 				pending.set(id, true)
 			} else {
@@ -174,6 +180,8 @@ async function main() {
 			shutdown(commandSocket, 'control-exit')
 		} else if (name === 'mixer-settings') {
 			sendToGui(commandSocket, '/mixer/settings', [args[0], args[1]])
+		} else if (name === 'use-bpm') {
+			sendToGui(commandSocket, '/use-bpm', [args[0]])
 		} else if (name === 'link-bpm') {
 			sendToGui(commandSocket, '/link-bpm', [args[0]])
 		} else if (name === 'link-peers') {

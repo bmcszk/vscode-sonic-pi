@@ -134,6 +134,7 @@ class FakeMain {
 		this.onReceiverOpened = new StubEventEmitter()
 		this.onCue = new StubEventEmitter()
 		this.onMixerSettings = new StubEventEmitter()
+		this.onSessionBpm = new StubEventEmitter()
 		this.onLinkBpm = new StubEventEmitter()
 		this.onLinkPeers = new StubEventEmitter()
 		this.onSupersonicDevices = new StubEventEmitter()

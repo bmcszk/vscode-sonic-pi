@@ -24,6 +24,14 @@ export type MixerBridge = {
 
 export type MixerAction = 'volume' | 'drive' | 'stereo' | 'invert'
 
+// The volume box opens at the volume this window last set, so Enter is never an error on an
+// empty field and a half-typed volume is not silently replaced by a full one. Without a set
+// volume the daemon's pushed volume is the fallback.
+export type VolumeDefaults = {
+	lastSetPercent: number | undefined
+	onVolumeSet?: (percent: number) => void
+}
+
 export type MixerQuickPickItem = vscode.QuickPickItem & {
 	action?: MixerAction
 }
@@ -65,6 +73,7 @@ export const handleMixerQuickPick = async (
 	picked: MixerQuickPickItem | undefined,
 	state: MixerState,
 	bridge: MixerBridge,
+	defaults: VolumeDefaults = { lastSetPercent: undefined },
 ): Promise<MixerState> => {
 	if (!picked) return state
 
@@ -72,7 +81,7 @@ export const handleMixerQuickPick = async (
 		case 'volume': {
 			const input = await vscode.window.showInputBox({
 				prompt: 'Master volume (0-100)',
-				value: String(Math.round(state.volume * 100)),
+				value: String(defaults.lastSetPercent ?? Math.round(state.volume * 100)),
 			})
 			if (input === undefined) return state
 			const match = /^\s*([+-]?\d+)\s*%?\s*$/.exec(input)
@@ -82,6 +91,7 @@ export const handleMixerQuickPick = async (
 			}
 			const value = Math.min(100, Math.max(0, parseInt(match[1], 10)))
 			bridge.sendMasterVolume(value)
+			defaults.onVolumeSet?.(value)
 			return state
 		}
 		case 'drive': {

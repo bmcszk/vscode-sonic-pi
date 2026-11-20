@@ -80,6 +80,7 @@ export class Main {
 	onReceiverOpened = events.onReceiverOpened
 	onReceiverFailed = events.onReceiverFailed
 	onVersion = events.onVersion
+	onSessionBpm = events.onSessionBpm
 	onLinkBpm = events.onLinkBpm
 	onLinkPeers = events.onLinkPeers
 	onSupersonicDevices = events.onSupersonicDevices

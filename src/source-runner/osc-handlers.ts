@@ -18,6 +18,7 @@ export interface OscHandlerHost {
 	onReceiverFailed: { fire(): void }
 	onMixerSettings: { fire(value: { drive: number; volume: number }): void }
 	onSupersonicDevices: { fire(value: { kind: 'output' | 'input' | 'table'; names: string[] }): void }
+	onSessionBpm: { fire(value: number): void }
 	onLinkBpm: { fire(value: number): void }
 	onLinkPeers: { fire(value: number): void }
 	onLiveLoopScope: { fire(value: LiveLoopScopePush): void }
@@ -97,6 +98,14 @@ export const registerOscHandlers = (host: OscHandlerHost): void => {
 	})
 	osc.on('/supersonic/device-table', (message: OscMessage) => {
 		fireSupersonicDevices(host, '/supersonic/device-table', message.args)
+	})
+
+	// spider-server.rb:994-996: the runtime reports the tempo the run holds, Link or not.
+	osc.on('/use-bpm', (message: OscMessage) => {
+		const bpm = Number(message.args[0])
+		if (Number.isFinite(bpm)) {
+			host.onSessionBpm.fire(bpm)
+		}
 	})
 
 	osc.on('/link-bpm', (message: OscMessage) => {

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { formatLinkLabel } from './link-label'
+import { formatTempoLabel } from './link-label'
 import {
 	formatMixerLabel,
 	type MixerState,
@@ -23,13 +23,6 @@ export const parseVersionReply = (args: unknown[]): string | undefined => {
 	return typeof version === 'string' && version.length > 0 ? version : undefined
 }
 
-export const parseVolumeInput = (input: string): number | undefined => {
-	const match = /^\s*([+-]?\d+)\s*%?\s*$/.exec(input)
-	if (!match) return undefined
-	const value = parseInt(match[1], 10)
-	return Math.min(100, Math.max(0, value))
-}
-
 export const deafnessLabel = '$(circle-slash) logs: elsewhere'
 
 export class SonicPiStatusBar {
@@ -38,6 +31,7 @@ export class SonicPiStatusBar {
 	private mixerItem: vscode.StatusBarItem
 	private linkItem: vscode.StatusBarItem
 	private linkBpm: number | undefined
+	private sessionBpm: number | undefined
 	private linkPeers: number | undefined
 	private state: ServerState = 'stopped'
 	private version: string | undefined
@@ -49,7 +43,11 @@ export class SonicPiStatusBar {
 	}
 	// The box opens at the volume this window last set, so Enter is never an error on an
 	// empty field and a half-typed volume is not silently replaced by a full one.
-	private volume = 100
+	private lastSetVolume: number | undefined
+
+	private readonly rememberVolume = (percent: number): void => {
+		this.lastSetVolume = percent
+	}
 
 	constructor(
 		private readonly bridge: MixerBridge & {
@@ -57,7 +55,6 @@ export class SonicPiStatusBar {
 		},
 	) {
 		this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100)
-		this.item.command = 'vscode-sonic-pi.masterVolume'
 		this.deafItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99)
 		this.deafItem.text = deafnessLabel
 		this.deafItem.command = 'vscode-sonic-pi.logsElsewhere'
@@ -101,36 +98,29 @@ export class SonicPiStatusBar {
 		}
 	}
 
-	async showVolumeQuickPick(): Promise<void> {
-		const input = await vscode.window.showInputBox({
-			prompt: 'Master volume (0-100)',
-			value: String(this.volume),
-		})
-		if (input === undefined) return
-		const value = parseVolumeInput(input)
-		if (value === undefined) {
-			void vscode.window.showErrorMessage('Master volume must be a number from 0 to 100')
-			return
-		}
-		this.volume = value
-		this.bridge.sendMasterVolume(value)
-	}
-
+	// The mixer item is the window's single volume surface: the master volume box lives in this
+	// popover, so the statusbar carries one volume number and one way to change it.
 	async showMixerQuickPick(): Promise<void> {
 		const items = buildMixerQuickPickItems(this.mixerState)
 		const picked = await vscode.window.showQuickPick(items, {
 			placeHolder: 'Mixer settings',
 		})
-		this.mixerState = await handleMixerQuickPick(picked, this.mixerState, this.bridge)
+		const defaults = { lastSetPercent: this.lastSetVolume, onVolumeSet: this.rememberVolume }
+		this.mixerState = await handleMixerQuickPick(picked, this.mixerState, this.bridge, defaults)
 		this.renderMixer()
 	}
 
-	// The Link item appears only when the daemon pushes telemetry; each push re-renders live.
-	// Bpm and peers arrive on separate events, so the last value of each is kept.
-	setLinkData(data: { bpm?: number; peers?: number }): void {
+	// The tempo item appears only when the daemon pushes a tempo; each push re-renders live.
+	// Tempo and peers arrive on separate events, so the last value of each is kept.
+	setLinkData(data: { bpm?: number; sessionBpm?: number; peers?: number }): void {
 		if (data.bpm !== undefined) this.linkBpm = data.bpm
+		if (data.sessionBpm !== undefined) this.sessionBpm = data.sessionBpm
 		if (data.peers !== undefined) this.linkPeers = data.peers
-		const label = formatLinkLabel(this.linkBpm, this.linkPeers)
+		const label = formatTempoLabel({
+			linkBpm: this.linkBpm,
+			sessionBpm: this.sessionBpm,
+			peers: this.linkPeers,
+		})
 		if (label === undefined) {
 			this.linkItem.hide()
 			return
@@ -140,7 +130,7 @@ export class SonicPiStatusBar {
 	}
 
 	getCurrentBpm(): number | undefined {
-		return this.linkBpm
+		return this.linkBpm ?? this.sessionBpm
 	}
 
 	// Deafness is only visible where the user looks: a server this window started but cannot

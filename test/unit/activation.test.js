@@ -168,10 +168,31 @@ const tests = {
 	async 'setLinkBpm input default comes from linkBpmInputValue'() {
 		// The with-server input-box default rides on linkBpmInputValue (pure, tested in
 		// link-label.test.js). Here we pin the wiring contract: the cold-window path stays
-		// silent (previous test) and the default helper never returns an empty string.
+		// silent (previous test) and a session that never reported a tempo leaves the
+		// prompt empty instead of pre-filling a bpm nobody measured (bean sonic-pi-o591).
 		const { linkBpmInputValue } = require('../../out/link-label.js')
-		assert.strictEqual(linkBpmInputValue(undefined), '60')
+		assert.strictEqual(linkBpmInputValue(undefined), '')
 		assert.strictEqual(linkBpmInputValue(124), '124')
+	},
+
+	async 'the master volume command is gone - the mixer popover owns volume now'() {
+		// bean sonic-pi-kvbl: one volume surface. The command and its activation event must
+		// be removed together, or the activation gate rejects a declared-but-unregistered id.
+		assert.strictEqual(
+			handlers['vscode-sonic-pi.masterVolume'],
+			undefined,
+			'the separate master volume command is not registered',
+		)
+		const manifest = require('../../package.json')
+		assert.ok(
+			!manifest.activationEvents.includes('onCommand:vscode-sonic-pi.masterVolume'),
+			'and its activation event is removed with it',
+		)
+		assert.ok(
+			manifest.activationEvents.includes('onCommand:vscode-sonic-pi.mixer'),
+			'the mixer popover command still activates the extension',
+		)
+		assert.ok(handlers['vscode-sonic-pi.mixer'], 'and is still registered')
 	},
 }
 

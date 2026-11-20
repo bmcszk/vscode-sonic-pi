@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Status bar: server-state machine (stopped/starting/running) + version text + volume
-// input mapping are pure; tested against a fake status-bar item and fake input, like playing-lines.
+// Status bar: server-state machine (stopped/starting/running) + version text + tempo text
+// and the single volume surface are pure; tested against a fake status-bar item and fake
+// input, like playing-lines.
 const assert = require('assert')
 const Module = require('module')
 const { EventEmitter } = require('events')
@@ -31,8 +32,9 @@ const mixerItem = new FakeStatusBarItem()
 const linkItem = new FakeStatusBarItem()
 let createdItems = []
 let inputBoxPrompt
-let inputBoxResponse
+let inputBoxResponses = []
 let errorMessages = []
+let lastInputBoxValue
 let quickPickAction
 let lastQuickPickItems
 
@@ -50,7 +52,8 @@ const vscodeStub = {
 		},
 		showInputBox: (options) => {
 			inputBoxPrompt = options && options.prompt
-			return Promise.resolve(inputBoxResponse)
+			lastInputBoxValue = options && options.value
+			return Promise.resolve(inputBoxResponses.shift())
 		},
 		showErrorMessage: (message) => {
 			errorMessages.push(message)
@@ -73,7 +76,6 @@ const {
 	formatStatusLabel,
 	deafnessLabel,
 	parseVersionReply,
-	parseVolumeInput,
 	SonicPiStatusBar,
 } = require('../../out/statusbar.js')
 
@@ -105,18 +107,6 @@ test('version reply rejects missing or non-string version', () => {
 	assert.strictEqual(parseVersionReply([42]), undefined)
 })
 
-test('volume input parses plain numbers and clamps to 0-100', () => {
-	assert.strictEqual(parseVolumeInput('42'), 42)
-	assert.strictEqual(parseVolumeInput(' 73% '), 73)
-	assert.strictEqual(parseVolumeInput('-5'), 0)
-	assert.strictEqual(parseVolumeInput('150'), 100)
-})
-
-test('volume input rejects non-numeric text', () => {
-	assert.strictEqual(parseVolumeInput('loud'), undefined)
-	assert.strictEqual(parseVolumeInput(''), undefined)
-})
-
 const mixerBridge = {
 	setDrive: () => {},
 	setStereo: () => {},
@@ -138,7 +128,7 @@ test('status bar starts hidden-stopped and re-renders on state change', () => {
 	bar.setServerState('running')
 	assert.strictEqual(item.text, '$(radio-tower) Sonic Pi')
 	assert.ok(item.shown > 0)
-	assert.strictEqual(item.command, 'vscode-sonic-pi.masterVolume')
+	assert.ok(!item.command, 'server state carries no action - volume has one home')
 	bar.dispose()
 	assert.ok(item.disposed)
 })
@@ -167,11 +157,16 @@ test('version reply updates the label', () => {
 	})
 	bar.setServerState('running')
 	bar.setVersion('5.2.2')
-	assert.strictEqual(item.text, '$(radio-tower) Sonic Pi 5.2.2', 'the first status-bar item holds the label')
+	assert.strictEqual(
+		item.text,
+		'$(radio-tower) Sonic Pi 5.2.2',
+		'the first status-bar item holds the label',
+	)
 	bar.dispose()
 })
 
-test('volume quick pick sends the mapped value', async () => {
+test('the mixer popover is the single volume surface and sends the mapped value', async () => {
+	// given
 	const sent = []
 	createdItems = []
 	const bar = new SonicPiStatusBar({
@@ -179,14 +174,22 @@ test('volume quick pick sends the mapped value', async () => {
 		sendMasterVolume: (value) => sent.push(value),
 		...mixerBridge,
 	})
-	inputBoxResponse = '80%'
-	await bar.showVolumeQuickPick()
+	bar.setServerState('running')
+
+	// when
+	quickPickAction = 'volume'
+	inputBoxResponses = ['80%']
+	await bar.showMixerQuickPick()
+
+	// then
 	assert.deepStrictEqual(sent, [80])
 	assert.strictEqual(inputBoxPrompt, 'Master volume (0-100)')
+	assert.strictEqual(lastInputBoxValue, '100', 'the box opens at the volume this window last set')
 	bar.dispose()
 })
 
-test('volume quick pick ignores cancel and rejects non-numeric input', async () => {
+test('a volume set and a daemon push both move the single volume surface', async () => {
+	// given
 	const sent = []
 	createdItems = []
 	const bar = new SonicPiStatusBar({
@@ -194,13 +197,69 @@ test('volume quick pick ignores cancel and rejects non-numeric input', async () 
 		sendMasterVolume: (value) => sent.push(value),
 		...mixerBridge,
 	})
-	inputBoxResponse = undefined
-	await bar.showVolumeQuickPick()
+	bar.setServerState('running')
+
+	// when the window sets 80 and the daemon answers with its own 0.8
+	quickPickAction = 'volume'
+	inputBoxResponses = ['80%']
+	await bar.showMixerQuickPick()
+	bar.setMixerSettings({ drive: 1.0, volume: 0.8 })
+
+	// then
+	assert.deepStrictEqual(sent, [80])
+	assert.strictEqual(
+		mixerItem.text,
+		'$(tunnel-horizontal) vol 80% · drive 1.0 · stereo',
+		'the mixer item text owns the one volume number',
+	)
+	assert.ok(createdItems.length === 4, 'four items exist and only the mixer item carries a volume command')
+	bar.dispose()
+})
+
+test('the volume box reopens at the last volume this window set', async () => {
+	// given
+	const sent = []
+	createdItems = []
+	const bar = new SonicPiStatusBar({
+		sendVersionRequest: () => {},
+		sendMasterVolume: (value) => sent.push(value),
+		...mixerBridge,
+	})
+	bar.setServerState('running')
+
+	// when 40 is set, then the box is opened again and cancelled
+	quickPickAction = 'volume'
+	inputBoxResponses = ['40']
+	await bar.showMixerQuickPick()
+	inputBoxResponses = [undefined]
+	await bar.showMixerQuickPick()
+
+	// then
+	assert.strictEqual(lastInputBoxValue, '40', 'a half-typed volume is never replaced by a full one')
+	assert.deepStrictEqual(sent, [40], 'cancelling sends nothing')
+	bar.dispose()
+})
+
+test('the volume box rejects non-numeric input and keeps the last good volume', async () => {
+	// given
+	const sent = []
+	createdItems = []
+	const bar = new SonicPiStatusBar({
+		sendVersionRequest: () => {},
+		sendMasterVolume: (value) => sent.push(value),
+		...mixerBridge,
+	})
+	bar.setServerState('running')
+	errorMessages = []
+
+	// when
+	quickPickAction = 'volume'
+	inputBoxResponses = ['loud']
+	await bar.showMixerQuickPick()
+
+	// then
 	assert.deepStrictEqual(sent, [])
-	inputBoxResponse = 'loud'
-	await bar.showVolumeQuickPick()
-	assert.deepStrictEqual(sent, [])
-	assert.strictEqual(errorMessages.length, 1)
+	assert.deepStrictEqual(errorMessages, ['Volume must be a number from 0 to 100'])
 	bar.dispose()
 })
 
@@ -286,17 +345,10 @@ test('mixer popover toggles stereo and invert immediately and a settings push ke
 	bar.dispose()
 })
 
-let linkInputOptions
-let linkInputResponse
-
-const linkBridge = {
-	...mixerBridge,
-	sendLinkBpm: (_bpm) => {},
-}
-
 // The setLinkBpm command lives in the extension host; statusbar exposes the input flow it
 // needs: the current bpm as the default value and the parsed send through the bridge.
-test('link item stays hidden until the first push, then shows and live-updates', () => {
+test('no tempo push leaves the item hidden - a session without a reported tempo never shows 60', () => {
+	// given
 	createdItems = []
 	linkItem.shown = 0
 	linkItem.hidden = 0
@@ -305,29 +357,79 @@ test('link item stays hidden until the first push, then shows and live-updates',
 		sendMasterVolume: () => {},
 		...mixerBridge,
 	})
+
+	// when a server runs and plays without the daemon reporting any tempo
+	bar.setServerState('running')
+	bar.setServerState('stopped')
+	bar.setServerState('running')
+
+	// then
 	assert.strictEqual(createdItems.length, 4, 'four status-bar items exist (main, deaf, mixer, link)')
-	assert.strictEqual(linkItem.shown, 0, 'link item hidden until the first push')
-	bar.setLinkData({ bpm: 122.4 })
-	assert.strictEqual(linkItem.text, '♪ 122.4')
-	assert.strictEqual(linkItem.shown, 1)
-	assert.strictEqual(linkItem.command, 'vscode-sonic-pi.setLinkBpm')
-	bar.setLinkData({ peers: 3 })
-	assert.strictEqual(linkItem.text, '♪ 122.4 · ⇄3', 'peers push merges with last bpm')
-	assert.strictEqual(linkItem.shown, 2, 'each push live-updates')
+	assert.strictEqual(linkItem.shown, 0, 'the tempo item never appears without tempo data')
+	assert.strictEqual(bar.getCurrentBpm(), undefined, 'and no bpm is invented for the prompt default')
 	bar.dispose()
 	assert.ok(linkItem.disposed)
 })
 
-test('link data remembers the current bpm for the input default', () => {
+test('a run tempo push shows the session tempo, and Link activity renders beside it', () => {
+	// given
 	createdItems = []
 	const bar = new SonicPiStatusBar({
 		sendVersionRequest: () => {},
 		sendMasterVolume: () => {},
 		...mixerBridge,
 	})
-	assert.strictEqual(bar.getCurrentBpm(), undefined)
+	bar.setServerState('running')
+
+	// when the daemon reports the tempo the run actually held
+	bar.setLinkData({ sessionBpm: 120 })
+
+	// then
+	assert.strictEqual(linkItem.text, '$(watch) 120 bpm')
+	assert.strictEqual(linkItem.command, 'vscode-sonic-pi.setLinkBpm')
+
+	// when Link peers join the session
+	bar.setLinkData({ peers: 3 })
+
+	// then
+	assert.strictEqual(linkItem.text, '$(watch) 120 bpm · ⇄3', 'peers merge with the session tempo')
+	bar.dispose()
+})
+
+test('a link tempo push replaces the tempo label the run reported', () => {
+	// given
+	createdItems = []
+	const bar = new SonicPiStatusBar({
+		sendVersionRequest: () => {},
+		sendMasterVolume: () => {},
+		...mixerBridge,
+	})
+
+	// when a link tempo lands after a run tempo
+	bar.setLinkData({ sessionBpm: 120 })
 	bar.setLinkData({ bpm: 122.4 })
-	assert.strictEqual(bar.getCurrentBpm(), 122.4)
+
+	// then
+	assert.strictEqual(linkItem.text, '$(watch) 122.4 bpm')
+	assert.strictEqual(bar.getCurrentBpm(), 122.4, 'the prompt default follows the shown tempo')
+	bar.dispose()
+})
+
+test('a zero peer count shows beside the tempo instead of vanishing', () => {
+	// given
+	createdItems = []
+	const bar = new SonicPiStatusBar({
+		sendVersionRequest: () => {},
+		sendMasterVolume: () => {},
+		...mixerBridge,
+	})
+
+	// when
+	bar.setLinkData({ sessionBpm: 120 })
+	bar.setLinkData({ peers: 0 })
+
+	// then
+	assert.strictEqual(linkItem.text, '$(watch) 120 bpm · ⇄0')
 	bar.dispose()
 })
 

@@ -439,8 +439,9 @@ const registerLiveLoopBadges = (context: vscode.ExtensionContext) => {
 }
 
 // Status bar wiring: the popover actions dispatch to the runner and the server state,
-// version, mixer and Link events update the displayed items. Cold-window dispatch of the
-// modal commands stays a silent no-op (a modal there hangs the activation gate).
+// version, mixer and tempo events update the displayed items. The mixer item is the window's
+// only volume surface and the tempo item shows only a tempo the daemon reported. Cold-window
+// dispatch of the modal commands stays a silent no-op (a modal there hangs the gate).
 const registerStatusBar = (context: vscode.ExtensionContext) => {
 	const statusBar = new SonicPiStatusBar({
 		sendVersionRequest: () => main.requestVersion(),
@@ -468,10 +469,6 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 		// Cold-window dispatch: the activation suite fires every command without a server, and
 		// a modal (input box or QuickPick) there hangs the dispatch loop. Silent no-op - the
 		// statusbar items are hidden when stopped anyway, so this path is unreachable for users.
-		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () => {
-			if (!main.serverStarted) return
-			void statusBar.showVolumeQuickPick()
-		}),
 		vscode.commands.registerCommand('vscode-sonic-pi.mixer', () => {
 			if (!main.serverStarted) return
 			void statusBar.showMixerQuickPick()
@@ -514,6 +511,7 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 			if (!main.serverStarted) return
 			await promptThenSetGlobalTimewarp()
 		}),
+		main.onSessionBpm.event((sessionBpm) => statusBar.setLinkData({ sessionBpm })),
 		main.onLinkBpm.event((bpm) => statusBar.setLinkData({ bpm })),
 		main.onLinkPeers.event((peers) => statusBar.setLinkData({ peers })),
 		{ dispose: () => statusBar.dispose() },

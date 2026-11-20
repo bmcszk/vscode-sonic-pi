@@ -165,7 +165,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// runner's live-run map decides which block rows are stops, so each run start and end
 	// repaints the rows instead of waiting for a document edit.
 	// Cold-window dispatch of the lens commands stays a silent no-op: a modal there hangs the
-	// activation gate (see the masterVolume guard in the runner's activate).
+	// activation gate (see the mixer guard in the runner's activate).
 	const codeLensProvider = new SonicPiCodeLensProvider(liveRunsForTest)
 	context.subscriptions.push(
 		onRunStarted(() => codeLensProvider.lensesChangedByRuns()),

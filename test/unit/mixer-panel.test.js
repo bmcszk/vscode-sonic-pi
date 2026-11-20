@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Mixer popover (QuickPick) items built from mixer state (beans sonic-pi-s155, sonic-pi-5jo6).
+// Mixer popover (QuickPick) items built from mixer state (beans sonic-pi-s155, sonic-pi-5jo6,
+// sonic-pi-kvbl: this popover is the statusbar's only volume surface).
 // Pure formatter + pick dispatch. No vscode UI here, just item objects + callbacks.
 // Sonic Pi 5.0.0's daemon has no set_mixer_lpf!/set_mixer_hpf!, so LPF/HPF entries are
 // non-selectable separators that name the upstream gap instead of dispatching a dead route.
@@ -12,7 +13,10 @@ const vscodeStub = {
 	QuickPickItemKind: { Separator: -1, Default: 0 },
 	window: {
 		showQuickPick: () => {},
-		showInputBox: () => {},
+		showInputBox: (options) => {
+			volumePrompt = options
+			return Promise.resolve(undefined)
+		},
 	},
 	EventEmitter: class {
 		constructor() {
@@ -34,7 +38,19 @@ Module._load = function (request) {
 	return load.apply(this, arguments)
 }
 
-const { buildMixerQuickPickItems, formatMixerLabel, handleMixerQuickPick } = require('../../out/mixer-panel.js')
+const {
+	buildMixerQuickPickItems,
+	formatMixerLabel,
+	handleMixerQuickPick,
+} = require('../../out/mixer-panel.js')
+
+let volumePrompt
+
+// The suite answers the box per test but always records the options it was opened with.
+const answerInputBox = (answer) => async (options) => {
+	volumePrompt = options
+	return answer
+}
 
 const mixerState = (overrides = {}) => ({
 	volume: 0.8,
@@ -88,12 +104,30 @@ test('buildMixerQuickPickItems lists volume, drive, unavailable LPF/HPF, stereo 
 	// then
 	const labels = items.map((item) => item.label)
 	assert.strictEqual(items.length, 6, 'expected six popover entries')
-	assert.ok(labels.some((label) => label.includes('Volume')), 'has Volume entry')
-	assert.ok(labels.some((label) => label.includes('Drive')), 'has Drive entry')
-	assert.ok(labels.some((label) => label.includes('LPF')), 'has LPF entry')
-	assert.ok(labels.some((label) => label.includes('HPF')), 'has HPF entry')
-	assert.ok(labels.some((label) => label.match(/Stereo|Mono/)), 'has Stereo/Mono entry')
-	assert.ok(labels.some((label) => label.includes('Invert')), 'has Invert entry')
+	assert.ok(
+		labels.some((label) => label.includes('Volume')),
+		'has Volume entry',
+	)
+	assert.ok(
+		labels.some((label) => label.includes('Drive')),
+		'has Drive entry',
+	)
+	assert.ok(
+		labels.some((label) => label.includes('LPF')),
+		'has LPF entry',
+	)
+	assert.ok(
+		labels.some((label) => label.includes('HPF')),
+		'has HPF entry',
+	)
+	assert.ok(
+		labels.some((label) => label.match(/Stereo|Mono/)),
+		'has Stereo/Mono entry',
+	)
+	assert.ok(
+		labels.some((label) => label.includes('Invert')),
+		'has Invert entry',
+	)
 	assert.deepStrictEqual(
 		items.map((item) => item.action).filter(Boolean),
 		['volume', 'drive', 'stereo', 'invert'],
@@ -128,16 +162,45 @@ test('buildMixerQuickPickItems renders LPF/HPF as non-selectable entries naming 
 test('handleMixerQuickPick Volume opens input box and sends setMasterVolume', async () => {
 	// given
 	let sentVolume = null
+	let setPercent = null
 	const state = mixerState()
 	const volumeItem = buildMixerQuickPickItems(state).find((item) => item.action === 'volume')
-	vscodeStub.window.showInputBox = async () => '50'
+	vscodeStub.window.showInputBox = answerInputBox('50')
 
 	// when
-	const next = await handleMixerQuickPick(volumeItem, state, mixerBridge({ sendMasterVolume: (v) => (sentVolume = v) }))
+	const next = await handleMixerQuickPick(
+		volumeItem,
+		state,
+		mixerBridge({ sendMasterVolume: (v) => (sentVolume = v) }),
+		{ lastSetPercent: 35, onVolumeSet: (v) => (setPercent = v) },
+	)
 
 	// then
 	assert.strictEqual(sentVolume, 50)
+	assert.strictEqual(
+		volumePrompt.value,
+		'35',
+		'the box opens at the volume this window last set, not the pushed one',
+	)
+	assert.strictEqual(setPercent, 50, 'the set volume becomes the next prompt default')
 	assert.deepStrictEqual(next, state, 'volume waits for the daemon push')
+})
+
+test('handleMixerQuickPick Volume leaves the prompt value to the caller that owns last set volume', async () => {
+	// given
+	const state = mixerState({ volume: 0.8 })
+	const volumeItem = buildMixerQuickPickItems(state).find((item) => item.action === 'volume')
+	vscodeStub.window.showInputBox = answerInputBox(undefined)
+
+	// when
+	await handleMixerQuickPick(volumeItem, state, mixerBridge())
+
+	// then
+	assert.strictEqual(
+		volumePrompt.value,
+		'80',
+		'the daemon push is the fallback when this window has not set a volume yet',
+	)
 })
 
 test('handleMixerQuickPick Drive opens input box and sends setDrive', async () => {
@@ -145,10 +208,14 @@ test('handleMixerQuickPick Drive opens input box and sends setDrive', async () =
 	let sentDrive = null
 	const state = mixerState()
 	const driveItem = buildMixerQuickPickItems(state).find((item) => item.action === 'drive')
-	vscodeStub.window.showInputBox = async () => '1.5'
+	vscodeStub.window.showInputBox = answerInputBox('1.5')
 
 	// when
-	const next = await handleMixerQuickPick(driveItem, state, mixerBridge({ setDrive: (v) => (sentDrive = v) }))
+	const next = await handleMixerQuickPick(
+		driveItem,
+		state,
+		mixerBridge({ setDrive: (v) => (sentDrive = v) }),
+	)
 
 	// then
 	assert.strictEqual(sentDrive, 1.5)
@@ -187,7 +254,11 @@ test('handleMixerQuickPick Stereo toggles the returned state and sends setStereo
 	const stereoItem = buildMixerQuickPickItems(state).find((item) => item.action === 'stereo')
 
 	// when
-	const next = await handleMixerQuickPick(stereoItem, state, mixerBridge({ setStereo: (v) => (sentStereo = v) }))
+	const next = await handleMixerQuickPick(
+		stereoItem,
+		state,
+		mixerBridge({ setStereo: (v) => (sentStereo = v) }),
+	)
 
 	// then
 	assert.strictEqual(sentStereo, false)
@@ -201,7 +272,11 @@ test('handleMixerQuickPick Stereo flips back to stereo from mono', async () => {
 	const stereoItem = buildMixerQuickPickItems(state).find((item) => item.action === 'stereo')
 
 	// when
-	const next = await handleMixerQuickPick(stereoItem, state, mixerBridge({ setStereo: (v) => (sentStereo = v) }))
+	const next = await handleMixerQuickPick(
+		stereoItem,
+		state,
+		mixerBridge({ setStereo: (v) => (sentStereo = v) }),
+	)
 
 	// then
 	assert.strictEqual(sentStereo, true)
@@ -215,7 +290,11 @@ test('handleMixerQuickPick Invert toggles the returned state and sends setInvert
 	const invertItem = buildMixerQuickPickItems(state).find((item) => item.action === 'invert')
 
 	// when
-	const next = await handleMixerQuickPick(invertItem, state, mixerBridge({ setInvert: (v) => (sentInvert = v) }))
+	const next = await handleMixerQuickPick(
+		invertItem,
+		state,
+		mixerBridge({ setInvert: (v) => (sentInvert = v) }),
+	)
 
 	// then
 	assert.strictEqual(sentInvert, true)
@@ -229,7 +308,11 @@ test('handleMixerQuickPick Invert flips back off', async () => {
 	const invertItem = buildMixerQuickPickItems(state).find((item) => item.action === 'invert')
 
 	// when
-	const next = await handleMixerQuickPick(invertItem, state, mixerBridge({ setInvert: (v) => (sentInvert = v) }))
+	const next = await handleMixerQuickPick(
+		invertItem,
+		state,
+		mixerBridge({ setInvert: (v) => (sentInvert = v) }),
+	)
 
 	// then
 	assert.strictEqual(sentInvert, false)

@@ -26,6 +26,9 @@ export const onSupersonicDevices = new vscode.EventEmitter<{
 	kind: 'output' | 'input' | 'table'
 	names: string[]
 }>()
+// The tempo the last run held: the runtime pushes it at each run start (spider-server.rb:994),
+// so a session that never touches Link still reports its real tempo here.
+export const onSessionBpm = new vscode.EventEmitter<number>()
 export const onLinkBpm = new vscode.EventEmitter<number>()
 export const onLinkPeers = new vscode.EventEmitter<number>()
 export const onLiveLoopScope = new vscode.EventEmitter<{

@@ -130,6 +130,7 @@ class FakeMain {
 			'onReceiverOpened',
 			'onCue',
 			'onMixerSettings',
+			'onSessionBpm',
 			'onLinkBpm',
 			'onLinkPeers',
 			'onSupersonicDevices',
