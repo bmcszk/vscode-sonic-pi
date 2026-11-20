@@ -1,11 +1,11 @@
 ---
 # sonic-pi-o591
 title: 'Bug: status bar always shows 60 bpm (Link item stuck at default)'
-status: todo
+status: completed
 type: bug
 priority: normal
 created_at: 2026-11-19T23:06:21Z
-updated_at: 2026-11-19T23:06:21Z
+updated_at: 2026-11-20T00:33:53Z
 parent: sonic-pi-6fiz
 ---
 
@@ -18,6 +18,13 @@ src/statusbar.ts setLinkData keeps this.linkBpm only when a push provides it (li
 Capture the real push cadence first (e2e logs or fake control replay). If the real daemon pushes /link-bpm only on Link-enable, the item must render bpm from the SESSION tempo push instead (/use-bpm or the /mixer/settings push payload) or state clearly 'Link: off' instead of a misleading 60.
 
 ## Acceptance criteria
-- [ ] The bpm shown always equals the session's actual current tempo (integration: bpm push -> item text, unit: formatLinkLabel truth table)
-- [ ] No 60/0 shown when the session has pushed no tempo data (item hidden or explicit 'Link off')
+- [x] The bpm shown always equals the session's actual current tempo (integration: bpm push -> item text, unit: formatLinkLabel truth table)
+- [x] No 60/0 shown when the session has pushed no tempo data (item hidden or explicit 'Link off')
 - [ ] npm test + run-unit green; zero suppressions; budgets hold
+
+## Proof of Work
+
+- Worker root-caused it as an EDITOR bug, not a daemon one: src/link-label.ts hardcoded '60' (String(bpm ?? 60)) as the prompt/default value; the daemon pushes /link-bpm ONLY from the engine Link timeline (runtime.rb:1977 <- link_api.rb:359 /clock/notify/tempo) - no boot/mixer/use-bpm path pushes tempo, so the UI's 60 was fake from the first render.
+- Fix: /use-bpm push -> new onSessionBpm emitter; formatTempoLabel replaces formatLinkLabel; NO tempo push => item stays HIDDEN and the set-prompt opens EMPTY (linkBpmInputValue('') honest default). Integration: bpm push -> item text.
+- Orchestrator gates at 5f365b7: clean rebuild, 53-suite unit battery exit 0; npm test exit 0 incl. vsix smoke; extension integration 43 passing 0 failing; lint/prettier clean.
+Residual: none
