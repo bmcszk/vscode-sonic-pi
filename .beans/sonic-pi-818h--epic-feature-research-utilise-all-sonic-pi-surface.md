@@ -1,11 +1,11 @@
 ---
 # sonic-pi-818h
 title: 'Epic: feature research - utilise ALL Sonic Pi surfaces + killer features (no Sonic Pi changes)'
-status: in-progress
+status: completed
 type: epic
 priority: normal
 created_at: 2026-11-14T12:32:51Z
-updated_at: 2026-11-16T13:19:20Z
+updated_at: 2026-11-18T18:20:03Z
 parent: sonic-pi-u71o
 ---
 
@@ -26,7 +26,7 @@ Full spider-server OSC route list extracted from the installed daemon (/usr/lib/
 
 ## Phases
 - [x] Phase A: docs/research/feature-roadmap.md delivered + parent-verified + merged (170d75c)
-- [ ] Phase B: user reviews roadmap; we promote picks into feature beans
+- [x] Phase B: picks promoted into the dev4 epic (sonic-pi-6fiz: D0-D6) - user delegated the review ('addressed ALL in new dev4 wave')
 
 ## Phase A delivered (2026-11-14, parent-verified): docs/research/feature-roadmap.md merged (170d75c)
 
@@ -41,3 +41,7 @@ Phase B resolved:
 - F1 per-run stop: ALREADY SHIPPED inside bean sonic-pi-wmae (job tracking + /stop-job). F2 loop mute remains (its companion).
 - F2 mute/unmute loops, F3 mixer popover, F4 Link BPM+peers statusbar, F5 Cue Inspector + test bench, F7 audio device hot-swap -> promote to feature beans under this epic.
 - 858b (ruby-lsp embedded LSP) un-parked by the same quote - runs as its own epic, sequenced after the top-5 wave.
+
+## Phase B delivered (user-delegated review)
+
+Picks promoted into the dev4 epic (sonic-pi-6fiz: 7 features, D0-D6) - all completed with PoW, PR #4 open (dev4->dev3, CI green). Phase B of this research epic is thus DONE: the epic's remaining purpose (roadmap delivered -> picks promoted) is fulfilled. Epic closes here; future waves pick from the roadmap cut list or new research.

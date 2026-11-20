@@ -22,8 +22,13 @@ class FakeCodeLens {
 }
 
 class FireEmitter extends EventEmitter {
-	fire() {
-		this.emit('change')
+	// vscode.EventEmitter.event is a bound accessor: consumers bind it off the instance.
+	event = (listener) => {
+		this.on('change', listener)
+		return { dispose: () => this.off('change', listener) }
+	}
+	fire(value) {
+		this.emit('change', value)
 	}
 }
 
@@ -46,7 +51,10 @@ Module._load = function (request) {
 	return load.apply(this, arguments)
 }
 
-const { SonicPiCodeLensProvider, MUTE_COMMAND, UNMUTE_COMMAND } = require('../../out/codelenses.js')
+const { SonicPiCodeLensProvider, MUTE_COMMAND, UNMUTE_COMMAND, STOP_CELL_COMMAND, cellKeyFor } =
+	require('../../out/codelenses.js')
+const { onRunStarted, onRunEnded } = require('../../out/source-runner/main-events.js')
+const { LiveRuns } = require('../../out/live-runs.js')
 
 const THREE_BLOCK_TEXT = [
 	'live_loop :a do',
@@ -371,6 +379,33 @@ const tests = {
 	'single-block documents get no mute lens'() {
 		const lenses = lensesFor('sonic-pi', SINGLE_BLOCK_TEXT)
 		assert.deepStrictEqual(lenses.filter((lens) => lens.command.command === MUTE_COMMAND), [])
+	},
+
+	'the playing block row carries the stop-cell command wired to that block key'() {
+		// given the first block of a three-block file is playing
+		const block = 'live_loop :a do\n  play 60\nend'
+		const liveRuns = new LiveRuns()
+		onRunStarted.event(({ jobId, workspace }) => liveRuns.runStarted(jobId, workspace))
+
+		// when a provider reading the runner's runs lenses the file
+		onRunStarted.fire({ jobId: 21, workspace: cellKeyFor(0, block) })
+		const lenses = new SonicPiCodeLensProvider(() => liveRuns).provideCodeLenses(
+			document('sonic-pi', THREE_BLOCK_TEXT),
+		)
+		onRunEnded.fire(21)
+
+		// then its row is the only stop affordance per block
+		assert.deepStrictEqual(
+			lenses.filter((lens) => lens.command.command === STOP_CELL_COMMAND).map(summary),
+			[
+				{
+					title: '$(debug-stop) Stop cell',
+					command: STOP_CELL_COMMAND,
+					arguments: [21],
+					line: 0,
+				},
+			],
+		)
 	},
 }
 

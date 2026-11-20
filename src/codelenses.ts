@@ -1,14 +1,16 @@
 import * as vscode from 'vscode'
 import { MuteRegistry } from './loop-mute'
+import { LiveRunCells } from './live-runs'
 
 const CONFIGURATION_SECTION = 'vscode-sonic-pi'
 const LANGUAGE_ID = 'sonic-pi'
 const NOTEBOOK_CELL_SCHEME = 'vscode-notebook-cell'
 const RUN_COMMAND = 'vscode-sonic-pi.run'
-const RUN_TEXT_COMMAND = 'vscode-sonic-pi.runWithText'
 const STOP_COMMAND = 'vscode-sonic-pi.stop'
 export const MUTE_COMMAND = 'vscode-sonic-pi.muteLoop'
 export const UNMUTE_COMMAND = 'vscode-sonic-pi.unmuteLoop'
+export const RUN_CELL_COMMAND = 'vscode-sonic-pi.runWithText'
+export const STOP_CELL_COMMAND = 'vscode-sonic-pi.stopCell'
 
 interface SonicPiBlock {
 	line: number
@@ -23,9 +25,19 @@ export class SonicPiCodeLensProvider implements vscode.CodeLensProvider {
 	private readonly lensesChanged = new vscode.EventEmitter<void>()
 	readonly onDidChangeCodeLenses = this.lensesChanged.event
 
-	constructor() {
+	private readonly liveRuns: () => LiveRunLookup
+
+	// liveRuns comes from the runner: the run pushes decide which block rows are stops, and a
+	// repaint must not wait on a document edit (a block starts playing with the buffer unchanged).
+	constructor(liveRuns: () => LiveRunLookup = () => emptyLiveRuns) {
+		this.liveRuns = liveRuns
 		vscode.workspace.onDidChangeConfiguration(() => this.lensesChanged.fire())
 		vscode.workspace.onDidChangeTextDocument(() => this.lensesChanged.fire())
+	}
+
+	// The run pushes tell the provider when the playing rows changed.
+	lensesChangedByRuns(): void {
+		this.lensesChanged.fire()
 	}
 
 	// The command handlers share this module's registry so a mute flips the lens.
@@ -44,7 +56,12 @@ export class SonicPiCodeLensProvider implements vscode.CodeLensProvider {
 			return []
 		}
 		const text = document.getText()
-		return [...fileLenses(text), ...blockLenses(text), ...muteLenses(text)]
+		return [
+			...fileLenses(text),
+			...blockLenses(text),
+			...stopCellLenses(text, this.liveRuns()),
+			...muteLenses(text),
+		]
 	}
 }
 
@@ -53,21 +70,16 @@ export class SonicPiCodeLensProvider implements vscode.CodeLensProvider {
 export const cellKeyFor = (line: number, blockText: string): string => `file://${line}:${blockText}`
 
 function muteLenses(text: string): vscode.CodeLens[] {
-	if (blocksOf(text).length < 2) {
-		return []
-	}
-	return blocksOf(text)
-		.filter((block) => hasPlayableLine(block.text) && !isAssignmentOnly(block.text))
-		.map((block) => {
-			const cellKey = cellKeyFor(block.line, block.text)
-			const muted = muteRegistry.isMuted(cellKey)
-			return codeLens(
-				block.line,
-				muted ? '$(play) Unmute' : '$(debug-pause) Mute',
-				muted ? UNMUTE_COMMAND : MUTE_COMMAND,
-				[cellKey, block.text],
-			)
-		})
+	return cellBlocksOf(text).map((block) => {
+		const cellKey = cellKeyFor(block.line, block.text)
+		const muted = muteRegistry.isMuted(cellKey)
+		return codeLens(
+			block.line,
+			muted ? '$(play) Unmute' : '$(debug-pause) Mute',
+			muted ? UNMUTE_COMMAND : MUTE_COMMAND,
+			[cellKey, block.text],
+		)
+	})
 }
 
 function showsControlsFor(document: vscode.TextDocument): boolean {
@@ -87,17 +99,54 @@ function fileLenses(text: string): vscode.CodeLens[] {
 }
 
 function blockLenses(text: string): vscode.CodeLens[] {
+	return cellBlocksOf(text).map((block) =>
+		// The block's start line lets runCode pad the fragment so the daemon's flash and
+		// error lines land on file positions.
+		codeLens(block.line, lensTitle(block.text), RUN_CELL_COMMAND, [block.text, block.line]),
+	)
+}
+
+// A playing block's row becomes a stop that kills only that run; a block that is not playing
+// keeps no stop row, so the file-level Stop stays the session affordance.
+// A block whose text drifted after it started no longer matches its run's cell key, and the
+// run it would stop is the one the daemon started under the older text.
+function stopCellLenses(text: string, liveRuns: LiveRunLookup): vscode.CodeLens[] {
+	const playingJobs = liveJobsByCellKey(liveRuns)
+	return cellBlocksOf(text).flatMap((block) => {
+		const jobId = playingJobs.get(cellKeyFor(block.line, block.text))
+		// The job id rides the lens: the click stops the run it saw start, not whichever runs later.
+		return jobId === undefined
+			? []
+			: [codeLens(block.line, '$(debug-stop) Stop cell', STOP_CELL_COMMAND, [jobId])]
+	})
+}
+
+// A joint run of several blocks is one job, so its blocks share the id (the newest run wins).
+function liveJobsByCellKey(liveRuns: LiveRunLookup): Map<string, number> {
+	const playingJobs = new Map<string, number>()
+	for (const jobId of liveRuns.keys()) {
+		for (const cellKey of liveRuns.get(jobId) ?? []) {
+			playingJobs.set(cellKey, jobId)
+		}
+	}
+	return playingJobs
+}
+
+// The read half only: the runner feeds the runs, the lens never records one.
+type LiveRunLookup = Pick<LiveRunCells, 'get' | 'keys'>
+
+const emptyLiveRuns: LiveRunLookup = {
+	get: () => undefined,
+	keys: () => [][Symbol.iterator](),
+}
+
+// The blocks a user can run on their own: a single-block document is the file lens's job.
+function cellBlocksOf(text: string): SonicPiBlock[] {
 	const blocks = blocksOf(text)
 	if (blocks.length < 2) {
 		return []
 	}
-	return blocks
-		.filter((block) => hasPlayableLine(block.text) && !isAssignmentOnly(block.text))
-		.map((block) =>
-			// The block's start line lets runCode pad the fragment so the daemon's flash and
-			// error lines land on file positions.
-			codeLens(block.line, lensTitle(block.text), RUN_TEXT_COMMAND, [block.text, block.line]),
-		)
+	return blocks.filter((block) => hasPlayableLine(block.text) && !isAssignmentOnly(block.text))
 }
 
 function hasPlayableLine(blockText: string): boolean {

@@ -102,6 +102,7 @@ const vscodeStub = {
 		onDidChangeConfiguration: () => ({ dispose() {} }),
 		onDidChangeTextDocument: () => ({ dispose() {} }),
 		onDidOpenTextDocument: () => ({ dispose() {} }),
+		onDidSaveTextDocument: () => ({ dispose() {} }),
 		workspaceFolders: [],
 		onDidCloseTextDocument: () => ({ dispose() {} }),
 		registerTextDocumentContentProvider: () => ({ dispose() {} }),
@@ -118,7 +119,9 @@ class FakeMain {
 	constructor() {
 		for (const name of [
 			'onRunStarted',
+			'onWorkspaceStarted',
 			'onRunEnded',
+			'onAllRunsCompleted',
 			'onFlash',
 			'onServerState',
 			'onVersion',
@@ -127,12 +130,16 @@ class FakeMain {
 			'onReceiverOpened',
 			'onCue',
 			'onMixerSettings',
+			'onSessionBpm',
 			'onLinkBpm',
 			'onLinkPeers',
 			'onSupersonicDevices',
+			'onLiveLoopScope',
+			'onLiveLoopScopeEnded',
 		]) {
 			this[name] = new StubEmitter()
 		}
+		this.liveLoopScope = { clear() {}, list: () => [] }
 		this.events = []
 		this.runCodeCalls = []
 		FakeMain.instances.push(this)

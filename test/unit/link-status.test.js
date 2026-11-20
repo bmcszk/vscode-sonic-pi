@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Link telemetry: the daemon pushes /link-bpm + /link-num-peers when Link peers sync, and
-// setLinkBpm must reach set_link_bpm! through a SILENT no-replace run so it never kills playing jobs.
+// Link telemetry: the daemon pushes /link-bpm + /link-num-peers when Link peers sync and
+// /use-bpm for the tempo a run holds, and setLinkBpm must reach set_link_bpm! through a
+// SILENT no-replace run so it never kills playing jobs.
 const assert = require('assert')
 
 const Module = require('module')
@@ -112,13 +113,21 @@ const tests = {
 		const main = wiredMain()
 		const bpms = []
 		const peers = []
+		const sessionBpms = []
 		main.onLinkBpm.event((v) => bpms.push(v))
 		main.onLinkPeers.event((v) => peers.push(v))
+		main.onSessionBpm.event((v) => sessionBpms.push(v))
 
 		fakeOsc().fire('/link-bpm', { address: '/link-bpm', args: [122.5] })
 		fakeOsc().fire('/link-num-peers', { address: '/link-num-peers', args: [3] })
+		fakeOsc().fire('/use-bpm', { address: '/use-bpm', args: [120] })
 		assert.deepStrictEqual(bpms, [122.5], 'bpm push parses args[0] as a float')
 		assert.deepStrictEqual(peers, [3], 'peer push parses args[0] as an int')
+		assert.deepStrictEqual(
+			sessionBpms,
+			[120],
+			'the run tempo push fires its own emitter so the item shows the session tempo',
+		)
 	},
 	async 'setLinkBpm sends a silent no-replace run and never stops the session'() {
 		const main = wiredMain()

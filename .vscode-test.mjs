@@ -17,7 +17,13 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const { createEnvironment } = require('./test/integration/harness/environment.js')
 
-const launchArgs = ['--disable-extensions', '--disable-gpu', '--no-sandbox', '--skip-welcome', '--skip-release-notes']
+const launchArgs = [
+	'--disable-extensions',
+	'--disable-gpu',
+	'--no-sandbox',
+	'--skip-welcome',
+	'--skip-release-notes',
+]
 const mocha = { timeout: 120000, require: ['./test/integration/harness/lifecycle.js'] }
 const version = process.env.VSCODE_TEST_VERSION || '1.144.1'
 const localInstall = process.env.VSCODE_TEST_EXECUTABLE
@@ -40,6 +46,9 @@ export default defineConfig([
 			'test/integration/suite/editor-controls.integration.js',
 			'test/integration/suite/notebook-run.integration.js',
 			'test/integration/suite/media-docs.integration.js',
+			// Telemetry suites restore a running daemon for the suites after them, so they sit
+			// before server-shutdown, which is what leaves the window stopped.
+			'test/integration/suite/device-telemetry.integration.js',
 			'test/integration/suite/server-shutdown.integration.js',
 		],
 		version,

@@ -58,6 +58,7 @@ const vscodeStub = {
 		onDidChangeTextDocument: () => ({ dispose() {} }),
 		onDidCloseTextDocument: () => ({ dispose() {} }),
 		onDidOpenTextDocument: () => ({ dispose() {} }),
+		onDidSaveTextDocument: () => ({ dispose() {} }),
 		workspaceFolders: [],
 		registerNotebookSerializer: () => ({ dispose() {} }),
 		visibleTextEditors: [],
@@ -122,7 +123,9 @@ const createdControllers = []
 class FakeMain {
 	constructor() {
 		this.onRunStarted = new StubEventEmitter()
+		this.onWorkspaceStarted = new StubEventEmitter()
 		this.onRunEnded = new StubEventEmitter()
+		this.onAllRunsCompleted = new StubEventEmitter()
 		this.onFlash = new StubEventEmitter()
 		this.onServerState = new StubEventEmitter()
 		this.onVersion = new StubEventEmitter()
@@ -131,9 +134,14 @@ class FakeMain {
 		this.onReceiverOpened = new StubEventEmitter()
 		this.onCue = new StubEventEmitter()
 		this.onMixerSettings = new StubEventEmitter()
+		this.onSessionBpm = new StubEventEmitter()
 		this.onLinkBpm = new StubEventEmitter()
 		this.onLinkPeers = new StubEventEmitter()
 		this.onSupersonicDevices = new StubEventEmitter()
+		// The badge decorator registry subscribes to the live-loop pushes and the store it paints.
+		this.onLiveLoopScope = new StubEventEmitter()
+		this.onLiveLoopScopeEnded = new StubEventEmitter()
+		this.liveLoopScope = { clear() {}, list: () => [] }
 		this.receiving = true
 		this.serverStarted = false
 		this.restartInProgress = false

@@ -1,5 +1,6 @@
 import OSC from 'osc-js'
 import { classifyReplyPortHolder, holderSubject } from '../port-holder'
+import type { LiveLoopScopeStore, LiveLoopScopePush } from '../live-loop-scope'
 import { showSyntaxError, showError, processMultiMessage } from './daemon-messages'
 import type * as vscode from 'vscode'
 
@@ -17,18 +18,39 @@ export interface OscHandlerHost {
 	onReceiverFailed: { fire(): void }
 	onMixerSettings: { fire(value: { drive: number; volume: number }): void }
 	onSupersonicDevices: { fire(value: { kind: 'output' | 'input' | 'table'; names: string[] }): void }
+	onSessionBpm: { fire(value: number): void }
 	onLinkBpm: { fire(value: number): void }
 	onLinkPeers: { fire(value: number): void }
+	onLiveLoopScope: { fire(value: LiveLoopScopePush): void }
+	onLiveLoopScopeEnded: { fire(value: { jobid: number; name: string }): void }
 	onVersion: { fire(value: string): void }
 	onRunStarted: { fire(value: number): void }
+	onAllRunsCompleted: { fire(value: void): void }
+	onWorkspaceStarted: { fire(value: { jobId: number; workspace: string }): void }
 	onRunEnded: { fire(value: number): void }
 	onCue: { fire(value: { time: number; id: number; address: string; args: string }): void }
 	onFlash: { fire(value: { workspace: string; line: number }): void }
 	logOutput: vscode.OutputChannel
 	cuesOutput: vscode.OutputChannel
 	log(str: string): void
+	requestVersion(): void
+	serverStarted: boolean
+	// Set when the runtime announced /spider/ready; a duplicate ready must be a no-op.
+	runtimeReady: boolean
+	// A stop or restart already asked this daemon to exit: its /exited push then reports a
+	// shutdown the window has accounted for, not a second transition.
+	daemonExitRequested: boolean
+	// True when nobody has reported this shutdown yet; a state push claims it once.
+	consumeShutdownReport(): boolean
+	onServerState: { fire(value: 'stopped' | 'starting' | 'running'): void }
 	lastDeviceTable: OscArg[]
+	lastMidiInPorts: string
+	lastMidiOutPorts: string
+	lastGamepads: string
 	liveJobs: Map<number, string>
+	announcedRuns: Set<number>
+	endedRuns: Set<number>
+	liveLoopScope: LiveLoopScopeStore
 	errorHighlightDecorationType: vscode.TextEditorDecorationType
 	pendingBeautify:
 		| {
@@ -78,6 +100,14 @@ export const registerOscHandlers = (host: OscHandlerHost): void => {
 		fireSupersonicDevices(host, '/supersonic/device-table', message.args)
 	})
 
+	// spider-server.rb:994-996: the runtime reports the tempo the run holds, Link or not.
+	osc.on('/use-bpm', (message: OscMessage) => {
+		const bpm = Number(message.args[0])
+		if (Number.isFinite(bpm)) {
+			host.onSessionBpm.fire(bpm)
+		}
+	})
+
 	osc.on('/link-bpm', (message: OscMessage) => {
 		const bpm = Number(message.args[0])
 		if (Number.isFinite(bpm)) {
@@ -104,13 +134,16 @@ export const registerOscHandlers = (host: OscHandlerHost): void => {
 		const parse = /(Completed|Starting) run (\d+)/.exec(line)
 		if (parse) {
 			const num = +parse[2]
-			if (parse[1] === 'Completed') host.onRunEnded.fire(num)
-			else if (parse[1] === 'Starting') host.onRunStarted.fire(num)
+			if (parse[1] === 'Completed') endRun(host, num)
+			else if (parse[1] === 'Starting') announceRunStart(host, num, false)
 		}
 		host.log(line)
 	})
 
 	registerRunTrackingHandlers(host, osc)
+	registerDeviceListHandlers(host, osc)
+	registerLiveLoopScopeHandlers(host, osc)
+	registerLifecycleHandlers(host, osc)
 	registerLogErrorHandler(host, osc)
 }
 
@@ -120,18 +153,27 @@ const registerRunTrackingHandlers = (host: OscHandlerHost, osc: OSC): void => {
 	osc.on('/run/started', (message: OscMessage) => {
 		const jobId = Number(message.args[0])
 		const workspace = typeof message.args[1] === 'string' ? message.args[1] : ''
-		if (Number.isFinite(jobId) && workspace) {
+		if (!Number.isFinite(jobId)) return
+		if (workspace) {
 			host.liveJobs.set(jobId, workspace)
+			host.onWorkspaceStarted.fire({ jobId, workspace })
 		}
+		announceRunStart(host, jobId, true)
 	})
 
 	osc.on('/run/ended', (message: OscMessage) => {
-		const jobId = Number(message.args[0])
-		host.liveJobs.delete(jobId)
+		endRun(host, Number(message.args[0]))
 	})
 
+	// The session went quiet: every run still open ends here, and a later daemon generation
+	// that numbers its jobs from 0 again announces its starts afresh.
 	osc.on('/runs/all-completed', () => {
+		const open = new Set([...host.announcedRuns, ...host.liveJobs.keys()])
 		host.liveJobs.clear()
+		host.announcedRuns.clear()
+		host.endedRuns.clear()
+		for (const jobId of open) host.onRunEnded.fire(jobId)
+		host.onAllRunsCompleted.fire()
 	})
 
 	osc.on('/incoming/osc', (message: OscMessage) => {
@@ -142,6 +184,120 @@ const registerRunTrackingHandlers = (host: OscHandlerHost, osc: OSC): void => {
 		host.onCue.fire({ time, id, address, args })
 		host.cuesOutput.appendLine(message.args[2] + ': ' + message.args[3])
 	})
+}
+
+// Two sources report a run's start: the daemon's /run/started push (spider-server.rb:1078) and
+// the /log/info "Starting run N" line. One id announces once, whichever source arrives first;
+// the log line is only a fallback for a push that never arrives, so it must not revive a run
+// the daemon already ended (a late log line would fake a fresh start).
+const announceRunStart = (host: OscHandlerHost, jobId: number, fromPush: boolean): void => {
+	if (host.announcedRuns.has(jobId)) return
+	if (!fromPush && host.endedRuns.has(jobId)) return
+	host.announcedRuns.add(jobId)
+	host.endedRuns.delete(jobId)
+	host.onRunStarted.fire(jobId)
+}
+
+// A run ends once, whichever source reports it: the /run/ended push, the legacy
+// "Completed run N" log line, or /runs/all-completed for everything still open.
+const endRun = (host: OscHandlerHost, jobId: number): void => {
+	if (!host.announcedRuns.has(jobId) && !host.liveJobs.has(jobId)) return
+	host.announcedRuns.delete(jobId)
+	host.endedRuns.add(jobId)
+	host.liveJobs.delete(jobId)
+	host.onRunEnded.fire(jobId)
+}
+
+// Lifecycle pushes: /spider/ready says the runtime finished booting (spider-server.rb:1102), so
+// the window can be told it is running before a run exists. /exited (:974) and
+// /exited-with-boot-error (:193, :270) say it is gone: the window must stop claiming a live
+// server instead of waiting for keep-alive to notice, and the log must name the push.
+const registerLifecycleHandlers = (host: OscHandlerHost, osc: OSC): void => {
+	osc.on('/spider/ready', () => announceRuntimeReady(host))
+
+	osc.on('/exited', () => stopForRuntimeExit(host, '/exited', ''))
+
+	osc.on('/exited-with-boot-error', (message: OscMessage) => {
+		const reason = message.args.length > 0 ? String(message.args[0]) : ''
+		stopForRuntimeExit(host, '/exited-with-boot-error', reason)
+	})
+}
+
+// Ready is worth announcing once: the runtime sends it per boot, but a duplicate push must not
+// flap the status bar or re-ask the version. serverStarted doubles as the "already running" mark
+// because startServer sets it before the receiver exists and the exit pushes clear it.
+const announceRuntimeReady = (host: OscHandlerHost): void => {
+	if (host.runtimeReady) return
+	host.runtimeReady = true
+	host.log('The Sonic Pi runtime reported /spider/ready')
+	host.onServerState.fire('running')
+	host.requestVersion()
+}
+
+// One place for both exit pushes: the daemon's own reason (when it sent one) survives to the
+// log, and a stop already in flight keeps its own bookkeeping: the graceful /exit we sent is
+// followed by this push, so the window would otherwise report a second, later 'stopped'.
+const stopForRuntimeExit = (host: OscHandlerHost, push: string, reason: string): void => {
+	if (!host.serverStarted) return
+	host.serverStarted = false
+	// The generation the receiver belongs to is gone; a duplicate ready must not report it back.
+	host.runtimeReady = false
+	host.liveJobs.clear()
+	host.announcedRuns.clear()
+	host.endedRuns.clear()
+	host.log('Sonic Pi runtime left (' + push + ')' + (reason ? ': ' + reason : ''))
+	if (host.consumeShutdownReport()) host.onServerState.fire('stopped')
+}
+
+// Device lists: the daemon pushes one 'enabled<TAB>name' string per list (runtime.rb:1949-1951)
+// after it enumerates, so each push replaces the previous one. Main keeps the raw string; the
+// pickers parse the cache on dispatch (device-ports.ts).
+const registerDeviceListHandlers = (host: OscHandlerHost, osc: OSC): void => {
+	osc.on('/midi/in-ports', (message: OscMessage) => {
+		host.lastMidiInPorts = deviceListPayload(message.args)
+	})
+
+	osc.on('/midi/out-ports', (message: OscMessage) => {
+		host.lastMidiOutPorts = deviceListPayload(message.args)
+	})
+
+	osc.on('/gamepad/devices-list', (message: OscMessage) => {
+		host.lastGamepads = deviceListPayload(message.args)
+	})
+}
+
+const deviceListPayload = (args: OscArg[]): string => (typeof args[0] === 'string' ? args[0] : '')
+
+// Live loops: /live_loop/scope(jobid, name, workspace, line, scope_num) fires when the loop
+// thread comes alive and /live_loop/scope-ended(jobid, name) from its ensure block
+// (spider-server.rb:1002-1004). The store is the badge source; the emitters announce it.
+const registerLiveLoopScopeHandlers = (host: OscHandlerHost, osc: OSC): void => {
+	osc.on('/live_loop/scope', (message: OscMessage) => {
+		const push = liveLoopScopePush(message.args)
+		if (!push) return
+		host.liveLoopScope.apply(push)
+		host.onLiveLoopScope.fire(push)
+	})
+
+	osc.on('/live_loop/scope-ended', (message: OscMessage) => {
+		const jobid = Number(message.args[0])
+		const name = message.args[1]
+		if (typeof name !== 'string' || !name) return
+		host.liveLoopScope.end(name)
+		host.onLiveLoopScopeEnded.fire({ jobid, name })
+	})
+}
+
+const liveLoopScopePush = (args: OscArg[]): LiveLoopScopePush | undefined => {
+	const [jobid, name, workspace, line, scopeNum] = args
+	if (typeof name !== 'string' || !name) return undefined
+	return {
+		jobid: Number(jobid),
+		name,
+		workspace: typeof workspace === 'string' ? workspace : '',
+		line: Number(line),
+		scopeNum: Number(scopeNum),
+	}
 }
 
 const registerLogErrorHandler = (host: OscHandlerHost, osc: OSC): void => {

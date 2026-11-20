@@ -46,6 +46,7 @@
 		"onCommand:vscode-sonic-pi.docs",
 		"onCommand:vscode-sonic-pi.stopNotebook",
 		"onCommand:vscode-sonic-pi.stop",
+		"onCommand:vscode-sonic-pi.stopCell",
 		"onCommand:vscode-sonic-pi.restartserver",
 		"onCommand:vscode-sonic-pi.checkInstall",
 		"onCommand:vscode-sonic-pi.runCell",
@@ -54,6 +55,10 @@
 		"onCommand:vscode-sonic-pi.cues._clear",
 		"onCommand:vscode-sonic-pi.cues._pause",
 		"onCommand:vscode-sonic-pi.cues._filter",
+		"onCommand:vscode-sonic-pi.cues._portStop",
+		"onCommand:vscode-sonic-pi.cues._portStart",
+		"onCommand:vscode-sonic-pi.cues._portExternal",
+		"onCommand:vscode-sonic-pi.cues._portInternal",
 		"onCommand:vscode-sonic-pi.cueInsertSync",
 		"onCommand:vscode-sonic-pi.cueSendTest",
 		"onCommand:vscode-sonic-pi.mixer",
@@ -61,7 +66,11 @@
 		"onCommand:vscode-sonic-pi.reopenAudioDevice",
 		"onCommand:vscode-sonic-pi.muteLoop",
 		"onCommand:vscode-sonic-pi.unmuteLoop",
-		"onNotebook:sonic-pi-book"
+		"onNotebook:sonic-pi-book",
+		"onCommand:vscode-sonic-pi.midiDevices",
+		"onCommand:vscode-sonic-pi.gamepads",
+		"onCommand:vscode-sonic-pi.setGlobalTimewarp",
+		"onCommand:vscode-sonic-pi.openInitFile"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -71,6 +80,48 @@
 					"command": "vscode-sonic-pi.run",
 					"group": "navigation",
 					"when": "editorLangId=='sonic-pi' && notebookType!='sonic-pi-book'"
+				}
+			],
+			"view/title": [
+				{
+					"command": "vscode-sonic-pi.cues._filter",
+					"when": "view == sonic-pi.cues",
+					"group": "navigation@1"
+				},
+				{
+					"command": "vscode-sonic-pi.cues._pause",
+					"when": "view == sonic-pi.cues",
+					"group": "navigation@2"
+				},
+				{
+					"command": "vscode-sonic-pi.cueSendTest",
+					"when": "view == sonic-pi.cues",
+					"group": "navigation@3"
+				},
+				{
+					"command": "vscode-sonic-pi.cues._clear",
+					"when": "view == sonic-pi.cues",
+					"group": "navigation@4"
+				},
+				{
+					"command": "vscode-sonic-pi.cues._portStop",
+					"when": "view == sonic-pi.cues",
+					"group": "cuePort@1"
+				},
+				{
+					"command": "vscode-sonic-pi.cues._portStart",
+					"when": "view == sonic-pi.cues",
+					"group": "cuePort@2"
+				},
+				{
+					"command": "vscode-sonic-pi.cues._portExternal",
+					"when": "view == sonic-pi.cues",
+					"group": "cuePort@3"
+				},
+				{
+					"command": "vscode-sonic-pi.cues._portInternal",
+					"when": "view == sonic-pi.cues",
+					"group": "cuePort@4"
 				}
 			],
 			"file/newFile": [
@@ -203,6 +254,11 @@
 				"category": "Sonic Pi"
 			},
 			{
+				"command": "vscode-sonic-pi.stopCell",
+				"title": "Stop Cell",
+				"category": "Sonic Pi"
+			},
+			{
 				"command": "vscode-sonic-pi.muteLoop",
 				"title": "Mute Loop",
 				"category": "Sonic Pi"
@@ -248,6 +304,26 @@
 				"icon": "$(clear-all)"
 			},
 			{
+				"command": "vscode-sonic-pi.cues._portStop",
+				"title": "Cue Port: Stop",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._portStart",
+				"title": "Cue Port: Start",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._portExternal",
+				"title": "Cue Port: External",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.cues._portInternal",
+				"title": "Cue Port: Internal",
+				"category": "Sonic Pi"
+			},
+			{
 				"command": "vscode-sonic-pi.cueInsertSync",
 				"title": "Cue: Insert Sync",
 				"category": "Sonic Pi"
@@ -270,6 +346,26 @@
 			{
 				"command": "vscode-sonic-pi.reopenAudioDevice",
 				"title": "Reset Audio Device",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.midiDevices",
+				"title": "MIDI Devices",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.gamepads",
+				"title": "Gamepads",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.setGlobalTimewarp",
+				"title": "Set Global Timewarp",
+				"category": "Sonic Pi"
+			},
+			{
+				"command": "vscode-sonic-pi.openInitFile",
+				"title": "Open init.rb",
 				"category": "Sonic Pi"
 			}
 		],
@@ -405,6 +501,11 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Replay every executed cell of the notebook on each play (the notebook as one instrument). Default off: the played cell runs alone."
+				},
+				"vscode-sonic-pi.runOnSave": {
+					"type": "boolean",
+					"default": false,
+					"description": "Run the whole file every time you save a Sonic Pi document (the Run lens semantics: the file runs as one script, not the piece you edited). Off by default: a save never plays by itself. Notebook cell saves are not affected."
 				},
 				"vscode-sonic-pi.stopServerOnLastEditorClose": {
 					"type": "boolean",

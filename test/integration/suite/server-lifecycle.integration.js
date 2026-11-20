@@ -30,7 +30,7 @@ suite('Server lifecycle', () => {
 		assert.deepStrictEqual(host.boots(warmMark), [], 'a warm window must not boot a second daemon')
 	})
 
-	test('status bar asks the running daemon for its version and sends the volume from its prompt', async () => {
+	test('status bar asks the running daemon for its version and the mixer popover sends the volume', async () => {
 		assert.ok(
 			host.messages('/version').length >= 1,
 			'the running state must request the version (that request is the status bar version bridge)',
@@ -39,13 +39,16 @@ suite('Server lifecycle', () => {
 		await host.sendControl('version', ['5.0.2'])
 		await host.waitUntil(() => host.readEvents().length > mark, 'the version reply control')
 
+		// The popover is the window's only volume surface (bean sonic-pi-kvbl): its first entry
+		// opens the master volume box at the volume this window last set, so accepting the
+		// preselected first entry, then the box, is the whole flow with no typing into a DOM input.
 		const volumeMark = host.mark()
-		const prompted = vscode.commands.executeCommand('vscode-sonic-pi.masterVolume')
-		// The prompt opens at the volume the window last set, so accepting it is one keystroke and
-		// the suite never has to type into a DOM input box.
+		const popped = vscode.commands.executeCommand('vscode-sonic-pi.mixer')
 		await host.delay(500)
 		await vscode.commands.executeCommand('quickInput.accept')
-		await prompted
+		await host.delay(500)
+		await vscode.commands.executeCommand('quickInput.accept')
+		await popped
 		// A closing quick input restores focus asynchronously; a suite that opens an editor before
 		// that settles loses the activation to whatever had focus (the panel, not the editor).
 		await host.delay(200)
@@ -85,18 +88,33 @@ suite('Server lifecycle', () => {
 		host.extensionModule('source-runner/extension.js').requestAudioDevices()
 		await host.waitForMessage('/daemon/audio/request-devices', mark, (message) => message.args.length === 1)
 	})
-	test('Link pushes update the statusbar item and click-to-set sends the silent bpm run', async () => {
-		const linkItem = host.statusBarItem(97)
-		assert.ok(linkItem, 'the link statusbar item exists')
 
-		await host.sendControl('link-bpm', ['122.5'])
-		await host.sendControl('link-peers', ['3'])
+	test('the tempo item stays hidden until the daemon reports a tempo, then follows both tempo pushes', async () => {
+		// given a running daemon that has reported no tempo at all
+		const linkItem = host.statusBarItem(97)
+		assert.ok(linkItem, 'the tempo statusbar item exists')
+		assert.strictEqual(linkItem.text, '', 'a session without a reported tempo shows no bpm')
+
+		// when the run reports the tempo it held (spider-server.rb:994 /use-bpm)
+		await host.sendControl('use-bpm', ['120'])
+
+		// then
 		await host.waitUntil(
-			() => linkItem.text.includes('122.5') && linkItem.text.includes('⇄3'),
-			'the link item to show the pushed bpm and peer count',
+			() => linkItem.text.includes('120 bpm'),
+			'the tempo item to show the tempo the run reported',
 		)
 
-		// The prompt opens at the pushed bpm (122.5), so accepting it is one keystroke and
+		// when Link pushes its own tempo and a peer count
+		await host.sendControl('link-bpm', ['122.5'])
+		await host.sendControl('link-peers', ['3'])
+
+		// then
+		await host.waitUntil(
+			() => linkItem.text.includes('122.5 bpm') && linkItem.text.includes('⇄3'),
+			'the item to follow the pushed link tempo and peer count',
+		)
+
+		// The prompt opens at the shown bpm (122.5), so accepting it is one keystroke and
 		// the suite never has to type into a DOM input box (same drive as the volume test).
 		const bpmMark = host.mark()
 		const prompted = vscode.commands.executeCommand('vscode-sonic-pi.setLinkBpm')

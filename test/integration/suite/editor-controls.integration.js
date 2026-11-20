@@ -7,6 +7,7 @@ const STOP = 'vscode-sonic-pi.stop'
 const RUN_TEXT = 'vscode-sonic-pi.runWithText'
 const MUTE = 'vscode-sonic-pi.muteLoop'
 const UNMUTE = 'vscode-sonic-pi.unmuteLoop'
+const STOP_CELL = 'vscode-sonic-pi.stopCell'
 
 function messagesBetween(mark, address) {
 	return host.sinceMark(mark).filter((entry) => entry.event === 'message' && entry.address === address)
@@ -29,18 +30,13 @@ suite('Editor controls', () => {
 		const lenses = await vscode.commands.executeCommand('vscode.executeCodeLensProvider', document.uri)
 		const titles = lenses.map((lens) => lens.command.title)
 		assert.deepStrictEqual(titles.slice(0, 2), ['$(play) Run', '$(stop) Stop'])
+		// One row set per block: a second registered lens provider would repeat every row.
 		assert.deepStrictEqual(
 			titles.filter((title) => title !== '$(play) Run' && title !== '$(stop) Stop'),
 			[
 				'$(play) Run cell',
 				'$(debug-pause) Mute',
 				'$(play) Run cell',
-				'$(debug-pause) Mute',
-				'$(play) Run cell',
-				'$(debug-pause) Mute',
-				'$(play) Run cell',
-				'$(debug-pause) Mute',
-				'$(sync) Load def',
 				'$(debug-pause) Mute',
 				'$(sync) Load def',
 				'$(debug-pause) Mute',
@@ -269,15 +265,13 @@ suite('Editor controls', () => {
 			const runMark = host.mark()
 			await vscode.commands.executeCommand(RUN_TEXT, 'live_loop :drums do\n  play :c4\nend', 0)
 			await host.waitForMessage('/run-code', runMark)
-			// liveJobs fills from the /run/started push, which lands after the fake records
-			// /run-code. The extension receives the push asynchronously: wait until ITS liveJobs
-			// has the entry, or the mute races ahead and falls back to stop-all.
+			// The run map fills from the /run/started push, which lands after the fake records
+			// /run-code. The extension receives the push asynchronously: wait until ITS map has
+			// the entry, or the mute races ahead and falls back to stop-all.
 			const runnerForJobs = host.extensionModule('source-runner/extension.js')
 			await host.waitUntil(
-				() =>
-					typeof runnerForJobs.liveJobWorkspaceFor === 'function' &&
-					runnerForJobs.liveJobWorkspaceFor('file://0:live_loop :drums do\n  play :c4\nend') !== undefined,
-				'the extension to track the run in liveJobs',
+				() => runnerForJobs.liveRunsForTest().hasCellKey('file://0:live_loop :drums do\n  play :c4\nend'),
+				'the extension to track the run',
 			)
 			const cellKey = codeLensModule.cellKeyFor(0, 'live_loop :drums do\n  play :c4\nend')
 
@@ -317,6 +311,84 @@ suite('Editor controls', () => {
 				host.sinceMark(unmuteMark).filter((entry) => entry.address === '/stop-all-jobs'),
 				[],
 				'unmute must not stop the whole session',
+			)
+		} finally {
+			await host.sendControl('stop-all')
+			host.writeSpec({})
+			await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+		}
+	})
+
+	test('a playing cell offers a Stop lens that kills only that run', async () => {
+		// Runs stay in flight so the block is still playing when its stop arrives.
+		const codeLensModule = host.extensionModule('codelenses.js')
+		try {
+			host.writeSpec({ holdRuns: true })
+			const restartMark = host.mark()
+			await vscode.commands.executeCommand('vscode-sonic-pi.restartserver')
+			await host.waitUntil(() => host.boots(restartMark).length > 0, 'the held-run daemon to boot')
+
+			const blockA = 'live_loop :drums do\n  play :c4\nend'
+			const blockB = 'live_loop :bass do\n  play :c2\nend'
+			host.writeFixture('stop-cell.pi', `${blockA}\n\n${blockB}`)
+			const editor = await host.showFixture('stop-cell.pi')
+			const before = await vscode.commands.executeCommand(
+				'vscode.executeCodeLensProvider',
+				editor.document.uri,
+			)
+			assert.deepStrictEqual(
+				before.filter((lens) => lens.command.command === STOP_CELL),
+				[],
+				'a block that is not playing offers no cell stop',
+			)
+
+			const runMark = host.mark()
+			await vscode.commands.executeCommand(RUN_TEXT, blockA, 0)
+			await host.waitForMessage('/run-code', runMark)
+			const started = await host.waitUntil(
+				() =>
+					host
+						.sinceMark(runMark)
+						.find((entry) => entry.event === 'push' && entry.address === '/run/started'),
+				'the fake to announce the job id on /run/started',
+			)
+			const jobId = started.args[0]
+			// The window learns the job from the same push; the lens repaint follows it.
+			const stopLens = await host.waitUntil(async () => {
+				const lenses = await vscode.commands.executeCommand(
+					'vscode.executeCodeLensProvider',
+					editor.document.uri,
+				)
+				return lenses.find((lens) => lens.command.command === STOP_CELL)
+			}, "the playing block's lens to offer its stop")
+
+			assert.strictEqual(stopLens.command.title, '$(debug-stop) Stop cell')
+			assert.deepStrictEqual(stopLens.command.arguments, [jobId], 'the lens carries the run it saw')
+			assert.strictEqual(stopLens.range.start.line, 0, 'the stop sits on the playing block')
+
+			const stopMark = host.mark()
+			await vscode.commands.executeCommand(STOP_CELL, ...stopLens.command.arguments)
+			await host.waitForMessage('/stop-job', stopMark, (message) => message.args[1] === jobId)
+			assert.deepStrictEqual(
+				host.sinceMark(stopMark).filter((entry) => entry.address === '/stop-all-jobs'),
+				[],
+				'the cell stop must not take the whole session with it',
+			)
+			// The block whose run is gone falls back to its plain row; the file Stop stays.
+			await host.waitUntil(async () => {
+				const lenses = await vscode.commands.executeCommand(
+					'vscode.executeCodeLensProvider',
+					editor.document.uri,
+				)
+				return lenses.every((lens) => lens.command.command !== STOP_CELL)
+			}, 'the stop lens to revert once the run ended')
+			assert.deepStrictEqual(
+				host
+					.sinceMark(stopMark)
+					.filter((entry) => entry.event === 'message' && entry.address === '/stop-job')
+					.map((entry) => entry.args[1]),
+				[jobId],
+				'the stop killed that one job and no other running loop',
 			)
 		} finally {
 			await host.sendControl('stop-all')

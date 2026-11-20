@@ -39,6 +39,7 @@ const vscodeStub = {
 		onDidChangeTextDocument: () => ({ dispose() {} }),
 		onDidCloseTextDocument: () => ({ dispose() {} }),
 		onDidOpenTextDocument: () => ({ dispose() {} }),
+		onDidSaveTextDocument: () => ({ dispose() {} }),
 		workspaceFolders: [],
 		registerTextDocumentContentProvider: () => ({ dispose() {} }),
 		registerNotebookSerializer: () => ({ dispose() {} }),

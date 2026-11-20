@@ -33,9 +33,12 @@ import { parseDaemonStdout, resolveOscCuesPort } from './daemonstdout'
 import { Config } from './config'
 import { findRunningSpiderServer, SpiderPorts, takeOverRoute, DaemonExitRoute } from '../attach'
 import { classifyReplyPortHolder, holderSubject } from '../port-holder'
-import { shouldAutoStartMidi } from '../midi'
+import { shouldAutoStartGamepad, shouldAutoStartMidi } from '../midi'
 import { Range, TextEditor, window } from 'vscode'
 import { registerOscHandlers } from './osc-handlers'
+import { LiveLoopScopeStore } from '../live-loop-scope'
+import * as senders from './senders'
+import * as events from './main-events'
 
 // OSC payloads from the Sonic Pi daemon: integer fields and text fields.
 type OscArg = number | string
@@ -56,15 +59,6 @@ export class Main {
 	processLogPath!: string
 	scsynthLogPath!: string
 
-	onCue = new vscode.EventEmitter<{ time: number; id: number; address: string; args: string }>()
-	onRunStarted = new vscode.EventEmitter<number>()
-	onRunEnded = new vscode.EventEmitter<number>()
-	onFlash = new vscode.EventEmitter<{ workspace: string; line: number }>()
-	onServerRestart = new vscode.EventEmitter<void>()
-	onReceiverFailed = new vscode.EventEmitter<void>()
-	onReceiverOpened = new vscode.EventEmitter<void>()
-	onServerState = new vscode.EventEmitter<'stopped' | 'starting' | 'running'>()
-
 	// Outstanding /buffer-beautify request: buffer id and the promise resolving with
 	// the daemon's /buffer/replace reply. One request at a time (beautify is modal).
 	pendingBeautify:
@@ -73,11 +67,25 @@ export class Main {
 				resolve: (reply: { content: string; line: number; index: number }) => void
 		  }
 		| undefined
-	onVersion = new vscode.EventEmitter<string>()
-	onMixerSettings = new vscode.EventEmitter<{ drive: number; volume: number }>()
-	onSupersonicDevices = new vscode.EventEmitter<{ kind: 'output' | 'input' | 'table'; names: string[] }>()
-	onLinkBpm = new vscode.EventEmitter<number>()
-	onLinkPeers = new vscode.EventEmitter<number>()
+
+	onCue = events.onCue
+	onRunStarted = events.onRunStarted
+	onWorkspaceStarted = events.onWorkspaceStarted
+	onRunEnded = events.onRunEnded
+	onAllRunsCompleted = events.onAllRunsCompleted
+	onFlash = events.onFlash
+	onMixerSettings = events.onMixerSettings
+	onServerState = events.onServerState
+	onServerRestart = events.onServerRestart
+	onReceiverOpened = events.onReceiverOpened
+	onReceiverFailed = events.onReceiverFailed
+	onVersion = events.onVersion
+	onSessionBpm = events.onSessionBpm
+	onLinkBpm = events.onLinkBpm
+	onLinkPeers = events.onLinkPeers
+	onSupersonicDevices = events.onSupersonicDevices
+	onLiveLoopScope = events.onLiveLoopScope
+	onLiveLoopScopeEnded = events.onLiveLoopScopeEnded
 
 	guiSendToServerPort!: number
 	daemonPort!: number
@@ -92,31 +100,56 @@ export class Main {
 	portsInitalizedResolver!: (sender: OscSender) => void
 	keepAliveTimer: ReturnType<typeof setInterval> | undefined
 	private keepAliveFailures = 0
-	// The daemon-audio routes need their own socket: the keepalive sender is a lifecycle
-	// object (errors there declare the daemon dead) and must never carry audio traffic.
-	// Cached per daemon port: a re-boot changes the port, so the cache must not survive it.
+	// Daemon-audio needs its own socket (keepalive errors declare death), cached per port.
 	private daemonSender: OscSender | undefined
 	private daemonSenderPort = -1
 	private cueBenchSender: CueBenchSender | undefined
-	// Raw /supersonic/device-table args, kept unparsed: the picker task decides the shape.
+	// Raw /supersonic/device-table args, unparsed (the picker owns the shape).
 	lastDeviceTable: OscArg[] = []
+	// The daemon's last device-list pushes, kept as the raw 'enabled<TAB>name' wire strings:
+	// the pickers parse them on dispatch (device-ports.ts), not on arrival.
+	lastMidiInPorts = ''
+	lastMidiOutPorts = ''
+	lastGamepads = ''
 	// Consecutive keepalive send errors before the daemon is declared dead. One ICMP
 	// hiccup is not death; three in a row means the destination port refuses everything.
 	private static readonly KEEPALIVE_FAILURE_LIMIT = 3
-	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
-	// to the cells that produced it (we send joined cell keys as the workspace).
+	// How long a stopped daemon gets to honour /exit before the kill fallback lands. Spider's
+	// own teardown (jobs stop, ensure blocks run) happens inside this window.
+	private static readonly GRACEFUL_EXIT_DEADLINE_MS = 2000
+	// Live daemon runs: jobId -> workspace (joined cell keys map runs back to cells).
 	liveJobs = new Map<number, string>()
+	// Job ids that already announced their start: a run id fires onRunStarted once, no matter
+	// whether the daemon's /run/started push or the /log/info line arrives first.
+	announcedRuns = new Set<number>()
+	// Job ids the daemon reported as ended: the log-line fallback must not revive them; a
+	// daemon generation that reuses an id does so through /run/started, which does revive it.
+	endedRuns = new Set<number>()
+	// The runtime announced /spider/ready for this generation: a duplicate push changes nothing.
+	runtimeReady = false
+	// A graceful /exit went out to a daemon this window still owned: its /exited push then
+	// reports a shutdown the stop or restart has already accounted for, so it fires no state.
+	daemonExitRequested = false
+	// The push during a graceful shutdown reported the stop itself: the restart's own report
+	// would be the same transition a second time.
+	private shutdownReported = false
+	// Live-loop pushes: which loops are alive right now and where their headers sit.
+	liveLoopScope = new LiveLoopScopeStore()
+
+	private senderContext(): senders.SenderContext {
+		return { send: (message) => this.sendOsc(message), token: this.guiUuid }
+	}
 
 	logOutput!: vscode.OutputChannel
 	cuesOutput!: vscode.OutputChannel
 
 	serverStarted!: boolean
 	midiAutoStartSent: boolean = false
+	gamepadAutoStartSent: boolean = false
 	daemonProcess: child_process.ChildProcess | undefined
 	restartInProgress = false
-	// One-shot: the next startServer must skip the attach scanner. A restart just killed the
-	// old daemon; while it dies the scanner still sees it, and attaching to a dying server
-	// makes every play after Restart Server land on a corpse.
+	// One-shot: the next startServer must skip the attach scanner. While the killed daemon
+	// dies the scanner still sees it, and attaching routes plays to a corpse.
 	forceManagedBootOnce = false
 
 	// Timestamp of the last 'connection lost' notification, to debounce
@@ -162,7 +195,6 @@ export class Main {
 		}
 		this.config = new Config()
 
-		// Override default root path if found in settings
 		if (this.config.sonicPiRootDirectory()) {
 			this.rootPath = this.config.sonicPiRootDirectory()
 		}
@@ -205,18 +237,17 @@ export class Main {
 		this.scsynthPort = -1
 		this.scsynthSendPort = -1
 
-		// attempt to create log directory
 		if (!fs.existsSync(this.logPath)) {
 			fs.mkdirSync(this.logPath, { recursive: true })
 		}
 
 		this.serverStarted = false
 		this.midiAutoStartSent = false
+		this.gamepadAutoStartSent = false
 		this.guiUuid = -1
 	}
 
 	private registerAutoLaunchWatchers() {
-		// watch to see if the user opens a ruby or custom file and we need to start the server
 		vscode.window.onDidChangeVisibleTextEditors((editors) => {
 			const launchAuto = this.config.launchSonicPiServerAutomatically()
 			for (let i = 0; i < editors.length; i++) {
@@ -255,7 +286,6 @@ export class Main {
 			}
 		})
 
-		// Update the mixer on the server if there are configuration changes
 		vscode.workspace.onDidChangeConfiguration((event) => {
 			if (event.affectsConfiguration('sonicpieditor')) {
 				this.updateMixerSettings()
@@ -303,7 +333,6 @@ export class Main {
 		}
 		this.serverStarted = true
 
-		// Initialise the Sonic Pi server
 		this.logOutput.appendLine('Will start server')
 
 		try {
@@ -380,8 +409,6 @@ export class Main {
 		this.cuesOutput.appendLine(str)
 	}
 
-	// This is where the incoming OSC messages are processed.
-	// We are processing most of the incoming OSC messages, but not everything yet.
 	setupOscReceiver() {
 		registerOscHandlers(this)
 	}
@@ -441,10 +468,10 @@ export class Main {
 			}
 		})
 		this.log(`Keep-alive started: pinging daemon port ${this.daemonPort} with /daemon/keep-alive`)
-		this.keepAliveTimer = setInterval(() => {
-			const message = new OSC.Message('/daemon/keep-alive', this.guiUuid)
-			daemonSender.send(message)
-		}, 1000)
+		this.keepAliveTimer = setInterval(
+			() => daemonSender.send(new OSC.Message('/daemon/keep-alive', this.guiUuid)),
+			1000,
+		)
 	}
 
 	// The daemon is gone (kill switch, crash, machine sleep). Without this the window keeps
@@ -473,8 +500,6 @@ export class Main {
 		return true
 	}
 
-	// Live daemon runs: jobId -> workspace string. The workspace is how a run maps back
-	// to the cells that produced it (we send joined cell keys as the workspace).
 	private registerRunTrackingHandlers(osc: OSC) {
 		osc.on('/run/started', (message: OscMessage) => {
 			const jobId = Number(message.args[0])
@@ -494,7 +519,6 @@ export class Main {
 		})
 	}
 
-	// This is the main part of launching Sonic Pi's backend
 	async startRubyServer(): Promise<void> {
 		const args: string[] = [this.daemonLauncherPath] // No need for launch args on the new daemon script
 
@@ -509,7 +533,6 @@ export class Main {
 			ruby_server.unref?.()
 			this.daemonProcess = ruby_server
 			ruby_server.stdout.on('data', (data: Buffer) => {
-				// console.log(`stdout: ${data}`)
 				this.logOutput.appendLine(`Daemon Out: ${data}`)
 				const ports = parseDaemonStdout(data.toString())
 				if (!ports) {
@@ -539,7 +562,6 @@ export class Main {
 			})
 
 			ruby_server.stderr.on('data', (data: Buffer) => {
-				// console.log(`stdserr: ${data}`)
 				this.onDaemonStderr(data.toString())
 			})
 		})
@@ -572,40 +594,77 @@ export class Main {
 		try {
 			this.onServerRestart.fire()
 			if (this.daemonProcess) {
-				this.daemonProcess.kill()
-				this.daemonProcess = undefined
+				// Flag BEFORE the first await: the old daemon's /exited push can land inside this
+				// method's first yield, so it must read as an accounted shutdown.
+				this.daemonExitRequested = true
+				await this.shutdownManagedDaemon()
 			}
 			this.serverStarted = false
-			// The old daemon's ports die with it. Re-arm the send queue: a resolved send queue
-			// would keep shipping runs to the previous generation's dead port (cells then spin
-			// forever with no /run-code on the wire).
-			this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
-			// While the killed daemon dies, the scanner still sees its spider process: attaching
-			// to it would route plays to a corpse. Force the fresh managed boot.
+			// The dying spider would otherwise be adopted: force the fresh managed boot.
 			this.forceManagedBootOnce = true
-			this.onServerState.fire('stopped')
-			this.midiAutoStartSent = false
+			this.reportDaemonRetired()
 			await this.startServer()
 		} finally {
 			this.restartInProgress = false
 		}
 	}
 
-	// Shut the whole backend down: stop playing runs, then kill the daemon like restartServer
+	// Shut the whole backend down: stop playing runs, then retire the daemon like restartServer
 	// does, but without booting a fresh one.
-	stopServer() {
+	async stopServer(): Promise<void> {
 		this.stopAllJobs()
 		if (this.daemonProcess) {
-			this.daemonProcess.kill()
-			this.daemonProcess = undefined
+			await this.shutdownManagedDaemon()
 		}
 		this.serverStarted = false
-		// The stopped daemon's ports are dead. Re-arm the send queue like a restart does, or
-		// an already-resolved queue keeps shipping runs to the previous generation's port.
-		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
-		this.onServerState.fire('stopped')
-		this.midiAutoStartSent = false
+		this.reportDaemonRetired()
 		this.logOutput.appendLine('Sonic Pi server stopped (last Sonic Pi editor closed)')
+	}
+
+	// The daemon this window owned is gone: re-arm the send queue (a resolved one would keep
+	// shipping runs to the dead port), clear the per-generation flags, and report the transition
+	// once - the daemon's own /exited push may already have reported it.
+	private reportDaemonRetired(): void {
+		this.portsInitalized = new Promise((r) => (this.portsInitalizedResolver = r))
+		this.midiAutoStartSent = false
+		this.gamepadAutoStartSent = false
+		this.runtimeReady = false
+		if (this.consumeShutdownReport()) this.onServerState.fire('stopped')
+	}
+
+	// A managed daemon leaves on its own terms: /exit(token) runs __exit, so the scheduler stops
+	// the jobs and their ensure blocks run (no clipped tails), then the at_exit pushes /exited.
+	// SIGTERM is the fallback: spider has no trap, so a daemon that never leaves would hang.
+	private async shutdownManagedDaemon(): Promise<void> {
+		const daemon = this.daemonProcess
+		if (!daemon) return
+		this.daemonExitRequested = true
+		this.shutdownReported = false
+		// /exit rides the OLD (resolved) queue: it is the last traffic the dying generation
+		// must actually receive. Re-arm BEFORE the wait - during the graceful window the old
+		// sender would deliver new traffic to the dead port (the notebook suites' lost
+		// /run-codes); the fresh promise holds runs until the next boot resolves it.
+		senders.exitGracefully(this.senderContext())
+		this.reportDaemonRetired()
+		this.daemonProcess = undefined
+		const deadline = new Promise<void>((resolve) =>
+			setTimeout(resolve, Main.GRACEFUL_EXIT_DEADLINE_MS).unref(),
+		)
+		const left = new Promise<void>((resolve) => daemon.once('exit', () => resolve()))
+		await Promise.race([left, deadline])
+		this.daemonExitRequested = false
+		if (daemon.exitCode !== null || daemon.signalCode !== null) return
+		this.logOutput.appendLine(
+			`The Sonic Pi daemon did not exit within ${Main.GRACEFUL_EXIT_DEADLINE_MS}ms - killing it`,
+		)
+		daemon.kill()
+	}
+
+	// True when no one has reported this shutdown yet; a state push can only be claimed once.
+	consumeShutdownReport(): boolean {
+		if (this.shutdownReported) return false
+		this.shutdownReported = true
+		return true
 	}
 
 	updateMixerSettings() {
@@ -679,8 +738,7 @@ export class Main {
 		return undefined
 	}
 
-	// The daemon booter writes to the shared log under the user's home; the extension
-	// already knows the log directory root from sonic pi's paths.
+	// The daemon booter's shared log under the user's home (paths.rb's log dir).
 	private daemonLogPath(): string {
 		return path.join(os.homedir(), '.sonic-pi', 'log', 'daemon.log')
 	}
@@ -737,10 +795,7 @@ export class Main {
 			code = 'use_arg_checks true #__nosave__ set by Qt GUI user preferences.\n' + code
 		}
 		code = utf8.encode(code)
-		if (this.config.autoMidiStart() && shouldAutoStartMidi(code, this.midiAutoStartSent)) {
-			this.sendOsc(new OSC.Message('/midi-start', this.guiUuid))
-			this.midiAutoStartSent = true
-		}
+		this.startDeviceCuesFor(code)
 		this.clearErrorHighlight()
 		// The workspace argument rides the run through the daemon and comes back on
 		// /run/started, which is how a job id maps back to the cells that own it.
@@ -837,85 +892,72 @@ export class Main {
 		this.runCode(`set_link_bpm! ${bpm}`, 0, ['link-bpm-set'], { replaceSession: false, silent: true })
 	}
 
+	// set_global_timewarp! rescales every running sleep (spider-server.rb:806-814). Like the Link
+	// tempo it must NOT replace the session, so it rides the silent no-replace run.
+	setGlobalTimewarp(seconds: number) {
+		const MIN = 0
+		const MAX = 5
+		if (!Number.isFinite(seconds) || seconds < MIN || seconds > MAX) {
+			void vscode.window.showWarningMessage(
+				`Sonic Pi: timewarp ${seconds} is outside the daemon's accepted range ${MIN}-${MAX}. Nothing was sent.`,
+			)
+			this.log('Rejected set_global_timewarp out of range: ' + seconds)
+			return
+		}
+		this.runCode(`set_global_timewarp! ${seconds}`, 0, ['timewarp-set'], {
+			replaceSession: false,
+			silent: true,
+		})
+	}
+
 	stopAllJobs() {
 		this.sendOsc(new OSC.Message('/stop-all-jobs', this.guiUuid))
 	}
 
-	startRecording() {
-		this.sendOsc(new OSC.Message('/start-recording', this.guiUuid))
-	}
-
-	stopRecording() {
-		this.sendOsc(new OSC.Message('/stop-recording', this.guiUuid))
-	}
-
-	saveRecording(path: string) {
-		this.sendOsc(new OSC.Message('/save-recording', this.guiUuid, path))
-	}
-
-	deleteRecording() {
-		this.sendOsc(new OSC.Message('/delete-recording', this.guiUuid))
-	}
-
-	mixerInvertStereo() {
-		this.sendOsc(new OSC.Message('/mixer-invert-stereo', this.guiUuid))
-	}
-
-	mixerStandardStereo() {
-		this.sendOsc(new OSC.Message('/mixer-standard-stereo', this.guiUuid))
-	}
-
-	mixerMonoMode() {
-		this.sendOsc(new OSC.Message('/mixer-mono-mode', this.guiUuid))
-	}
-
-	mixerStereoMode() {
-		this.sendOsc(new OSC.Message('/mixer-stereo-mode', this.guiUuid))
-	}
-
-	// Pre-limiter gain. The daemon expects /mixer-drive(token, amp, silent); silent=1
-	// keeps the level change out of the cue log.
-	setDrive(amp: number) {
-		this.sendOsc(new OSC.Message('/mixer-drive', this.guiUuid, amp, 1))
-	}
-
-	setLpf(freq: number | 'off') {
-		this.sendOsc(
-			freq === 'off'
-				? new OSC.Message('/mixer-lpf-disable', this.guiUuid)
-				: new OSC.Message('/mixer-lpf-enable', this.guiUuid, freq),
-		)
-	}
-
-	setHpf(freq: number | 'off') {
-		this.sendOsc(
-			freq === 'off'
-				? new OSC.Message('/mixer-hpf-disable', this.guiUuid)
-				: new OSC.Message('/mixer-hpf-enable', this.guiUuid, freq),
-		)
-	}
-
-	// Master fader after the limiter; the server clamps the passed amp to 0..1.
-	setMasterVolume(volumePercent: number) {
-		this.sendOsc(new OSC.Message('/mixer-output-volume', this.guiUuid, volumePercent / 100))
-	}
+	startRecording = () => senders.startRecording(this.senderContext())
+	stopRecording = () => senders.stopRecording(this.senderContext())
+	saveRecording = (path: string) => senders.saveRecording(this.senderContext(), path)
+	deleteRecording = () => senders.deleteRecording(this.senderContext())
+	mixerInvertStereo = () => senders.mixerInvertStereo(this.senderContext())
+	mixerStandardStereo = () => senders.mixerStandardStereo(this.senderContext())
+	mixerMonoMode = () => senders.mixerMonoMode(this.senderContext())
+	mixerStereoMode = () => senders.mixerStereoMode(this.senderContext())
+	setDrive = (amp: number) => senders.setDrive(this.senderContext(), amp)
+	setLpf = (freq: number | 'off') => senders.setLpf(this.senderContext(), freq)
+	setHpf = (freq: number | 'off') => senders.setHpf(this.senderContext(), freq)
+	setMasterVolume = (volumePercent: number) => senders.setMasterVolume(this.senderContext(), volumePercent)
+	midiPortEnable = (direction: 'in' | 'out', port: number, on: boolean) =>
+		senders.midiPortEnable(this.senderContext(), direction, port, on)
+	// Re-enumeration: the daemon refreshes its device list and pushes the new one.
+	midiReset = () => senders.midiReset(this.senderContext())
+	gamepadEnable = (pad: number, on: boolean) => senders.gamepadEnable(this.senderContext(), pad, on)
+	gamepadStart = () => senders.gamepadStart(this.senderContext())
+	gamepadStop = () => senders.gamepadStop(this.senderContext())
 
 	requestVersion() {
 		this.sendOsc(new OSC.Message('/version', this.guiUuid))
 	}
 
+	// midi_*/gamepad_* are silent until the daemon gets its start message. Both device families
+	// follow the same rule here: at most once per server session.
+	private startDeviceCuesFor(code: string) {
+		if (!this.config.autoMidiStart()) return
+		if (shouldAutoStartMidi(code, this.midiAutoStartSent)) {
+			this.sendOsc(new OSC.Message('/midi-start', this.guiUuid))
+			this.midiAutoStartSent = true
+		}
+		if (shouldAutoStartGamepad(code, this.gamepadAutoStartSent)) {
+			this.gamepadStart()
+			this.gamepadAutoStartSent = true
+		}
+	}
+
 	// Per-run stop: kill only the job(s) a cell belongs to. Falls back to the whole-session
 	// stop when the cell's run is unknown or already finished - that keeps the notebook
-	// interrupt path correct even without run tracking.
-	// Read-only peek at the tracked runs: the integration suite waits for the workspace of a
-	// run to appear here before muting, so the mute deterministically maps to the job.
-	liveJobWorkspaceFor(cellKey: string): string | undefined {
-		for (const [, workspace] of this.liveJobs) {
-			if (workspace.split('|').includes(cellKey)) {
-				return workspace
-			}
-		}
-		return undefined
+	// interrupt path correct even without run tracking. One daemon job is one run, so the
+	// lens's per-cell stop names the id it saw start; a job the daemon ended is already gone.
+	stopJob(jobId: number) {
+		if (this.liveJobs.has(jobId)) this.sendOsc(new OSC.Message('/stop-job', this.guiUuid, jobId))
 	}
 
 	stopCell(cells: string[]) {
@@ -940,21 +982,13 @@ export class Main {
 		await this.cueBenchSender.sendTestCue(address, args)
 	}
 
-	cuePortStart() {
-		this.sendOsc(new OSC.Message('/cue-port-start', this.guiUuid))
-	}
+	cuePortStart = () => senders.cuePortStart(this.senderContext())
 
-	cuePortStop() {
-		this.sendOsc(new OSC.Message('/cue-port-stop', this.guiUuid))
-	}
+	cuePortStop = () => senders.cuePortStop(this.senderContext())
 
-	cuePortExternal() {
-		this.sendOsc(new OSC.Message('/cue-port-external', this.guiUuid))
-	}
+	cuePortExternal = () => senders.cuePortExternal(this.senderContext())
 
-	cuePortInternal() {
-		this.sendOsc(new OSC.Message('/cue-port-internal', this.guiUuid))
-	}
+	cuePortInternal = () => senders.cuePortInternal(this.senderContext())
 
 	// Remove the error highlight
 	clearErrorHighlight() {

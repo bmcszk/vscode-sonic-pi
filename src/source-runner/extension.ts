@@ -33,18 +33,26 @@ import * as vscode from 'vscode'
 import { Main } from './main'
 import { Config } from './config'
 import { computeBeautifyEdit } from '../beautify'
-import { flashPaintFor, notebookFlashMap } from '../cell-flash-map'
-import { SonicPiCodeLensProvider, cellKeyFor } from '../codelenses'
+import { FlashPaint, flashPaintFor, notebookFlashMap } from '../cell-flash-map'
+import { FlashDocks } from '../flash-docks'
+import { cellKeyFor } from '../codelenses'
 import { PlayingLineHighlighter } from '../playing-lines'
 import { SonicPiStatusBar } from '../statusbar'
 import { LspDiagnosticsController } from '../lsp/diagnostics'
 import { ensureLspClient, onLspClientReady } from '../lsp/shared-client'
 import { shouldStopServerOnLastEditorClose } from '../editor-close'
 import { MuteRegistry } from '../loop-mute'
+import { LiveRuns } from '../live-runs'
 import { CueStore } from '../cue-store'
 import { CueInspector } from '../cue-inspector'
 import { linkBpmInputValue } from '../link-label'
 import { runDevicePicker, DeviceNames } from '../audio-device-picker'
+import { runGamepadPicker, runMidiPortPicker } from '../device-ports'
+import { LiveLoopBadgeDecorator } from '../live-loop-badges'
+import { buildPreviewCode } from '../docs-preview'
+import { DOCS_PREVIEW_WORKSPACE } from '../docs-browser'
+import { ensureInitFile } from '../init-file'
+import { shouldAutoRunOnSave } from './run-on-save'
 
 let main: Main
 let config: Config
@@ -64,6 +72,65 @@ export const runScript = (code: string, cells: string[] = []) => {
 	}
 	main.runCode(code, 0, cells)
 }
+
+// Live runs by job id -> the cell keys the run plays. The lens renders stop rows from this
+// map, and a cell stop kills the job the map names.
+const liveRuns = new LiveRuns()
+
+// The daemon's /run/started carries the workspace the run was sent with, and a cell run sends
+// its block's key as that workspace - that is how a run maps back to the block that plays it.
+const trackLiveRuns = (run: Main) =>
+	run.onWorkspaceStarted.event(({ jobId, workspace }) => {
+		for (const cellKey of workspace.split('|')) {
+			liveRuns.runStarted(jobId, cellKey)
+		}
+	})
+
+const trackRunEnds = (run: Main) => run.onRunEnded.event((jobId) => liveRuns.runEnded(jobId))
+
+// The daemon names each job's workspace: that is where the dock of the run sent for it lands, and
+// the document it names is the one whose lines stay lit for the run's lifetime.
+const trackFlashRuns = (run: Main) =>
+	run.onWorkspaceStarted.event(({ jobId, workspace }) => {
+		const document = flashDocks.runStarted(jobId, workspace)
+		playingLines.runStarted(document)
+	})
+
+// A run ends one of two ways: the daemon names its job, or the whole session goes quiet. Both
+// drop the lines the run kept lit; the quiet session also proves no run is left to re-use a dock.
+const trackFlashEnds = (run: Main) =>
+	run.onRunEnded.event((jobId) => {
+		flashDocks.runEnded(jobId)
+		playingLines.runEnded()
+	})
+
+// Sonic Pi files whose /flash belongs in an editor. The docs reader and builtin previews are
+// read-only chrome; a notebook cell is painted by its own cell instead.
+const isFlashableDocument = (document: vscode.TextDocument) =>
+	document.languageId === 'sonic-pi' && document.uri.scheme === 'file'
+
+const frontSonicPiDocument = (): string | undefined => {
+	const document = vscode.window.activeTextEditor?.document
+	return document && isFlashableDocument(document) ? document.uri.toString() : undefined
+}
+
+// A file run carries no workspace of its own - the daemon reports it under 'eval'. The dock
+// remembers the document whose editor was in front when the run was sent, so its flashes paint
+// there even after the focus moved to a panel or another tab.
+const flashDocks = new FlashDocks(frontSonicPiDocument)
+
+// The flash target of a run: a notebook run's joined-script line resolves to its cell, a file run
+// reports file-absolute lines of the document its dock names.
+const flashTargetFor = (workspace: string, line: number): FlashPaint => {
+	const document = flashDocks.documentOf(workspace)
+	const paint = flashPaintFor(notebookFlashMap, workspace, document, line)
+	if (paint.kind === 'none' && !notebookFlashMap.isTracking()) return { kind: 'file', line }
+	return paint
+}
+
+// The live-run map fills from the daemon's pushes, so it is readable without a lens: the
+// integration suite waits for a run to land here before it clicks a stop.
+export const liveRunsForTest = () => liveRuns
 
 export const onRunStarted = (listener: (num: number) => void) => {
 	return main.onRunStarted.event(listener)
@@ -100,12 +167,20 @@ export const stopAllScripts = () => {
 
 // Per-run stop: kill the daemon job(s) that belong to the given cells. Unknown or
 // finished cells fall back to the whole-session stop inside main.
-export const liveJobWorkspaceFor = (cellKey: string) => main.liveJobWorkspaceFor(cellKey)
 export const stopCellByKeys = (cellKeys: string[]) => {
 	if (!main) {
 		throw Error('Runner not initialized')
 	}
 	main.stopCell(cellKeys)
+}
+
+// A playing block's stop: kill only the run that block plays. A job the daemon already ended
+// has nothing left to kill, and the session keeps playing - the file-level Stop owns that.
+export const stopRun = (jobId: number) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.stopJob(jobId)
 }
 
 // Test seam (integration only): the mixer popover's Drive dispatch is unit-covered, so the
@@ -115,6 +190,79 @@ export const setDriveForTest = (amp: number) => {
 		throw Error('Runner not initialized')
 	}
 	main.setDrive(amp)
+}
+
+// Test seam (unit only): the runner module's Main is created by activate, which needs a
+// vscode host. A suite that exercises the seams below against a real Main installs it here.
+export const setMainForTest = (instance: Main) => {
+	main = instance
+}
+
+// The docs picker's second step: a builtin's sound plays as a silent, no-replace run under its
+// own workspace, so previewing never replaces the session and a stuck preview stops with the
+// existing Stop command. Returns false when the entry has no playable snippet.
+export const previewEntry = (entry: { kind: string; name: string }): boolean => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	const code = buildPreviewCode(entry)
+	if (code === undefined) return false
+	main.runCode(code, 0, [DOCS_PREVIEW_WORKSPACE], { replaceSession: false, silent: true })
+	return true
+}
+
+// Test seam (integration only): the live-loop scope store lives on the Main instance, which
+// the host's module graph reaches only through the runner module.
+export const liveLoopScopeForTest = () => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	return main.liveLoopScope
+}
+
+// Test seam (integration only): the cached raw device-list pushes the pickers parse.
+export const deviceListCacheForTest = () => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	return {
+		inPorts: main.lastMidiInPorts,
+		outPorts: main.lastMidiOutPorts,
+		gamepads: main.lastGamepads,
+	}
+}
+
+// Test seam (integration only): the device pickers' QuickPick cannot be driven headlessly, so
+// the suite proves the picked item's outcome - the sender call it makes - through this hook.
+// The item shape is the one buildPortQuickPickItems produces (port direction + list index).
+export const pickMidiPortForTest = (pick: { port: 'in' | 'out'; index: number; enabled: boolean }) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.midiPortEnable(pick.port, pick.index, !pick.enabled)
+}
+
+export const pickGamepadForTest = (pick: { index: number; enabled: boolean }) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.gamepadEnable(pick.index, !pick.enabled)
+}
+
+// Test seam (integration only): the timewarp input box cannot be typed into from the host.
+export const setTimewarpForTest = (seconds: number) => {
+	if (!main) {
+		throw Error('Runner not initialized')
+	}
+	main.setGlobalTimewarp(seconds)
+}
+
+// init.rb is the user's silent pre-boot script: opening it is pure file I/O, so a cold window
+// needs no server. The daemon evals it on its next boot (spider-server.rb:249-253).
+export const openInitFile = async (homedir: string): Promise<void> => {
+	const { path } = ensureInitFile(homedir)
+	const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path))
+	await vscode.window.showTextDocument(doc, { preview: false })
 }
 
 // Mute/unmute a cell: mute stops its job and records the last-run code; unmute re-runs
@@ -214,8 +362,10 @@ const clearPlaying = () => {
 }
 
 // A file run reports the lines of that file, so a notebook's joined-script offsets stop applying.
+// The front document is docked with it: that is the document its flashes must paint.
 const runFileCode = (code: string, offset: number = 0) => {
 	notebookFlashMap.clear()
+	flashDocks.dockFileRun()
 	main.runCode(code, offset)
 }
 
@@ -230,39 +380,73 @@ export function activate(context: vscode.ExtensionContext) {
 	playingLines = new PlayingLineHighlighter({
 		config,
 		editor: () => vscode.window.activeTextEditor,
-		flashTarget: (workspace, line) =>
-			flashPaintFor(
-				notebookFlashMap,
-				workspace,
-				vscode.window.activeTextEditor?.document.uri.toString(),
-				line,
-			),
+		flashTarget: flashTargetFor,
 	})
 	context.subscriptions.push(main.onServerRestart.event(() => clearPlaying()))
 	// A fresh daemon knows nothing about muted loops; their stored codes could never be
-	// soundly re-run, so the mute memory dies with the server generation.
-	context.subscriptions.push(main.onServerRestart.event(() => muteRegistry.clear()))
+	// soundly re-run, so the mute memory dies with the server generation. The same holds for
+	// the live runs: the new generation numbers its jobs from scratch.
+	context.subscriptions.push(
+		main.onServerRestart.event(() => {
+			muteRegistry.clear()
+			liveRuns.clear()
+			flashDocks.clear()
+			playingLines.endAllRuns()
+		}),
+		trackLiveRuns(main),
+		trackRunEnds(main),
+		trackFlashRuns(main),
+		trackFlashEnds(main),
+		main.onAllRunsCompleted.event(() => {
+			flashDocks.allRunsCompleted()
+			playingLines.endAllRuns()
+		}),
+	)
 	if (config.launchSonicPiServerAutomatically() === 'start') {
 		main.startServerReported()
 	}
 
 	registerStatusBar(context)
 	registerCueInspector(context)
+	registerLiveLoopBadges(context)
 	registerLastEditorClose(context)
 	registerEditorCommands(context)
+	registerRunOnSave(context)
 	registerLspDiagnostics(context)
 }
 
+// Live-loop badges: a gutter '♪ :name' on every alive loop's header line. The daemon's
+// /live_loop/scope and /live_loop/scope-ended pushes (spider-server.rb:1002-1004) update the
+// store; the decorator repaints the visible editors. A restart clears every badge, like the
+// muted-loop memory: the fresh daemon has no loops yet.
+const registerLiveLoopBadges = (context: vscode.ExtensionContext) => {
+	const decorator = new LiveLoopBadgeDecorator({
+		store: main.liveLoopScope,
+		visibleEditors: () =>
+			vscode.window.visibleTextEditors.filter((editor) => editor.document.languageId === 'sonic-pi'),
+	})
+	const repaint = () => decorator.refresh()
+	context.subscriptions.push(
+		main.onLiveLoopScope.event(repaint),
+		main.onLiveLoopScopeEnded.event(repaint),
+		vscode.window.onDidChangeVisibleTextEditors(repaint),
+		main.onServerRestart.event(() => {
+			main.liveLoopScope.clear()
+			decorator.clearAll()
+		}),
+		{ dispose: () => decorator.dispose() },
+	)
+}
+
 // Status bar wiring: the popover actions dispatch to the runner and the server state,
-// version, mixer and Link events update the displayed items. Cold-window dispatch of the
-// modal commands stays a silent no-op (a modal there hangs the activation gate).
+// version, mixer and tempo events update the displayed items. The mixer item is the window's
+// only volume surface and the tempo item shows only a tempo the daemon reported. Cold-window
+// dispatch of the modal commands stays a silent no-op (a modal there hangs the gate).
 const registerStatusBar = (context: vscode.ExtensionContext) => {
 	const statusBar = new SonicPiStatusBar({
 		sendVersionRequest: () => main.requestVersion(),
 		sendMasterVolume: (value) => main.setMasterVolume(value),
 		setDrive: (value) => main.setDrive(value),
-		setLpf: (freq) => main.setLpf(freq),
-		setHpf: (freq) => main.setHpf(freq),
 		setStereo: (stereo) => (stereo ? main.mixerStereoMode() : main.mixerMonoMode()),
 		setInvert: (invert) => (invert ? main.mixerInvertStereo() : main.mixerStandardStereo()),
 	})
@@ -285,10 +469,6 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 		// Cold-window dispatch: the activation suite fires every command without a server, and
 		// a modal (input box or QuickPick) there hangs the dispatch loop. Silent no-op - the
 		// statusbar items are hidden when stopped anyway, so this path is unreachable for users.
-		vscode.commands.registerCommand('vscode-sonic-pi.masterVolume', () => {
-			if (!main.serverStarted) return
-			void statusBar.showVolumeQuickPick()
-		}),
 		vscode.commands.registerCommand('vscode-sonic-pi.mixer', () => {
 			if (!main.serverStarted) return
 			void statusBar.showMixerQuickPick()
@@ -301,6 +481,15 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 		vscode.commands.registerCommand('vscode-sonic-pi.reopenAudioDevice', () => {
 			if (!main.serverStarted) return
 			void confirmThenReopenAudioDevice()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.midiDevices', () => {
+			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
+			if (!main.serverStarted) return
+			void runMidiPortPicker(main, { showQuickPick: (items) => vscode.window.showQuickPick(items) })
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.gamepads', () => {
+			if (!main.serverStarted) return
+			void runGamepadPicker(main, { showQuickPick: (items) => vscode.window.showQuickPick(items) })
 		}),
 		vscode.commands.registerCommand('vscode-sonic-pi.setLinkBpm', async () => {
 			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
@@ -317,10 +506,32 @@ const registerStatusBar = (context: vscode.ExtensionContext) => {
 			}
 			main.setLinkBpm(bpm)
 		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.setGlobalTimewarp', async () => {
+			// Cold-window dispatch: no server -> silent return (a modal there hangs the gate).
+			if (!main.serverStarted) return
+			await promptThenSetGlobalTimewarp()
+		}),
+		main.onSessionBpm.event((sessionBpm) => statusBar.setLinkData({ sessionBpm })),
 		main.onLinkBpm.event((bpm) => statusBar.setLinkData({ bpm })),
 		main.onLinkPeers.event((peers) => statusBar.setLinkData({ peers })),
 		{ dispose: () => statusBar.dispose() },
 	)
+}
+
+// Global timewarp (/set-global-timewarp, spider-server.rb:806-814): the daemon rejects
+// anything outside 0-5, so the prompt validates before the sender ever fires.
+const promptThenSetGlobalTimewarp = async () => {
+	const input = await vscode.window.showInputBox({
+		prompt: 'Global timewarp (0-5): 0.25 quarter speed, 4 four times faster',
+		value: '1',
+	})
+	if (input === undefined) return
+	const seconds = parseFloat(input)
+	if (!Number.isFinite(seconds)) {
+		void vscode.window.showErrorMessage('Global timewarp must be a number from 0 to 5')
+		return
+	}
+	main.setGlobalTimewarp(seconds)
 }
 
 // Ruby LSP diagnostics: squiggles as you type on .pi documents. The shared client boot
@@ -404,6 +615,28 @@ const registerCueInspector = (context: vscode.ExtensionContext) => {
 		}),
 	)
 
+	// The cue-port routes are on the wire (main.cuePort*) but no command reached them: the Cues
+	// view title carries the two switches Sonic Pi's own cue-port menu offers. A dispatch without
+	// a server is a silent no-op - the queue would swallow the message anyway.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._portStop', () => {
+			if (!main.serverStarted) return
+			main.cuePortStop()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._portStart', () => {
+			if (!main.serverStarted) return
+			main.cuePortStart()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._portExternal', () => {
+			if (!main.serverStarted) return
+			main.cuePortExternal()
+		}),
+		vscode.commands.registerCommand('vscode-sonic-pi.cues._portInternal', () => {
+			if (!main.serverStarted) return
+			main.cuePortInternal()
+		}),
+	)
+
 	// View/title command: send test cue - prompts for address and args
 	context.subscriptions.push(
 		vscode.commands.registerCommand('vscode-sonic-pi.cueSendTest', async () => {
@@ -480,7 +713,7 @@ const registerLastEditorClose = (context: vscode.ExtensionContext) => {
 			sonicPiEditorsRemaining: openSonicPiTabs.length,
 		})
 		if (decision) {
-			main.stopServer()
+			void main.stopServer()
 			clearPlaying()
 		}
 	}
@@ -489,7 +722,27 @@ const registerLastEditorClose = (context: vscode.ExtensionContext) => {
 	})
 	context.subscriptions.push(
 		main.onFlash.event(({ workspace, line }) => playingLines.flash(workspace, line)),
+		// An edit moves the lines under the daemon's report, so the run's marks go dark until it
+		// reports again: a stale mark on the wrong line reads as the wrong block playing.
+		vscode.workspace.onDidChangeTextDocument(({ document, contentChanges }) => {
+			if (!isFlashableDocument(document) || contentChanges.length === 0) return
+			const firstLine = Math.min(...contentChanges.map((change) => change.range.start.line))
+			playingLines.forgetLines(document.uri.toString(), firstLine + 1)
+		}),
 		{ dispose: () => playingLines.dispose() },
+	)
+}
+
+// Auto-run on save (opt-in, default off): a saved sonic-pi file plays whole-file, like the Run
+// lens. A save is not a click, so a cold window stays silent instead of booting a daemon the way
+// scriptRunEnsuresServer would; the decision itself lives in run-on-save.ts. The setting is read
+// per save, so flipping it needs no reload.
+const registerRunOnSave = (context: vscode.ExtensionContext) => {
+	context.subscriptions.push(
+		vscode.workspace.onDidSaveTextDocument((document) => {
+			if (!main.serverStarted) return
+			shouldAutoRunOnSave({ enabled: config.runOnSave(), document }, main)
+		}),
 	)
 }
 
@@ -573,14 +826,6 @@ const registerEditorCommands = (context: vscode.ExtensionContext) => {
 	)
 
 	registerBeautifyCommand(context)
-
-	// The lens provider owns the mute registry so a mute flips its lens title; the command
-	// handlers below route through it. Cold-window dispatch must stay silent (see the
-	// masterVolume guard above): muting without a server would throw on the uninitialized runner.
-	const codeLensProvider = new SonicPiCodeLensProvider()
-	context.subscriptions.push(
-		vscode.languages.registerCodeLensProvider({ language: 'sonic-pi' }, codeLensProvider),
-	)
 }
 
 // Beautify: send the active Sonic Pi document to the daemon's /buffer-beautify and
